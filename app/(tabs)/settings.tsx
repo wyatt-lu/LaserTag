@@ -11,6 +11,7 @@ import { Link, useRouter } from "expo-router";
 import { ref, get, remove, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { getAuth } from "firebase/auth";
+import { globalStyles } from "@/constants/styles";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <View style={styles.signout}>
         <TouchableOpacity onPress={handleSignOut}>
           <Text style={styles.text}>Sign Out</Text>
@@ -76,12 +77,6 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#faf6ea",
-  },
   signout: {
     backgroundColor: "#333",
     padding: 10,

@@ -1,5 +1,6 @@
 import { auth, database } from "@/firebaseconfig";
 import { Link, router } from "expo-router";
+import { globalStyles } from "@/constants/styles";
 import React, { useCallback, useState } from "react";
 import { useEffect } from "react";
 import {
@@ -12,7 +13,6 @@ import {
   Alert,
   ImageBackground,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   ref,
   get,
@@ -75,10 +75,6 @@ export default function HomeScreen() {
       unsubscribeStart();
     };
   }, [roomCode]);
-
-  // useEffect(() => { // to check if roomInfo is updating
-  //   console.log("Updated roomInfo:", roomInfo);
-  // }, [roomInfo]);
 
   const createRoom = async () => {
     if (!auth.currentUser) return;
@@ -256,11 +252,7 @@ export default function HomeScreen() {
   };
 
   return (
-    // <ImageBackground
-    //   source={require("../../assets/images/yellow.jpg")}
-    //   style={styles.background}
-    // >
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={globalStyles.container}>
       {loading ? (
         <Text style={styles.loadingText}>Loading...</Text>
       ) : roomInfo ? (
@@ -359,23 +351,10 @@ export default function HomeScreen() {
         )
       )}
     </SafeAreaView>
-    // </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    // backgroundColor: "#b69352",
-    backgroundColor: "#faf6ea",
-  },
-  // background: {
-  //   flex: 1,
-  //   resizeMode: "cover",
-  //   justifyContent: "center",
-  // },
   defaultContainer: {
     alignItems: "center",
     backgroundColor: "#f1f1f1",

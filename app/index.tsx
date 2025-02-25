@@ -18,6 +18,7 @@ import {
 } from "firebase/auth";
 import { ref, set } from "firebase/database";
 import { getStorage, ref as ref_storage, uploadBytes } from "firebase/storage";
+import { globalStyles } from "@/constants/styles";
 
 const index = () => {
   const router = useRouter();
@@ -88,7 +89,7 @@ const index = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <Text style={styles.logo}>laser tag | on the go</Text>
       <View style={styles.inputContainer}>
         <View style={styles.input}>

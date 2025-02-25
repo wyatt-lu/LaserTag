@@ -53,10 +53,6 @@ export default function TabLayout() {
           title: "Home",
           tabBarIcon: ({ color, focused }) =>
             focused ? (
-              // <View style={[styles.circle, styles.focused]}>
-              //   <IconSymbol size={32} name="house.fill" color="#faf6ea" />
-              //   <Text style={styles.label}>Home</Text>
-              // </View>
               <View
                 style={[
                   styles.circle,

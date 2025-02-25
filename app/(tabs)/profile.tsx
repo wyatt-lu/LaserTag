@@ -23,6 +23,7 @@ import {
 
 import Button from "@/components/Button";
 import ImageViewer from "../../components/ImageViewer";
+import { globalStyles } from "@/constants/styles";
 
 export default function ProfileScreen() {
   const [selectedImage, setSelectedImage] = useState<string | undefined>(
@@ -86,9 +87,8 @@ export default function ProfileScreen() {
     return () => unsubscribe();
   }, []);
 
-  /*<ImageViewer source={PlaceholderImage} selectedImage={selectedImage} />*/
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <ScrollView>
         <View style={styles.profileHolder}>
           {imageUrl ? (
@@ -109,12 +109,6 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#faf6ea",
-  },
   profileHolder: {
     width: 100,
     height: 100,

@@ -14,6 +14,7 @@ import { get, ref, set, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { onAuthStateChanged } from "@firebase/auth";
 import MapView from "react-native-maps";
+import { globalStyles } from "@/constants/styles";
 
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(
@@ -171,7 +172,7 @@ export default function PlayScreen() {
   const mapRef = useRef<any>();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={globalStyles.container}>
       <View style={styles.topContainer}>
         <Text>Latitude: {location?.coords.latitude || errorMsg}</Text>
         <Text>Longitude: {location?.coords.longitude || errorMsg}</Text>
@@ -213,10 +214,6 @@ export default function PlayScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#b69352",
-  },
   topContainer: {
     alignItems: "center",
   },

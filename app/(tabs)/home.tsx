@@ -272,7 +272,7 @@ export default function HomeScreen() {
           <View>
             <View style={styles.playersRow}>
               {Object.values(roomInfo.players)
-                .sort((a, b) => {
+                .sort((a: any, b: any) => {
                   if (a.username === roomInfo.host) return -1;
                   if (b.username === roomInfo.host) return 1;
                   return 0;
@@ -296,17 +296,19 @@ export default function HomeScreen() {
             style={[
               styles.enterButton,
               { backgroundColor: "#e84a5f", marginTop: 20 },
-              auth.currentUser.displayName === roomInfo.host
+              auth.currentUser?.displayName === roomInfo.host
                 ? {}
                 : styles.disabledButton,
             ]}
             onPress={
-              auth.currentUser.displayName === roomInfo.host ? enterGame : null
+              auth.currentUser?.displayName === roomInfo.host
+                ? enterGame
+                : () => {}
             }
-            disabled={auth.currentUser.displayName !== roomInfo.host}
+            disabled={auth.currentUser?.displayName !== roomInfo.host}
           >
             <Text style={styles.buttonText}>
-              {auth.currentUser.displayName === roomInfo.host
+              {auth.currentUser?.displayName === roomInfo.host
                 ? "Start Game"
                 : "Waiting for host to start..."}
             </Text>

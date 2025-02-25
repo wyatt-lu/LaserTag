@@ -9,6 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Asset } from "expo-asset";
 import { auth, database } from "../firebaseconfig";
 import {
   createUserWithEmailAndPassword,
@@ -16,6 +17,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { ref, set } from "firebase/database";
+import { getStorage, ref as ref_storage, uploadBytes } from "firebase/storage";
 
 const index = () => {
   const router = useRouter();
@@ -55,6 +57,27 @@ const index = () => {
           email,
           room: null,
         });
+
+        try {
+          const currentUid = userCredential.user.uid;
+          const storage = getStorage();
+          const placeholderRef = ref_storage(storage, `${currentUid}/pfp.jpg`);
+          const imageAsset = Asset.fromModule(
+            require("../assets/images/placeholder.jpg")
+          );
+          await imageAsset.downloadAsync();
+          console.log("hi!");
+          if (imageAsset.uri) {
+            const response = await fetch(imageAsset.uri);
+            const imageBlob = await response.blob();
+            await uploadBytes(placeholderRef, imageBlob);
+            console.log("hello!");
+          } else {
+            throw new Error("Local URI not available for the asset.");
+          }
+        } catch (error) {
+          console.error("Error uploading asset to Firebase:", error);
+        }
 
         router.replace("/(tabs)/home");
       }

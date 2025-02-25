@@ -1,1 +1,2 @@
-const hello = "hi from smriti";
+const hello = "hi from janet and wyatt and smriti"
+

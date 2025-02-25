@@ -137,7 +137,6 @@ export default function HomeScreen() {
       });
     } catch (error) {
       console.error("Error creating room: ", error);
-      Alert.alert("Error creating room: ", error.message);
     } finally {
       setLoading(false);
     }
@@ -244,7 +243,6 @@ export default function HomeScreen() {
       setShow(true);
     } catch (error) {
       console.error("Error joining room: ", error);
-      Alert.alert("Error joining room: ", error.message);
     } finally {
       setLoading(false);
     }
@@ -271,7 +269,7 @@ export default function HomeScreen() {
             <Text style={styles.roomCodeLabel}>Room Code: </Text>
             <Text style={styles.roomCodeValue}>{roomInfo.roomCode}</Text>
           </View>
-          <View style={styles.playersTitleContainer}>
+          <View>
             <View style={styles.playersRow}>
               {Object.values(roomInfo.players)
                 .sort((a, b) => {

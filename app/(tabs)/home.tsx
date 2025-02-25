@@ -1,6 +1,7 @@
 import { auth, database } from "@/firebaseconfig";
 import { Link, router } from "expo-router";
 import { globalStyles } from "@/constants/styles";
+import AppText from "@/components/AppText";
 import React, { useCallback, useState } from "react";
 import { useEffect } from "react";
 import {

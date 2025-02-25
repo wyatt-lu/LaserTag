@@ -15,7 +15,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import {
   getStorage,
-  ref,
+  ref as ref_storage,
   StorageReference,
   uploadBytes,
   getDownloadURL,
@@ -40,8 +40,7 @@ export default function ProfileScreen() {
 
       if (auth.currentUser !== null) {
         const currentUid = auth.currentUser.uid;
-        //const currentUserRef = ref(storage, `${currentUid}/pfp.jpg`);
-        const currentUserRef = ref(storage, `${currentUid}/pfp.jpg`);
+        const currentUserRef = ref_storage(storage, `${currentUid}/pfp.jpg`);
 
         const image = await fetch(result.assets[0].uri);
         const imageBlob = await image.blob();
@@ -57,7 +56,7 @@ export default function ProfileScreen() {
     try {
       if (auth.currentUser !== null) {
         const currentUid = auth.currentUser.uid;
-        const placeholderRef = ref(storage, `${currentUid}/pfp.jpg`);
+        const placeholderRef = ref_storage(storage, `${currentUid}/pfp.jpg`);
         const url = await getDownloadURL(placeholderRef);
         return url;
       }

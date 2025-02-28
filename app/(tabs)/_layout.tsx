@@ -25,13 +25,13 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color, focused }) =>
+          tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>
                 <IconSymbol
                   size={38}
                   name="line.3.horizontal.circle.fill"
-                  color="#4b3b3b"
+                  color="#3a160e"
                 />
               </View>
             ) : (
@@ -51,7 +51,7 @@ export default function TabLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, focused }) =>
+          tabBarIcon: ({ focused }) =>
             focused ? (
               <View
                 style={[
@@ -84,16 +84,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="equipment"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color, focused }) =>
+          title: "Equipment",
+          tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>
                 <IconSymbol
                   size={38}
                   name="person.circle.fill"
-                  color="#4b3b3b"
+                  color="#3a160e"
                 />
               </View>
             ) : (
@@ -114,9 +114,6 @@ export default function TabLayout() {
         options={{
           title: "Gameplay",
           href: null,
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={32} name="compass.drawing" color={color} />
-          ),
           tabBarStyle: { display: "none" },
         }}
       />
@@ -129,16 +126,16 @@ const styles = StyleSheet.create({
     width: 150,
     height: 80,
     borderRadius: 30,
-    backgroundColor: "#4b3b3b",
+    backgroundColor: "#3a160e",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,
-    borderColor: "#4b3b3b",
+    borderColor: "#3a160e",
     flexDirection: "column",
   },
   focused: {
-    backgroundColor: "#4b3b3b",
-    borderColor: "#4b3b3b",
+    backgroundColor: "#3a160e",
+    borderColor: "#3a160e",
     borderWidth: 4,
   },
   label: {

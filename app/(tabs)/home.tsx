@@ -1,45 +1,39 @@
 import { auth, database } from "@/firebaseconfig";
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import { useEffect } from "react";
 import {
   StyleSheet,
   Text,
   SafeAreaView,
-  TextInput,
   TouchableOpacity,
   View,
   Alert,
-  ImageBackground,
-  Button,
+  Image,
+  Modal,
 } from "react-native";
 import {
   ref,
   get,
   set,
   update,
-  equalTo,
-  orderByChild,
-  query,
   onValue,
   onDisconnect,
 } from "firebase/database";
-import {
-  BadgeIcon,
-  BootsIcon,
-  BountyIcon,
-  CactusIcon,
-  HatIcon,
-  HorseshoeIcon,
-  LassoIcon,
-  MoneyIcon,
-  OxIcon,
-  SignIcon,
-} from "@/constants/icons";
+import { SignIcon } from "@/constants/icons";
 import InputModal from "../../components/InputModal";
 import ReusableButton from "@/components/ReusableButton";
+import ImageViewer from "@/components/ImageViewer";
+import {
+  getStorage,
+  ref as ref_storage,
+  getDownloadURL,
+  uploadBytes,
+} from "firebase/storage";
+import * as ImagePicker from "expo-image-picker";
+import { IconSymbol } from "@/components/ui/IconSymbol";
 
 export default function HomeScreen() {
   const [show, setShow] = useState<boolean>(false); // show room lobby
@@ -52,6 +46,11 @@ export default function HomeScreen() {
 
   const openModal = () => setIsModalVisible(true);
   const closeModal = () => setIsModalVisible(false);
+
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+
+  const openSettings = () => setIsSettingsVisible(true);
+  const closeSettings = () => setIsSettingsVisible(false);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -273,10 +272,102 @@ export default function HomeScreen() {
     await update(roomRef, { gameStarted: true });
   };
 
+  const [selectedImage, setSelectedImage] = useState<string | undefined>(
+    undefined
+  );
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      quality: 1,
+    });
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri);
+
+      if (auth.currentUser !== null) {
+        const currentUid = auth.currentUser.uid;
+        const currentUserRef = ref_storage(storage, `${currentUid}/pfp.jpg`);
+
+        const image = await fetch(result.assets[0].uri);
+        const imageBlob = await image.blob();
+        await uploadBytes(currentUserRef, imageBlob);
+      }
+    } else {
+      alert("Nothing changed");
+    }
+  };
+
+  const storage = getStorage();
+  const fetchImageURL = async () => {
+    try {
+      if (auth.currentUser !== null) {
+        const currentUid = auth.currentUser.uid;
+        const placeholderRef = ref_storage(storage, `${currentUid}/pfp.jpg`);
+        const url = await getDownloadURL(placeholderRef);
+        return url;
+      }
+    } catch (error) {
+      console.error("Error fetching image URL:", error);
+    }
+  };
+  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    async function loadImage() {
+      const url = await fetchImageURL();
+      setImageUrl(url);
+    }
+    loadImage();
+  }, [isSettingsVisible]);
+
+  const handleSettings = () => {
+    openSettings();
+  };
+
   return (
     <SafeAreaView style={globalStyles.container}>
+      <View style={[settingsStyles.topContainer, { position: "absolute" }]}>
+        <TouchableOpacity onPress={handleSettings}>
+          <Image
+            source={{ uri: imageUrl }}
+            style={settingsStyles.profileIcon}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <Modal visible={isSettingsVisible} animationType="fade">
+        <View style={settingsStyles.container}>
+          <TouchableOpacity
+            style={settingsStyles.topContainer}
+            onPress={closeSettings}
+          >
+            <IconSymbol
+              name="x.circle.fill"
+              size={60}
+              color={"#3a160e"}
+              style={settingsStyles.closeButton}
+            />
+          </TouchableOpacity>
+          <View style={settingsStyles.profileHolder}>
+            {imageUrl ? (
+              <ImageViewer
+                source={{ uri: imageUrl }}
+                selectedImage={selectedImage}
+              />
+            ) : (
+              <AppText style={styles.loadingText}>Loading image...</AppText>
+            )}
+          </View>
+
+          <ReusableButton
+            label="Choose Profile"
+            theme="pfp"
+            onPress={pickImage}
+          />
+        </View>
+      </Modal>
+
       {loading ? (
-        <Text style={styles.loadingText}>Loading...</Text>
+        <AppText style={styles.loadingText}>Loading...</AppText>
       ) : roomInfo ? (
         <View style={styles.defaultContainer}>
           <View style={styles.roomCodeContainer}>
@@ -340,11 +431,18 @@ export default function HomeScreen() {
         </View>
       ) : (
         !show && (
-          <>
-            <AppText>PLAY</AppText>
+          <View style={styles.joinContainer}>
+            <AppText style={{ bottom: 75 }}>Adventure is waiting...</AppText>
+
             <SignIcon />
 
-            <ReusableButton label="[ Join Room ]" onPress={openModal} />
+            <ReusableButton label="Create a Room" onPress={createRoom} />
+            <ReusableButton
+              label="Join a Room"
+              onPress={openModal}
+              buttonStyle={{ backgroundColor: "transparent", marginTop: -20 }}
+              buttonTextStyle={{ color: "#824a32" }}
+            />
 
             <InputModal
               visible={isModalVisible}
@@ -356,8 +454,7 @@ export default function HomeScreen() {
               closeText="Cancel"
               inputType="numeric"
             />
-            <ReusableButton label="[ Create Room ]" onPress={createRoom} />
-          </>
+          </View>
         )
       )}
     </SafeAreaView>
@@ -365,6 +462,12 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  joinContainer: {
+    position: "absolute",
+    bottom: 30,
+    alignItems: "center",
+    width: "100%",
+  },
   defaultContainer: {
     alignItems: "center",
     backgroundColor: "#f1f1f1",
@@ -464,5 +567,41 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: "#ddd",
+  },
+});
+
+const settingsStyles = StyleSheet.create({
+  container: {
+    height: "100%",
+    alignItems: "center",
+    backgroundColor: "#faf6ea",
+  },
+  topContainer: {
+    top: 50,
+    width: "100%",
+    height: 75,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  profileIcon: {
+    width: 60,
+    height: 60,
+    borderColor: "#3a160e",
+    borderRadius: 30,
+    borderWidth: 2,
+    left: "35%",
+  },
+  closeButton: { right: "35%" },
+  profileHolder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#3a160e",
+    marginTop: 75,
+    marginLeft: "auto",
+    marginRight: "auto",
+    marginBottom: 25,
+    overflow: "hidden",
   },
 });

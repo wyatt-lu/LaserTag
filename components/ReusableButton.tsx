@@ -1,4 +1,10 @@
-import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  TextStyle,
+  TouchableOpacity,
+  ViewStyle,
+} from "react-native";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import React from "react";
 
@@ -6,15 +12,23 @@ type Props = {
   label: string;
   theme?: string;
   onPress?: () => void;
+  buttonStyle?: ViewStyle;
+  buttonTextStyle?: TextStyle;
 };
 
-export default function ReusableButton({ label, theme, onPress }: Props) {
+export default function ReusableButton({
+  label,
+  theme,
+  onPress,
+  buttonStyle,
+  buttonTextStyle,
+}: Props) {
   return (
-    <TouchableOpacity style={styles.button} onPress={onPress}>
+    <TouchableOpacity style={[styles.button, buttonStyle]} onPress={onPress}>
       {theme === "pfp" && (
         <FontAwesome name="picture-o" size={18} style={styles.buttonIcon} />
       )}
-      <Text style={styles.buttonText}>{label}</Text>
+      <Text style={[styles.buttonText, buttonTextStyle]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -22,7 +36,7 @@ export default function ReusableButton({ label, theme, onPress }: Props) {
 const styles = StyleSheet.create({
   button: {
     width: "80%",
-    backgroundColor: "#c3976a",
+    backgroundColor: "#3a160e",
     padding: 20,
     borderRadius: 20,
     alignItems: "center",

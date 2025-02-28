@@ -12,7 +12,7 @@ export default function AppText(props: TextProps) {
 const styles = StyleSheet.create({
   text: {
     fontSize: 16,
-    color: "#333",
+    color: "#3a160e",
     fontFamily: "Bungee",
   },
 });

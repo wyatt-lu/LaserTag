@@ -13,6 +13,7 @@ import {
   View,
   Alert,
   ImageBackground,
+  Button,
 } from "react-native";
 import {
   ref,
@@ -35,7 +36,9 @@ import {
   LassoIcon,
   MoneyIcon,
   OxIcon,
+  SignIcon,
 } from "@/constants/icons";
+import InputModal from "@/components/InputModal";
 
 export default function HomeScreen() {
   const [show, setShow] = useState<boolean>(false); // show room lobby
@@ -43,6 +46,16 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState<boolean>(false); // loading screen state
   const [code, setCode] = useState<string>("");
   const [roomCode, setRoomCode] = useState<string | null>(null);
+
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  const openModal = () => setIsModalVisible(true);
+  const closeModal = () => setIsModalVisible(false);
+
+  const handleConfirm = () => {
+    console.log("Confirmed!");
+    closeModal(); // Close modal after confirmation
+  };
 
   useEffect(() => {
     if (!roomCode) return;
@@ -334,8 +347,9 @@ export default function HomeScreen() {
       ) : (
         !show && (
           <>
-            <Text style={styles.neonText}>PLAY</Text>
-            <View style={styles.defaultContainer}>
+            <AppText>PLAY</AppText>
+            <SignIcon />
+            {/* <View style={styles.defaultContainer}>
               <TextInput
                 value={code}
                 onChangeText={setCode}
@@ -351,7 +365,30 @@ export default function HomeScreen() {
               >
                 <Text style={styles.buttonText}>Enter</Text>
               </TouchableOpacity>
-            </View>
+            </View> */}
+
+            {/* <View style={styles.defaultContainer}> */}
+            <TouchableOpacity
+              style={styles.defaultContainer}
+              onPress={openModal}
+            >
+              <Text style={[styles.buttonText, { color: "#333" }]}>
+                [ Join Room ]
+              </Text>
+            </TouchableOpacity>
+            {/* </View> */}
+
+            <InputModal
+              visible={isModalVisible}
+              title="Join Room"
+              placeholder="Enter Code"
+              onClose={closeModal}
+              onConfirm={joinRoom}
+              confirmText="Enter"
+              closeText="Cancel"
+              inputType="numeric"
+            />
+
             <View style={styles.defaultContainer}>
               <TouchableOpacity onPress={createRoom}>
                 <Text style={[styles.buttonText, { color: "#333333" }]}>

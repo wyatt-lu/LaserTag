@@ -1,5 +1,6 @@
 import { View, StyleSheet } from "react-native";
 import { Image, type ImageSource } from "expo-image";
+import React from "react";
 
 type Props = {
   source: ImageSource;

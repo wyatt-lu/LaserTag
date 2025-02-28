@@ -25,6 +25,17 @@ import {
   onValue,
   onDisconnect,
 } from "firebase/database";
+import {
+  BadgeIcon,
+  BootsIcon,
+  BountyIcon,
+  CactusIcon,
+  HatIcon,
+  HorseshoeIcon,
+  LassoIcon,
+  MoneyIcon,
+  OxIcon,
+} from "@/constants/icons";
 
 export default function HomeScreen() {
   const [show, setShow] = useState<boolean>(false); // show room lobby

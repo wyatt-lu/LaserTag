@@ -19,6 +19,7 @@ import {
 import { ref, set } from "firebase/database";
 import { getStorage, ref as ref_storage, uploadBytes } from "firebase/storage";
 import { globalStyles } from "@/constants/styles";
+import { LogoBanner } from "@/constants/icons";
 
 const index = () => {
   const router = useRouter();
@@ -67,12 +68,10 @@ const index = () => {
             require("../assets/images/placeholder.jpg")
           );
           await imageAsset.downloadAsync();
-          console.log("hi!");
           if (imageAsset.uri) {
             const response = await fetch(imageAsset.uri);
             const imageBlob = await response.blob();
             await uploadBytes(placeholderRef, imageBlob);
-            console.log("hello!");
           } else {
             throw new Error("Local URI not available for the asset.");
           }
@@ -90,6 +89,7 @@ const index = () => {
 
   return (
     <SafeAreaView style={globalStyles.container}>
+      <LogoBanner height={200} />
       <Text style={styles.logo}>laser tag | on the go</Text>
       <View style={styles.inputContainer}>
         <View style={styles.input}>
@@ -174,5 +174,6 @@ const styles = StyleSheet.create({
   logo: {
     fontFamily: "Bungee",
     bottom: 5,
+    top: 5,
   },
 });

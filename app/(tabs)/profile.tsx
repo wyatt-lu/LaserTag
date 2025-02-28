@@ -21,7 +21,7 @@ import {
   getDownloadURL,
 } from "firebase/storage";
 
-import Button from "@/components/Button";
+import ReusableButton from "@/components/ReusableButton";
 import ImageViewer from "../../components/ImageViewer";
 import { globalStyles } from "@/constants/styles";
 
@@ -88,21 +88,18 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={globalStyles.container}>
-      <ScrollView>
-        <View style={styles.profileHolder}>
-          {imageUrl ? (
-            <ImageViewer
-              source={{ uri: imageUrl }}
-              selectedImage={selectedImage}
-            />
-          ) : (
-            <Text style={styles.loading}>Loading image...</Text>
-          )}
-        </View>
+      <View style={styles.profileHolder}>
+        {imageUrl ? (
+          <ImageViewer
+            source={{ uri: imageUrl }}
+            selectedImage={selectedImage}
+          />
+        ) : (
+          <Text style={styles.loading}>Loading image...</Text>
+        )}
+      </View>
 
-        <Text style={styles.welcome}>{email}</Text>
-        <Button label="Choose Profile" theme="pfp" onPress={pickImage} />
-      </ScrollView>
+      <ReusableButton label="Choose Profile" theme="pfp" onPress={pickImage} />
     </SafeAreaView>
   );
 }
@@ -117,17 +114,6 @@ const styles = StyleSheet.create({
     marginRight: "auto",
     marginBottom: 25,
     overflow: "hidden",
-  },
-  welcome: {
-    textAlign: "center",
-  },
-  addProfile: {
-    textAlign: "center",
-    fontSize: 20,
-    color: "white",
-  },
-  button: {
-    backgroundColor: "green",
   },
   loading: {
     textAlign: "center",

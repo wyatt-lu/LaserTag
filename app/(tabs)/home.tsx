@@ -38,7 +38,8 @@ import {
   OxIcon,
   SignIcon,
 } from "@/constants/icons";
-import InputModal from "@/components/InputModal";
+import InputModal from "../../components/InputModal";
+import ReusableButton from "@/components/ReusableButton";
 
 export default function HomeScreen() {
   const [show, setShow] = useState<boolean>(false); // show room lobby
@@ -52,11 +53,6 @@ export default function HomeScreen() {
   const openModal = () => setIsModalVisible(true);
   const closeModal = () => setIsModalVisible(false);
 
-  const handleConfirm = () => {
-    console.log("Confirmed!");
-    closeModal(); // Close modal after confirmation
-  };
-
   useEffect(() => {
     if (!roomCode) return;
 
@@ -65,7 +61,7 @@ export default function HomeScreen() {
 
     const unsubscribeRoom = onValue(roomRef, (roomSnapshot) => {
       if (!roomSnapshot.exists()) {
-        Alert.alert("Room Deleted", "The host has signed out.");
+        Alert.alert("Room Deleted", "Please join again.");
         setRoomInfo(null);
         setShow(false);
         setRoomCode(null);
@@ -164,6 +160,7 @@ export default function HomeScreen() {
   };
 
   const joinRoom = async (roomCode: string) => {
+    closeModal();
     if (!auth.currentUser) return;
     if (roomCode.length !== 6) {
       Alert.alert("Too short. Room code must be 6 characters");
@@ -331,9 +328,6 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.enterButton}>
-            {
-              "temporary visual leave room... note it doesn't actually change room state in database"
-            }
             <Text
               style={styles.buttonText}
               onPress={() => {
@@ -349,34 +343,8 @@ export default function HomeScreen() {
           <>
             <AppText>PLAY</AppText>
             <SignIcon />
-            {/* <View style={styles.defaultContainer}>
-              <TextInput
-                value={code}
-                onChangeText={setCode}
-                placeholder="Room Code"
-                keyboardType="numeric"
-                style={styles.roomCodeInput}
-              />
-              <TouchableOpacity
-                style={[styles.enterButton]}
-                onPress={() => {
-                  joinRoom(code);
-                }}
-              >
-                <Text style={styles.buttonText}>Enter</Text>
-              </TouchableOpacity>
-            </View> */}
 
-            {/* <View style={styles.defaultContainer}> */}
-            <TouchableOpacity
-              style={styles.defaultContainer}
-              onPress={openModal}
-            >
-              <Text style={[styles.buttonText, { color: "#333" }]}>
-                [ Join Room ]
-              </Text>
-            </TouchableOpacity>
-            {/* </View> */}
+            <ReusableButton label="[ Join Room ]" onPress={openModal} />
 
             <InputModal
               visible={isModalVisible}
@@ -388,14 +356,7 @@ export default function HomeScreen() {
               closeText="Cancel"
               inputType="numeric"
             />
-
-            <View style={styles.defaultContainer}>
-              <TouchableOpacity onPress={createRoom}>
-                <Text style={[styles.buttonText, { color: "#333333" }]}>
-                  [ Create Room ]
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <ReusableButton label="[ Create Room ]" onPress={createRoom} />
           </>
         )
       )}

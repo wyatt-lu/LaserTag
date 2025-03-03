@@ -10,13 +10,12 @@ type Props = {
 export default function ImageViewer({ source, selectedImage }: Props) {
   const imageSource = selectedImage ? { uri: selectedImage } : source;
 
-  return <Image style={styles.image} source={imageSource} />;
+  return <Image style={styles.image} source={imageSource} contentFit="cover" />;
 }
 
 const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
   },
 });

@@ -10,3 +10,4 @@ export { default as OxIcon } from "@/assets/icons/ox.svg";
 
 export { default as LogoBanner } from "@/assets/icons/logo.svg";
 export { default as SignIcon } from "@/assets/icons/sign.svg";
+export { default as RopeIcon } from "@/assets/icons/rope.svg";

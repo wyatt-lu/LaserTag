@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Pressable,
 } from "react-native";
 import ReusableButton from "./ReusableButton";
 import { get, onValue, ref, update } from "firebase/database";
@@ -103,7 +104,7 @@ export default function GameLobbyModal({
               const player = roomInfo.players[userId];
               return (
                 <View key={userId} style={{ flexDirection: "row" }}>
-                  <TouchableOpacity
+                  <Pressable
                     style={[
                       styles.playerContainer,
                       userId === roomInfo.host && styles.hostPlayer,
@@ -116,7 +117,7 @@ export default function GameLobbyModal({
                     }}
                   >
                     <AppText>{player.username}</AppText>
-                  </TouchableOpacity>
+                  </Pressable>
                 </View>
               );
             })}

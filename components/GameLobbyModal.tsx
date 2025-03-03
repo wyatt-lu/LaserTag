@@ -76,7 +76,7 @@ export default function GameLobbyModal({
               return 0;
             })
             .map((player: any) => (
-              <View key={player.uid} style={{ flexDirection: "row" }}>
+              <View key={player.username} style={{ flexDirection: "row" }}>
                 <TouchableOpacity
                   style={[
                     styles.playerContainer,

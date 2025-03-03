@@ -1,26 +1,15 @@
 import React from "react";
-import { SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView, View } from "react-native";
 
 import { globalStyles } from "@/constants/styles";
+import AppText from "@/components/AppText";
 
 export default function EquipmentScreen() {
   return (
     <SafeAreaView style={globalStyles.container}>
-      <View style={styles.signout}>
-        <Text style={styles.text}>Equipment</Text>
+      <View>
+        <AppText>Equipment</AppText>
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  signout: {
-    backgroundColor: "#333",
-    padding: 10,
-    borderRadius: 5,
-  },
-  text: {
-    color: "#fff",
-    fontFamily: "Bungee",
-  },
-});

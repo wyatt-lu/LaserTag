@@ -1,5 +1,5 @@
 import { auth, database } from "@/firebaseconfig";
-import { router } from "expo-router";
+import { router, useRouter } from "expo-router";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
 import React, { useState } from "react";
@@ -21,6 +21,7 @@ import {
   update,
   onValue,
   onDisconnect,
+  remove,
 } from "firebase/database";
 import { SignIcon } from "@/constants/icons";
 import InputModal from "../../components/InputModal";
@@ -36,6 +37,7 @@ import * as ImagePicker from "expo-image-picker";
 import { IconSymbol } from "@/components/ui/IconSymbol";
 import RoomSettingsModal from "@/components/RoomSettingsModal";
 import GameLobbyModal from "@/components/GameLobbyModal";
+import { getAuth } from "firebase/auth";
 
 export default function HomeScreen() {
   // HOME SCREEN //
@@ -209,6 +211,11 @@ export default function HomeScreen() {
   const openSettings = () => setIsSettingsVisible(true);
   const closeSettings = () => setIsSettingsVisible(false);
 
+  const [isNameChangeVisible, setIsNameChangeVisible] = useState(false);
+
+  const openNameChange = () => setIsNameChangeVisible(true);
+  const closeNameChange = () => setIsNameChangeVisible(false);
+
   const storage = getStorage();
 
   const [selectedImage, setSelectedImage] = useState<string | undefined>(
@@ -258,6 +265,80 @@ export default function HomeScreen() {
     loadImage();
   }, [isSettingsVisible]);
 
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = getAuth().onAuthStateChanged((user) => {
+      if (!user) {
+        router.replace("/");
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLeave = async () => {
+    if (auth.currentUser) {
+      const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+      const playerSnapshot = await get(playerRef);
+
+      if (playerSnapshot.exists()) {
+        const playerData = playerSnapshot.val();
+
+        await update(playerRef, { room: null });
+
+        if (playerData.room !== null) {
+          const roomRef = ref(database, `rooms/${playerData.room}`);
+          const roomSnapshot = await get(roomRef);
+
+          if (roomSnapshot.exists()) {
+            const roomData = roomSnapshot.val();
+            if (roomData.host === auth.currentUser.uid) {
+              await remove(roomRef);
+            } else {
+              await remove(
+                ref(
+                  database,
+                  `rooms/${playerData.room}/players/${auth.currentUser.uid}`
+                )
+              );
+            }
+          }
+        }
+      }
+    }
+  };
+
+  const handleSignOut = async () => {
+    handleLeave();
+
+    await auth.signOut();
+    router.replace("/");
+  };
+
+  const handleNameChange = async (newName: string) => {
+    if (auth.currentUser) {
+      const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+      update(playerRef, { username: newName });
+    }
+  };
+
+  const [username, setUsername] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      const usernameRef = ref(
+        database,
+        `players/${auth.currentUser.uid}/username`
+      );
+
+      const unsubscribe = onValue(usernameRef, (snapshot) => {
+        setUsername(snapshot.val());
+      });
+
+      return () => unsubscribe();
+    }
+  }, []);
+
   return (
     <SafeAreaView style={globalStyles.container}>
       {/* // SETTINGS PAGE // */}
@@ -293,11 +374,36 @@ export default function HomeScreen() {
             )}
           </View>
 
+          <AppText style={settingsStyles.username}>{username}</AppText>
+
           <ReusableButton
             label="Choose Profile"
             theme="pfp"
             onPress={pickImage}
           />
+          <ReusableButton
+            label="Change Username"
+            theme="username"
+            onPress={openNameChange}
+          />
+          <InputModal
+            visible={isNameChangeVisible}
+            title="Change Username"
+            onConfirm={handleNameChange}
+            onClose={closeNameChange}
+          />
+          <View
+            style={{
+              padding: 10,
+              borderRadius: 5,
+              bottom: 50,
+              position: "absolute",
+            }}
+          >
+            <TouchableOpacity onPress={handleSignOut}>
+              <AppText>Sign Out</AppText>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -307,7 +413,10 @@ export default function HomeScreen() {
         visible={isLobbyVisible}
         roomCode={roomCode}
         enterGame={enterGame}
-        closeLobby={closeLobby}
+        closeLobby={() => {
+          closeLobby();
+          handleLeave();
+        }}
       />
 
       {/* // HOME SCREEN // */}
@@ -392,5 +501,9 @@ const settingsStyles = StyleSheet.create({
     marginRight: "auto",
     marginBottom: 25,
     overflow: "hidden",
+  },
+  username: {
+    marginBottom: 20,
+    fontSize: 20,
   },
 });

@@ -28,6 +28,9 @@ export default function ReusableButton({
       {theme === "pfp" && (
         <FontAwesome name="picture-o" size={18} style={styles.buttonIcon} />
       )}
+      {theme === "username" && (
+        <FontAwesome name="address-book" size={18} style={styles.buttonIcon} />
+      )}
       <Text style={[styles.buttonText, buttonTextStyle]}>{label}</Text>
     </TouchableOpacity>
   );

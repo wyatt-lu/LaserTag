@@ -1,5 +1,5 @@
 import { auth, database } from "@/firebaseconfig";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import {
   Modal,
   View,
@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import ReusableButton from "./ReusableButton";
-import { get, onValue, ref } from "firebase/database";
+import { get, onValue, ref, update } from "firebase/database";
 import { globalStyles } from "@/constants/styles";
 import { IconSymbol } from "./ui/IconSymbol";
 import AppText from "./AppText";
@@ -30,6 +30,7 @@ export default function GameLobbyModal({
   closeLobby,
 }: Props) {
   const [roomInfo, setRoomInfo] = useState<any>(null);
+  const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
     if (roomCode) {
@@ -38,6 +39,14 @@ export default function GameLobbyModal({
       const unsubscribe = onValue(roomRef, (snapshot) => {
         const roomData = snapshot.val();
         setRoomInfo(roomData);
+
+        if (!roomData) return;
+
+        const initialTeams: { [key: string]: number } = {};
+        Object.keys(roomData.players).forEach((player: any) => {
+          initialTeams[player] = 1;
+        });
+        setPlayerTeams(initialTeams);
       });
 
       return () => unsubscribe();
@@ -47,6 +56,21 @@ export default function GameLobbyModal({
   if (!roomInfo) {
     return null;
   }
+
+  const handleTeams = (uid: string) => {
+    if (roomInfo.roomType === "solo") return;
+
+    const newTeam = playerTeams[uid] === 1 ? 2 : 1;
+    setPlayerTeams((prev) => ({
+      ...prev,
+      [uid]: newTeam,
+    }));
+
+    const playerRef = ref(database, `rooms/${roomCode}/players/${uid}`);
+    update(playerRef, {
+      team: newTeam,
+    });
+  };
 
   return (
     <Modal visible={visible} animationType="slide">
@@ -69,24 +93,33 @@ export default function GameLobbyModal({
         </View>
         <RopeIcon style={styles.rope} width={"100%"} />
         <View style={styles.middleContainer}>
-          {Object.values(roomInfo.players)
+          {Object.keys(roomInfo.players)
             .sort((a: any, b: any) => {
-              if (a.uid === roomInfo.host) return -1;
-              if (b.uid === roomInfo.host) return 1;
+              if (a === roomInfo.host) return -1;
+              if (b === roomInfo.host) return 1;
               return 0;
             })
-            .map((player: any) => (
-              <View key={player.username} style={{ flexDirection: "row" }}>
-                <TouchableOpacity
-                  style={[
-                    styles.playerContainer,
-                    player.uid === roomInfo.host && styles.hostPlayer,
-                  ]}
-                >
-                  <AppText>{player.username}</AppText>
-                </TouchableOpacity>
-              </View>
-            ))}
+            .map((userId) => {
+              const player = roomInfo.players[userId];
+              return (
+                <View key={userId} style={{ flexDirection: "row" }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.playerContainer,
+                      userId === roomInfo.host && styles.hostPlayer,
+                      playerTeams[userId] === 2 && styles.team2Player,
+                    ]}
+                    onPress={() => {
+                      auth.currentUser?.uid === roomInfo.host
+                        ? handleTeams(userId)
+                        : () => {};
+                    }}
+                  >
+                    <AppText>{player.username}</AppText>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
         </View>
 
         <View style={styles.bottomContainer}>
@@ -152,5 +185,8 @@ const styles = StyleSheet.create({
   },
   hostPlayer: {
     backgroundColor: "#824a32",
+  },
+  team2Player: {
+    backgroundColor: "#00FF00",
   },
 });

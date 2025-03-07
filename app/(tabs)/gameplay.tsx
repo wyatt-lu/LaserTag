@@ -334,20 +334,24 @@ export default function PlayScreen() {
         const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
 
         const { uri } = await FileSystem.downloadAsync(url, localUri);
-        return uri;
+        return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
     }
   };
 
-  const getCurrentUserURI = async ()=> {
-    if (auth.currentUser) {
-      setUserImageURI(await fetchUserURI(auth.currentUser.uid));
-    }
-  };
+  useEffect(() =>{
+    const getCurrentUserURI = async ()=> {
+      if (auth.currentUser) {
+        setUserImageURI(await fetchUserURI(auth.currentUser.uid));
+      }
+    };
 
-  getCurrentUserURI();
+    getCurrentUserURI();
+    console.log("hello!",userImageURI);
+  }, [userImageURI]);
   
+  console.log("hello!",userImageURI);
   return (
     <SafeAreaView style={{ flex: 1 }}>
       
@@ -367,13 +371,21 @@ export default function PlayScreen() {
             latitudeDelta: 0.001222,
             longitudeDelta: 0.000821,
           }}
+          showsUserLocation={true}
           followsUserLocation={true}
         >
-          <Marker
-            style={styles.userProfile}
-            coordinate={{latitude: location?.coords.latitude, longitude: location?.coords.longitude}}
-            image={{uri: userImageURI}}
-          />
+          {userImageURI ? (
+            <Marker 
+              style={styles.userProfile}
+              coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}
+              image={{ uri: userImageURI }}>
+            </Marker>
+            ) : (
+              <Marker coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}>
+                <Text>Loading...</Text>
+              </Marker>
+          )}
+
         </MapView>
       ) : (
         <Text>Loading map...</Text>
@@ -418,7 +430,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderColor: "#3a160e",
-    borderRadius: 20,
+    borderRadius: 15,
     left: "35%",
   },
 });

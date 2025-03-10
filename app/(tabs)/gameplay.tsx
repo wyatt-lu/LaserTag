@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
 import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
-import { get, ref, set, update } from "firebase/database";
+import { get, getDatabase, onValue, ref, set, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { onAuthStateChanged } from "@firebase/auth";
 import MapView, { Marker} from "react-native-maps";
@@ -39,6 +39,10 @@ export default function PlayScreen() {
 
 
   const [userImageURI, setUserImageURI] = useState<any>();
+  const [playerIDArray, setPlayers] = useState<any>([]);
+  const [playerLocationArray, setPlayersLocation] = useState<any>([]);
+
+  const [unsubscribe, setUnsubscribe] = useState<any>();
 
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
@@ -54,22 +58,6 @@ export default function PlayScreen() {
         setErrorMsg("Permission to access location was denied.");
         return;
       }
-/*
-      interval = setInterval(async () => {
-        let newLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        setLocation(newLocation);
-  
-        const direction = degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y);
-        console.log("Updating location:", {
-          latitude: newLocation.coords.latitude,
-          longitude: newLocation.coords.longitude,
-          direction,
-        });
-  
-        updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
-      }, 1000);
-    }
-      */
 
     const subscription = await Location.watchPositionAsync(
       {
@@ -80,11 +68,10 @@ export default function PlayScreen() {
       (newLocation) => {
         setLocation(newLocation);
         const direction = degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y);
-    
-          updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
+        updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
       }
-      
-    )};
+    )
+  };
 
     function getCurrentDirection() {
       if (magnetometerSubscriptionRef.current) {
@@ -97,6 +84,7 @@ export default function PlayScreen() {
     }
 
     updateLocation();
+    console.log("playerLocationArray", playerLocationArray);
     getCurrentDirection();
 
     return () => {
@@ -105,50 +93,59 @@ export default function PlayScreen() {
     };
   }, []);
 
-  /*
-  const magnetometerDataRef = useRef({ x: 0, y: 0, z: 0 });
+  useEffect (() => {
+    const database = getDatabase();
 
-  Magnetometer.setUpdateInterval(1000);
-  useEffect(() => {
-    let interval: string | number | NodeJS.Timeout | undefined;
-    let magnetometerSubscription: { remove: any; };
-  
-    async function updateLocation() {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied.");
-        return;
-      }
-  
-      interval = setInterval(async () => {
-        let newLocation = await Location.getCurrentPositionAsync();
-        setLocation(newLocation);
-
-        // Access latest magnetometer values
-        const { x, y } = magnetometerDataRef.current;
-        const direction = degree(x, y);
-
-        updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
-      }, 500);
+    interface PlayerData {
+      direction: number;
+      latitude: number;
+      longitude: number;
+      username: string;
     }
-  
-    function getCurrentDirection() {
-      magnetometerSubscription = Magnetometer.addListener((data) => {
-        magnetometerDataRef.current = data;
-      });
+
+    console.log("user");
+    if (!auth.currentUser) return;
+
+    //current user's ref
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `players/${playerId}`);
+
+    const fetchRoomRef = async () => {
+      const playerInfo = await get(playerRef);
+
+
+      if (!playerInfo.exists()) return;
+
+      const playerData = playerInfo.val();
+      const roomRef = ref(database, `rooms/${playerData.room}/players`);
+        
+      const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
+        const roomData = snapshotRoom.val();
+        //console.log("snapshotRoom", snapshotRoom.val());
+
+        //find the room
+        if (roomData){
+
+          const playersList = await Promise.all(Object.entries(roomData)
+            .map(async ([key, userData]) => {
+            const player = userData as PlayerData;
+            //console.log("userhi: ", player);
+            return { id: key, latitude: player.latitude, longitude: player.longitude };
+          }));
+          setPlayersLocation(playersList);
+          //console.log("playerLocationArray", playerLocationArray);
+        }
+      })
+      return unsubscribeRoom;
     }
-  
-    updateLocation();
-    getCurrentDirection();
-  
-    // Cleanup interval and magnetometer subscription on unmount
+
+    fetchRoomRef();
     return () => {
-      clearInterval(interval);
-      if (magnetometerSubscription) {
-        magnetometerSubscription.remove();
-      }
+      fetchRoomRef().then((unsubscribe) => unsubscribe && unsubscribe());
     };
-  }, []);*/
+  }, []);
+
+  console.log("outside playerLocationArray", playerLocationArray);
 
   const degree = (x: number, y: number): number => {
     // https://stackoverflow.com/questions/55034145/how-can-i-calculate-the-heading-n-w-s-e-given-x-y-z-magnetometer-and-acceler
@@ -291,49 +288,11 @@ export default function PlayScreen() {
       />
       */
   }
-  /*CHANGE REGION
-  const [region, setRegion] = useState({
-    latitude: location?.coords.latitude,
-    longitude: hostLocation?.coords.longitude,
-    latitudeDelta: 0.001,
-    longitudeDelta: 0.001,
-  });
-  
-  useEffect(() => {
-    if (location) {
-      setRegion({
-        latitude: location?.coords.latitude,
-        longitude: location?.coords.longitude,
-        latitudeDelta: 0.001,
-        longitudeDelta: 0.001,
-      });
-      console.log("region", region);
-    }
-    console.log("inside");
-  }, [location]);
-
-  const mapRef = useRef<MapView | null>(null);
-
-  useEffect(() => {
-    if (location && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: location?.coords.latitude,
-        longitude: location?.coords.longitude,
-        latitudeDelta: 0.001,
-        longitudeDelta: 0.001,
-      }, 500); // Duration in ms
-      console.log("Map ref!" + mapRef);
-    }
-  }, [location]);*/
 
   const fetchUserURI = async (id: any) => {
     try {
         const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
         const url = await getDownloadURL(placeholderRef);
-
-        const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
-
-        const { uri } = await FileSystem.downloadAsync(url, localUri);
         return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
@@ -342,16 +301,74 @@ export default function PlayScreen() {
 
   useEffect(() =>{
     const getCurrentUserURI = async ()=> {
-      if (auth.currentUser) {
-        setUserImageURI(await fetchUserURI(auth.currentUser.uid));
+      try {
+        if (auth.currentUser) {
+          //current user's URI
+          const currentUserURI = await fetchUserURI(auth.currentUser.uid);
+          setUserImageURI(currentUserURI);
+          const playerId = auth.currentUser.uid;
+          const playerRef = ref(database, `players/${playerId}`);
+          const playerInfo = await get(playerRef);
+
+          if (playerInfo.exists()) {
+            //find room info inside the player
+            const playerData = playerInfo.val();
+            const roomRef = ref(
+              database,
+              `rooms/${playerData.room}/players`
+            );
+            const roomInfo = await get(roomRef);
+            //find the room
+            if (roomInfo.exists()){
+              const roomData = roomInfo.val();
+              const playersList = await Promise.all(
+                Object.entries(roomData)
+                //.filter(([key]) => key !== playerId)
+                .map(async ([key]) => {
+                  let userURI = await fetchUserURI(key);
+                  console.log("user: ", key, "userURI", userURI);
+                  return { id: key, profile: userURI };
+                })
+              );
+              setPlayers(playersList);
+              console.log("playerIDArray", playerIDArray);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching player data:", error);
       }
     };
 
     getCurrentUserURI();
-    console.log("hello!",userImageURI);
-  }, [userImageURI]);
-  
-  console.log("hello!",userImageURI);
+  }, []);
+
+  //console.log("outside playerIDArray", playerIDArray);
+  /**
+   * {userImageURI ? (
+            <Marker 
+              style={styles.userProfile}
+              coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}
+              image={{ uri: userImageURI }}>
+            </Marker>
+            ) : (
+              <Marker coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}>
+                <Text>Loading...2</Text>
+              </Marker>
+          )}
+   */
+
+
+          /**<Marker
+                  style={styles.userProfile}
+                  key={player.id} // Ensure each child has a unique key
+                  coordinate={{
+                    latitude: playerLocation.latitude,
+                    longitude: playerLocation.longitude,
+                  }}
+                  image={{ uri: player.profile }}
+                /> */
+
   return (
     <SafeAreaView style={{ flex: 1 }}>
       
@@ -372,19 +389,29 @@ export default function PlayScreen() {
             longitudeDelta: 0.000821,
           }}
           showsUserLocation={true}
-          followsUserLocation={true}
         >
-          {userImageURI ? (
-            <Marker 
-              style={styles.userProfile}
-              coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}
-              image={{ uri: userImageURI }}>
-            </Marker>
-            ) : (
-              <Marker coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}>
-                <Text>Loading...</Text>
-              </Marker>
-          )}
+          
+          <>
+            {playerIDArray.map((player: { id: any; profile: any }) => {
+              // Find the matching location for the player
+              const playerLocation = playerLocationArray.find(
+                (location: { id: any }) => location.id === player.id
+              );
+
+              // Only render if a matching location exists
+              return playerLocation ? (
+                <Marker
+                  style={styles.userProfile}
+                  key={player.id} // Ensure each child has a unique key
+                  coordinate={{
+                    latitude: playerLocation.latitude,
+                    longitude: playerLocation.longitude,
+                  }}
+                  image={{ uri: player.profile, width: 30, height: 30 }}
+                />
+              ) : <Text>Loading...</Text>;
+            })}
+          </>
 
         </MapView>
       ) : (

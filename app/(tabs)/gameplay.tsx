@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
 import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
-import { get, getDatabase, onValue, ref, set, update } from "firebase/database";
+import { get, getDatabase, onValue, ref, remove, set, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { onAuthStateChanged } from "@firebase/auth";
 import MapView, { Marker } from "react-native-maps";
@@ -94,7 +94,6 @@ export default function PlayScreen() {
     }
 
     updateLocation();
-    console.log("playerLocationArray", playerLocationArray);
     getCurrentDirection();
 
     return () => {
@@ -113,8 +112,6 @@ export default function PlayScreen() {
       longitude: number;
       username: string;
     }
-
-    console.log("user");
     if (!auth.currentUser) return;
 
     //current user's ref
@@ -132,7 +129,6 @@ export default function PlayScreen() {
         
       const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
         const roomData = snapshotRoom.val();
-        //console.log("snapshotRoom", snapshotRoom.val());
 
         //find the room
         if (roomData){
@@ -140,11 +136,11 @@ export default function PlayScreen() {
           const playersList = await Promise.all(Object.entries(roomData)
             .map(async ([key, userData]) => {
             const player = userData as PlayerData;
-            //console.log("userhi: ", player);
+
             return { id: key, latitude: player.latitude, longitude: player.longitude };
           }));
           setPlayersLocation(playersList);
-          //console.log("playerLocationArray", playerLocationArray);
+
         }
       })
       return unsubscribeRoom;
@@ -155,8 +151,6 @@ export default function PlayScreen() {
       fetchRoomRef().then((unsubscribe) => unsubscribe && unsubscribe());
     };
   }, []);
-
-  console.log("outside playerLocationArray", playerLocationArray);
 
   const degree = (x: number, y: number): number => {
     // https://stackoverflow.com/questions/55034145/how-can-i-calculate-the-heading-n-w-s-e-given-x-y-z-magnetometer-and-acceler
@@ -217,7 +211,7 @@ export default function PlayScreen() {
         });
       }
     } catch (error) {
-      console.error("Error updating player location:", error);
+      console.log("Error updating player location:", error);
     }
   };
 
@@ -233,71 +227,7 @@ export default function PlayScreen() {
     });
   };
 
-  function fireLaser(event: GestureResponderEvent): void {
-    interface Coordinates {
-      latitude: number;
-      longitude: number;
-    }
-
-    // function haversine(
-    //   lat1: number,
-    //   lon1: number,
-    //   lat2: number,
-    //   lon2: number
-    // ): number {
-    //   const R = 6371; // Earth radius in kilometers
-    //   const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    //   const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    //   Math.sin(dLon / 2);
-    //   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    //   const distance = R * c; // Distance in kilometers
-    //   return distance;
-    // }
-
-    // function calculateBearing(
-    //   lat1: number,
-    //   lon1: number,
-    //   lat2: number,
-    //   lon2: number
-    // ) {
-    //   const φ1 = (lat1 * Math.PI) / 180; // Convert latitude from degrees to radians
-    //   const φ2 = (lat2 * Math.PI) / 180; // Convert latitude from degrees to radians
-    //   const Δλ = ((lon2 - lon1) * Math.PI) / 180; // Difference in longitude (in radians)
-
-    //   const y = Math.sin(Δλ) * Math.cos(φ2);
-    //   const x =
-    //     Math.cos(φ1) * Math.sin(φ2) -
-    //     Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-
-    //   const θ = Math.atan2(y, x); // Calculate the angle in radians
-    //   const bearing = ((θ * 180) / Math.PI + 360) % 360; // Convert radians to degrees and normalize between 0-360
-
-    //   return bearing;
-    // }
-
-    /*
-    
-          <View style={styles.topContainer}>
-        <Text>Latitude: {location?.coords.latitude || errorMsg}</Text>
-        <Text>Longitude: {location?.coords.longitude || errorMsg}</Text>
-        <Text>
-          Direction: {degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y)}° {cardinal(degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y))}
-        </Text>
-      </View>
-      <Button
-        color="red"
-        title="Update in Database"
-        onPress={() => {
-          if (location?.coords.latitude && location?.coords.longitude) {
-            updatePlayerLocation(
-              location?.coords.latitude,
-              location?.coords.longitude,
-              degree(magnetometerDataRef.current.x, magnetometerData.current.y)
-            );
-          }
-        }}
-      />
-      */
+  const fireLaser = () => {
   }
 
   const fetchUserURI = async (id: any) => {
@@ -353,33 +283,6 @@ export default function PlayScreen() {
 
     getCurrentUserURI();
   }, []);
-
-  //console.log("outside playerIDArray", playerIDArray);
-  /**
-   * {userImageURI ? (
-            <Marker 
-              style={styles.userProfile}
-              coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}
-              image={{ uri: userImageURI }}>
-            </Marker>
-            ) : (
-              <Marker coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}>
-                <Text>Loading...2</Text>
-              </Marker>
-          )}
-   */
-
-
-          /**<Marker
-                  style={styles.userProfile}
-                  key={player.id} // Ensure each child has a unique key
-                  coordinate={{
-                    latitude: playerLocation.latitude,
-                    longitude: playerLocation.longitude,
-                  }}
-                  image={{ uri: player.profile }}
-                /> */
-
 
   const mapRef = useRef<MapView | null>(null);
 

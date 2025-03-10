@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Button,
   GestureResponderEvent,
@@ -7,13 +7,14 @@ import {
   Text,
   TouchableOpacity,
   View,
+  StatusBar,
 } from "react-native";
 import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
 import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
 import { get, getDatabase, onValue, ref, set, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { onAuthStateChanged } from "@firebase/auth";
-import MapView, { Marker} from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import { globalStyles } from "@/constants/styles";
 import React from "react";
 import {
@@ -23,12 +24,22 @@ import {
   uploadBytes,
 } from "firebase/storage";
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from "expo-file-system";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import AppText from "@/components/AppText";
+import ReusableButton from "@/components/ReusableButton";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { useRouter } from "expo-router";
 
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [magnetometerData, setMagnetometerData] = useState({ x: 0, y: 0, z: 0 });
+  const [magnetometerData, setMagnetometerData] = useState({
+    x: 0,
+    y: 0,
+    z: 0,
+  });
   Magnetometer.setUpdateInterval(1000);
 
   const magnetometerDataRef = useRef(magnetometerData);
@@ -36,7 +47,6 @@ export default function PlayScreen() {
   const magnetometerSubscriptionRef = useRef<any>(null);
 
   const storage = getStorage();
-
 
   const [userImageURI, setUserImageURI] = useState<any>();
   const [playerIDArray, setPlayers] = useState<any>([]);
@@ -50,7 +60,7 @@ export default function PlayScreen() {
 
   useEffect(() => {
     let interval: string | number | NodeJS.Timeout | undefined;
-    let magnetometerSubscription: { remove: any; };
+    let magnetometerSubscription: { remove: any };
 
     async function updateLocation() {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -77,7 +87,7 @@ export default function PlayScreen() {
       if (magnetometerSubscriptionRef.current) {
         magnetometerSubscriptionRef.current?.remove();
       }
-  
+
       magnetometerSubscriptionRef.current = Magnetometer.addListener((data) => {
         setMagnetometerData(data);
       });
@@ -89,7 +99,8 @@ export default function PlayScreen() {
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (magnetometerSubscriptionRef.current) magnetometerSubscriptionRef.current.remove();
+      if (magnetometerSubscriptionRef.current)
+        magnetometerSubscriptionRef.current.remove();
     };
   }, []);
 
@@ -369,18 +380,81 @@ export default function PlayScreen() {
                   image={{ uri: player.profile }}
                 /> */
 
-  return (
-    <SafeAreaView style={{ flex: 1 }}>
-      
-      <Text>Latitude: {location?.coords.latitude || errorMsg}</Text>
-        <Text>Longitude: {location?.coords.longitude || errorMsg}</Text>
-        <Text>
-          Direction: {degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y)}° {cardinal(degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y))}
-        </Text>
 
-      <View>
+  const mapRef = useRef<MapView | null>(null);
+
+  const focusOnUserLocation = () => {
+    if (mapRef.current && location) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.001222,
+          longitudeDelta: 0.000821,
+        },
+        1000
+      );
+    }
+  };
+
+  const sheetRef = useRef<BottomSheet>(null);
+
+  const snapPoints = useMemo(() => ["18%", "28%", "75%"], []);
+
+  const handleSnapPress = useCallback((index: any) => {
+    sheetRef.current?.snapToIndex(index);
+  }, []);
+  const handleClosePress = useCallback(() => {
+    sheetRef.current?.close();
+  }, []);
+
+  const router = useRouter();
+
+  return (
+    <GestureHandlerRootView style={styles.container}>
+      <View style={styles.topButtonsContainer}>
+        <View style={styles.topButtonsContainerRow}>
+          <View
+            style={[
+              styles.button,
+              { aspectRatio: 1, borderRadius: 30, padding: 10 },
+            ]}
+          >
+            <TouchableOpacity onPress={() => handleSnapPress(2)}>
+              <FontAwesome name="gear" size={26} style={styles.buttonIcon} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.button}>
+            <Text style={styles.buttonText}>
+              {auth.currentUser?.displayName}
+            </Text>
+            <Text style={[styles.buttonText, { color: "#FFFFAA" }]}>
+              {"  "}
+              [TEAM 1]
+            </Text>
+          </View>
+        </View>
+        <View
+          style={[
+            styles.topButtonsContainerRow,
+            { justifyContent: "flex-end" },
+          ]}
+        >
+          <View
+            style={[
+              styles.button,
+              { aspectRatio: 1, borderRadius: 30, padding: 15 },
+            ]}
+          >
+            <TouchableOpacity onPress={focusOnUserLocation}>
+              <FontAwesome name="map" size={26} style={styles.buttonIcon} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
       {location ? (
         <MapView
+          ref={mapRef}
           style={styles.map}
           initialRegion={{
             latitude: location.coords.latitude,
@@ -401,7 +475,7 @@ export default function PlayScreen() {
               // Only render if a matching location exists
               return playerLocation ? (
                 <Marker
-                  style={styles.userProfile}
+                  style={styles.user}
                   key={player.id} // Ensure each child has a unique key
                   coordinate={{
                     latitude: playerLocation.latitude,
@@ -417,47 +491,159 @@ export default function PlayScreen() {
       ) : (
         <Text>Loading map...</Text>
       )}
-      </View>
 
-      <View style = {styles.mapContainer}>
-        <View style={styles.circleButton}>
-          <Button title="Fire Laser" color="red" onPress={fireLaser} />
-        </View>
-      </View>
-    </SafeAreaView>
+      <BottomSheet
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        enableDynamicSizing={false}
+      >
+        <BottomSheetView style={styles.contentContainer}>
+          <ReusableButton label="Fire" onPress={fireLaser} />
+          <AppText>
+            Direction:{" "}
+            {degree(
+              magnetometerDataRef.current.x,
+              magnetometerDataRef.current.y
+            )}
+            °{" "}
+            {cardinal(
+              degree(
+                magnetometerDataRef.current.x,
+                magnetometerDataRef.current.y
+              )
+            )}
+          </AppText>
+          <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
+          <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
+          ''
+          {/* <Button title="Snap To 90%" onPress={() => handleSnapPress(2)} /> */}
+          <TouchableOpacity
+            onPress={async () => {
+              if (auth.currentUser) {
+                const playerRef = ref(
+                  database,
+                  `players/${auth.currentUser.uid}`
+                );
+                const playerSnapshot = await get(playerRef);
+
+                if (playerSnapshot.exists()) {
+                  const playerData = playerSnapshot.val();
+
+                  await update(playerRef, { room: null });
+
+                  if (playerData.room !== null) {
+                    const roomRef = ref(database, `rooms/${playerData.room}`);
+                    const roomSnapshot = await get(roomRef);
+
+                    if (roomSnapshot.exists()) {
+                      const roomData = roomSnapshot.val();
+                      if (roomData.host === auth.currentUser.uid) {
+                        await remove(roomRef);
+                      } else {
+                        await remove(
+                          ref(
+                            database,
+                            `rooms/${playerData.room}/players/${auth.currentUser.uid}`
+                          )
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+              router.replace("/(tabs)/home");
+            }}
+            style={styles.exit}
+          >
+            <AppText>Exit Game</AppText>
+          </TouchableOpacity>
+        </BottomSheetView>
+      </BottomSheet>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  topContainer: {
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
+    padding: 25,
     alignItems: "center",
+    backgroundColor: "#faf6ea",
+  },
+  topButtonsContainer: {
+    position: "absolute",
+    top: 50,
+    zIndex: 1,
+    width: "100%",
+    paddingHorizontal: 20,
+  },
+  topButtonsContainerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
   },
   map: {
-    width: "100%",
-    height: "100%",
+    flex: 1,
   },
-  circleButton: {
-    position: "absolute",
-    bottom: 25,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#b69352",
+  fireButton: {
+    alignSelf: "center",
+    backgroundColor: "#FF3B30",
+    width: "50%",
+    height: "8%",
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: 25,
   },
-  mapContainer: {
-    position: "absolute",  // Ensure it overlays on the map
-    bottom: 50,            // Move it above the screen edge
-    left: 0,
-    right: 0,
+  fireButtonText: {
+    color: "white",
+    marginTop: 4,
+    fontWeight: "bold",
+  },
+  user: {
+    width: 60,
+    height: 60,
+    borderColor: "#fff",
+    borderWidth: 2,
+    borderRadius: 20,
+    overflow: "hidden",
+    zIndex: 1,
+  },
+  button: {
+    width: "auto",
+    backgroundColor: "#3a160e",
+    padding: 20,
+    borderRadius: 20,
     alignItems: "center",
+    shadowColor: "#3a160e",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  userProfile: {
-    width: 30,
-    height: 30,
-    borderColor: "#3a160e",
-    borderRadius: 15,
-    left: "35%",
+  buttonText: {
+    fontSize: 18,
+    color: "#faf6ea",
+    fontFamily: "Bungee-Regular",
+  },
+  buttonIcon: {
+    color: "#faf6ea",
+  },
+  exit: {
+    bottom: 30,
+    position: "absolute",
   },
 });

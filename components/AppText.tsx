@@ -13,6 +13,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     color: "#3a160e",
-    fontFamily: "Bungee",
+    fontFamily: "Bungee-Regular",
   },
 });

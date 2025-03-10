@@ -13,6 +13,8 @@ import {
   Alert,
   Image,
   Modal,
+  StatusBar,
+  Platform,
 } from "react-native";
 import {
   ref,
@@ -38,6 +40,7 @@ import { IconSymbol } from "@/components/ui/IconSymbol";
 import RoomSettingsModal from "@/components/RoomSettingsModal";
 import GameLobbyModal from "@/components/GameLobbyModal";
 import { getAuth } from "firebase/auth";
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 export default function HomeScreen() {
   // HOME SCREEN //
@@ -356,12 +359,21 @@ export default function HomeScreen() {
             style={settingsStyles.topContainer}
             onPress={closeSettings}
           >
-            <IconSymbol
-              name="x.circle.fill"
-              size={60}
-              color={"#3a160e"}
-              style={settingsStyles.closeButton}
-            />
+            {Platform.OS === "ios" ? (
+              <IconSymbol
+                name="x.circle.fill"
+                size={60}
+                color={"#3a160e"}
+                style={settingsStyles.closeButton}
+              />
+            ) : (
+              <Icon
+                name="close"
+                size={60}
+                color={"#3a160e"}
+                style={settingsStyles.closeButton}
+              />
+            )}
           </TouchableOpacity>
           <View style={settingsStyles.profileHolder}>
             {imageUrl ? (

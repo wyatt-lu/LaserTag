@@ -259,12 +259,10 @@ export default function PlayScreen() {
               `rooms/${playerData.room}/players`
             );
             const roomInfo = await get(roomRef);
-            //find the room
             if (roomInfo.exists()){
               const roomData = roomInfo.val();
               const playersList = await Promise.all(
                 Object.entries(roomData)
-                //.filter(([key]) => key !== playerId)
                 .map(async ([key]) => {
                   let userURI = await fetchUserURI(key);
                   console.log("user: ", key, "userURI", userURI);
@@ -370,21 +368,19 @@ export default function PlayScreen() {
           
           <>
             {playerIDArray.map((player: { id: any; profile: any }) => {
-              // Find the matching location for the player
               const playerLocation = playerLocationArray.find(
                 (location: { id: any }) => location.id === player.id
               );
 
-              // Only render if a matching location exists
               return playerLocation ? (
                 <Marker
                   style={styles.user}
-                  key={player.id} // Ensure each child has a unique key
+                  key={player.id}
                   coordinate={{
                     latitude: playerLocation.latitude,
                     longitude: playerLocation.longitude,
                   }}
-                  image={{ uri: player.profile, width: 30, height: 30 }}
+                  image={{ uri: player.profile }}
                 />
               ) : <Text>Loading...</Text>;
             })}

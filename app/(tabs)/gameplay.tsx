@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Button,
   GestureResponderEvent,
@@ -7,13 +7,14 @@ import {
   Text,
   TouchableOpacity,
   View,
+  StatusBar,
 } from "react-native";
 import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
 import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
-import { get, ref, set, update } from "firebase/database";
+import { get, ref, set, update, remove } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { onAuthStateChanged } from "@firebase/auth";
-import MapView, { Marker} from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import { globalStyles } from "@/constants/styles";
 import React from "react";
 import {
@@ -23,12 +24,22 @@ import {
   uploadBytes,
 } from "firebase/storage";
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from "expo-file-system";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import AppText from "@/components/AppText";
+import ReusableButton from "@/components/ReusableButton";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { useRouter } from "expo-router";
 
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [magnetometerData, setMagnetometerData] = useState({ x: 0, y: 0, z: 0 });
+  const [magnetometerData, setMagnetometerData] = useState({
+    x: 0,
+    y: 0,
+    z: 0,
+  });
   Magnetometer.setUpdateInterval(1000);
 
   const magnetometerDataRef = useRef(magnetometerData);
@@ -36,7 +47,6 @@ export default function PlayScreen() {
   const magnetometerSubscriptionRef = useRef<any>(null);
 
   const storage = getStorage();
-
 
   const [userImageURI, setUserImageURI] = useState<any>();
 
@@ -46,7 +56,7 @@ export default function PlayScreen() {
 
   useEffect(() => {
     let interval: string | number | NodeJS.Timeout | undefined;
-    let magnetometerSubscription: { remove: any; };
+    let magnetometerSubscription: { remove: any };
 
     async function updateLocation() {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -54,43 +64,34 @@ export default function PlayScreen() {
         setErrorMsg("Permission to access location was denied.");
         return;
       }
-/*
-      interval = setInterval(async () => {
-        let newLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        setLocation(newLocation);
-  
-        const direction = degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y);
-        console.log("Updating location:", {
-          latitude: newLocation.coords.latitude,
-          longitude: newLocation.coords.longitude,
-          direction,
-        });
-  
-        updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
-      }, 1000);
-    }
-      */
 
-    const subscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 1000,  // The time interval to get updated location data
-        distanceInterval: 0.01,  // The minimum distance (in meters) before updating the location
-      },
-      (newLocation) => {
-        setLocation(newLocation);
-        const direction = degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y);
-    
-          updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
-      }
-      
-    )};
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000,
+          distanceInterval: 0.01,
+        },
+        (newLocation) => {
+          setLocation(newLocation);
+          const direction = degree(
+            magnetometerDataRef.current.x,
+            magnetometerDataRef.current.y
+          );
+
+          updatePlayerLocation(
+            newLocation.coords.latitude,
+            newLocation.coords.longitude,
+            direction
+          );
+        }
+      );
+    }
 
     function getCurrentDirection() {
       if (magnetometerSubscriptionRef.current) {
         magnetometerSubscriptionRef.current?.remove();
       }
-  
+
       magnetometerSubscriptionRef.current = Magnetometer.addListener((data) => {
         setMagnetometerData(data);
       });
@@ -101,54 +102,10 @@ export default function PlayScreen() {
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (magnetometerSubscriptionRef.current) magnetometerSubscriptionRef.current.remove();
+      if (magnetometerSubscriptionRef.current)
+        magnetometerSubscriptionRef.current.remove();
     };
   }, []);
-
-  /*
-  const magnetometerDataRef = useRef({ x: 0, y: 0, z: 0 });
-
-  Magnetometer.setUpdateInterval(1000);
-  useEffect(() => {
-    let interval: string | number | NodeJS.Timeout | undefined;
-    let magnetometerSubscription: { remove: any; };
-  
-    async function updateLocation() {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied.");
-        return;
-      }
-  
-      interval = setInterval(async () => {
-        let newLocation = await Location.getCurrentPositionAsync();
-        setLocation(newLocation);
-
-        // Access latest magnetometer values
-        const { x, y } = magnetometerDataRef.current;
-        const direction = degree(x, y);
-
-        updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
-      }, 500);
-    }
-  
-    function getCurrentDirection() {
-      magnetometerSubscription = Magnetometer.addListener((data) => {
-        magnetometerDataRef.current = data;
-      });
-    }
-  
-    updateLocation();
-    getCurrentDirection();
-  
-    // Cleanup interval and magnetometer subscription on unmount
-    return () => {
-      clearInterval(interval);
-      if (magnetometerSubscription) {
-        magnetometerSubscription.remove();
-      }
-    };
-  }, []);*/
 
   const degree = (x: number, y: number): number => {
     // https://stackoverflow.com/questions/55034145/how-can-i-calculate-the-heading-n-w-s-e-given-x-y-z-magnetometer-and-acceler
@@ -225,145 +182,107 @@ export default function PlayScreen() {
     });
   };
 
-  function fireLaser(event: GestureResponderEvent): void {
-    interface Coordinates {
-      latitude: number;
-      longitude: number;
-    }
-
-    // function haversine(
-    //   lat1: number,
-    //   lon1: number,
-    //   lat2: number,
-    //   lon2: number
-    // ): number {
-    //   const R = 6371; // Earth radius in kilometers
-    //   const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    //   const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    //   Math.sin(dLon / 2);
-    //   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    //   const distance = R * c; // Distance in kilometers
-    //   return distance;
-    // }
-
-    // function calculateBearing(
-    //   lat1: number,
-    //   lon1: number,
-    //   lat2: number,
-    //   lon2: number
-    // ) {
-    //   const φ1 = (lat1 * Math.PI) / 180; // Convert latitude from degrees to radians
-    //   const φ2 = (lat2 * Math.PI) / 180; // Convert latitude from degrees to radians
-    //   const Δλ = ((lon2 - lon1) * Math.PI) / 180; // Difference in longitude (in radians)
-
-    //   const y = Math.sin(Δλ) * Math.cos(φ2);
-    //   const x =
-    //     Math.cos(φ1) * Math.sin(φ2) -
-    //     Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-
-    //   const θ = Math.atan2(y, x); // Calculate the angle in radians
-    //   const bearing = ((θ * 180) / Math.PI + 360) % 360; // Convert radians to degrees and normalize between 0-360
-
-    //   return bearing;
-    // }
-
-    /*
-    
-          <View style={styles.topContainer}>
-        <Text>Latitude: {location?.coords.latitude || errorMsg}</Text>
-        <Text>Longitude: {location?.coords.longitude || errorMsg}</Text>
-        <Text>
-          Direction: {degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y)}° {cardinal(degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y))}
-        </Text>
-      </View>
-      <Button
-        color="red"
-        title="Update in Database"
-        onPress={() => {
-          if (location?.coords.latitude && location?.coords.longitude) {
-            updatePlayerLocation(
-              location?.coords.latitude,
-              location?.coords.longitude,
-              degree(magnetometerDataRef.current.x, magnetometerData.current.y)
-            );
-          }
-        }}
-      />
-      */
-  }
-  /*CHANGE REGION
-  const [region, setRegion] = useState({
-    latitude: location?.coords.latitude,
-    longitude: hostLocation?.coords.longitude,
-    latitudeDelta: 0.001,
-    longitudeDelta: 0.001,
-  });
-  
-  useEffect(() => {
-    if (location) {
-      setRegion({
-        latitude: location?.coords.latitude,
-        longitude: location?.coords.longitude,
-        latitudeDelta: 0.001,
-        longitudeDelta: 0.001,
-      });
-      console.log("region", region);
-    }
-    console.log("inside");
-  }, [location]);
-
-  const mapRef = useRef<MapView | null>(null);
-
-  useEffect(() => {
-    if (location && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: location?.coords.latitude,
-        longitude: location?.coords.longitude,
-        latitudeDelta: 0.001,
-        longitudeDelta: 0.001,
-      }, 500); // Duration in ms
-      console.log("Map ref!" + mapRef);
-    }
-  }, [location]);*/
+  //todo
+  const fireLaser = () => {};
 
   const fetchUserURI = async (id: any) => {
     try {
-        const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
-        const url = await getDownloadURL(placeholderRef);
+      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
+      const url = await getDownloadURL(placeholderRef);
 
-        const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
+      const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
 
-        const { uri } = await FileSystem.downloadAsync(url, localUri);
-        return url;
+      const { uri } = await FileSystem.downloadAsync(url, localUri);
+      return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
     }
   };
 
-  useEffect(() =>{
-    const getCurrentUserURI = async ()=> {
+  useEffect(() => {
+    const getCurrentUserURI = async () => {
       if (auth.currentUser) {
         setUserImageURI(await fetchUserURI(auth.currentUser.uid));
       }
     };
 
     getCurrentUserURI();
-    console.log("hello!",userImageURI);
   }, [userImageURI]);
-  
-  console.log("hello!",userImageURI);
-  return (
-    <SafeAreaView style={{ flex: 1 }}>
-      
-      <Text>Latitude: {location?.coords.latitude || errorMsg}</Text>
-        <Text>Longitude: {location?.coords.longitude || errorMsg}</Text>
-        <Text>
-          Direction: {degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y)}° {cardinal(degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y))}
-        </Text>
 
-      <View>
+  const mapRef = useRef<MapView | null>(null);
+
+  const focusOnUserLocation = () => {
+    if (mapRef.current && location) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.001222,
+          longitudeDelta: 0.000821,
+        },
+        1000
+      );
+    }
+  };
+
+  const sheetRef = useRef<BottomSheet>(null);
+
+  const snapPoints = useMemo(() => ["18%", "28%", "75%"], []);
+
+  const handleSnapPress = useCallback((index: any) => {
+    sheetRef.current?.snapToIndex(index);
+  }, []);
+  const handleClosePress = useCallback(() => {
+    sheetRef.current?.close();
+  }, []);
+
+  const router = useRouter();
+
+  return (
+    <GestureHandlerRootView style={styles.container}>
+      <View style={styles.topButtonsContainer}>
+        <View style={styles.topButtonsContainerRow}>
+          <View
+            style={[
+              styles.button,
+              { aspectRatio: 1, borderRadius: 30, padding: 10 },
+            ]}
+          >
+            <TouchableOpacity onPress={() => handleSnapPress(2)}>
+              <FontAwesome name="gear" size={26} style={styles.buttonIcon} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.button}>
+            <Text style={styles.buttonText}>
+              {auth.currentUser?.displayName}
+            </Text>
+            <Text style={[styles.buttonText, { color: "#FFFFAA" }]}>
+              {"  "}
+              [TEAM 1]
+            </Text>
+          </View>
+        </View>
+        <View
+          style={[
+            styles.topButtonsContainerRow,
+            { justifyContent: "flex-end" },
+          ]}
+        >
+          <View
+            style={[
+              styles.button,
+              { aspectRatio: 1, borderRadius: 30, padding: 15 },
+            ]}
+          >
+            <TouchableOpacity onPress={focusOnUserLocation}>
+              <FontAwesome name="map" size={26} style={styles.buttonIcon} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
       {location ? (
         <MapView
+          ref={mapRef}
           style={styles.map}
           initialRegion={{
             latitude: location.coords.latitude,
@@ -371,66 +290,192 @@ export default function PlayScreen() {
             latitudeDelta: 0.001222,
             longitudeDelta: 0.000821,
           }}
-          showsUserLocation={true}
-          followsUserLocation={true}
+          // showsUserLocation={true}
+          // followsUserLocation={true}
+          showsMyLocationButton={true}
+          showsScale={true}
+          mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          mapType="hybrid"
+          // zoomEnabled={false}
+          rotateEnabled={false}
+          loadingEnabled={true}
         >
           {userImageURI ? (
-            <Marker 
-              style={styles.userProfile}
-              coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}
-              image={{ uri: userImageURI }}>
+            <Marker
+              style={styles.user}
+              coordinate={{
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+              }}
+              image={{ uri: userImageURI }}
+            ></Marker>
+          ) : (
+            <Marker
+              coordinate={{
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+              }}
+            >
+              <Text>Loading...</Text>
             </Marker>
-            ) : (
-              <Marker coordinate={{ latitude: location?.coords.latitude, longitude: location?.coords.longitude }}>
-                <Text>Loading...</Text>
-              </Marker>
           )}
-
         </MapView>
       ) : (
         <Text>Loading map...</Text>
       )}
-      </View>
 
-      <View style = {styles.mapContainer}>
-        <View style={styles.circleButton}>
-          <Button title="Fire Laser" color="red" onPress={fireLaser} />
-        </View>
-      </View>
-    </SafeAreaView>
+      <BottomSheet
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        enableDynamicSizing={false}
+      >
+        <BottomSheetView style={styles.contentContainer}>
+          <ReusableButton label="Fire" onPress={fireLaser} />
+          <AppText>
+            Direction:{" "}
+            {degree(
+              magnetometerDataRef.current.x,
+              magnetometerDataRef.current.y
+            )}
+            °{" "}
+            {cardinal(
+              degree(
+                magnetometerDataRef.current.x,
+                magnetometerDataRef.current.y
+              )
+            )}
+          </AppText>
+          <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
+          <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
+          ''
+          {/* <Button title="Snap To 90%" onPress={() => handleSnapPress(2)} /> */}
+          <TouchableOpacity
+            onPress={async () => {
+              if (auth.currentUser) {
+                const playerRef = ref(
+                  database,
+                  `players/${auth.currentUser.uid}`
+                );
+                const playerSnapshot = await get(playerRef);
+
+                if (playerSnapshot.exists()) {
+                  const playerData = playerSnapshot.val();
+
+                  await update(playerRef, { room: null });
+
+                  if (playerData.room !== null) {
+                    const roomRef = ref(database, `rooms/${playerData.room}`);
+                    const roomSnapshot = await get(roomRef);
+
+                    if (roomSnapshot.exists()) {
+                      const roomData = roomSnapshot.val();
+                      if (roomData.host === auth.currentUser.uid) {
+                        await remove(roomRef);
+                      } else {
+                        await remove(
+                          ref(
+                            database,
+                            `rooms/${playerData.room}/players/${auth.currentUser.uid}`
+                          )
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+              router.replace("/(tabs)/home");
+            }}
+            style={styles.exit}
+          >
+            <AppText>Exit Game</AppText>
+          </TouchableOpacity>
+        </BottomSheetView>
+      </BottomSheet>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  topContainer: {
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
+    padding: 25,
     alignItems: "center",
+    backgroundColor: "#faf6ea",
+  },
+  topButtonsContainer: {
+    position: "absolute",
+    top: 50,
+    zIndex: 1,
+    width: "100%",
+    paddingHorizontal: 20,
+  },
+  topButtonsContainerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
   },
   map: {
-    width: "100%",
-    height: "100%",
+    flex: 1,
   },
-  circleButton: {
-    position: "absolute",
-    bottom: 25,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#b69352",
+  fireButton: {
+    alignSelf: "center",
+    backgroundColor: "#FF3B30",
+    width: "50%",
+    height: "8%",
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: 25,
   },
-  mapContainer: {
-    position: "absolute",  // Ensure it overlays on the map
-    bottom: 50,            // Move it above the screen edge
-    left: 0,
-    right: 0,
+  fireButtonText: {
+    color: "white",
+    marginTop: 4,
+    fontWeight: "bold",
+  },
+  user: {
+    width: 60,
+    height: 60,
+    borderColor: "#fff",
+    borderWidth: 2,
+    borderRadius: 20,
+    overflow: "hidden",
+    zIndex: 1,
+  },
+  button: {
+    width: "auto",
+    backgroundColor: "#3a160e",
+    padding: 20,
+    borderRadius: 20,
     alignItems: "center",
+    shadowColor: "#3a160e",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  userProfile: {
-    width: 30,
-    height: 30,
-    borderColor: "#3a160e",
-    borderRadius: 15,
-    left: "35%",
+  buttonText: {
+    fontSize: 18,
+    color: "#faf6ea",
+    fontFamily: "Bungee-Regular",
+  },
+  buttonIcon: {
+    color: "#faf6ea",
+  },
+  exit: {
+    bottom: 30,
+    position: "absolute",
   },
 });

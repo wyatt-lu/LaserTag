@@ -89,7 +89,7 @@ const index = () => {
 
   return (
     <SafeAreaView style={globalStyles.container}>
-      <LogoBanner height={200} />
+      <LogoBanner height={200} style={styles.banner} />
       <Text style={styles.logo}>laser tag | on the go</Text>
       <View style={styles.inputContainer}>
         <View style={styles.input}>
@@ -169,11 +169,16 @@ const styles = StyleSheet.create({
   },
   text: {
     color: "#fff",
-    fontFamily: "Bungee",
+    fontFamily: "Bungee-Regular",
   },
   logo: {
-    fontFamily: "Bungee",
+    fontFamily: "Bungee-Regular",
     bottom: 5,
     top: 5,
+  },
+  banner: {
+    aspectRatio: 1.5,
+    resizeMode: "contain",
+    marginBottom: 20,
   },
 });

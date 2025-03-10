@@ -2,7 +2,8 @@ import React from "react";
 import { Tabs } from "expo-router";
 import TabBarBackground from "@/components/ui/TabBarBackground";
 import { IconSymbol } from "@/components/ui/IconSymbol";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Platform } from "react-native";
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 export default function TabLayout() {
   return (
@@ -14,10 +15,11 @@ export default function TabLayout() {
           backgroundColor: "#faf6ea",
           height: 100,
           borderColor: "#faf6ea",
+          paddingBottom: Platform.OS === "android" ? 20 : 0,
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontFamily: "Bungee",
+          fontFamily: "Bungee-Regular",
         },
       }}
     >
@@ -28,19 +30,28 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>
-                <IconSymbol
-                  size={38}
-                  name="line.3.horizontal.circle.fill"
-                  color="#3a160e"
-                />
+                {Platform.OS === "ios" ? (
+                  <IconSymbol
+                    size={38}
+                    name="line.3.horizontal.circle.fill"
+                    color="#3a160e"
+                  />
+                ) : (
+                  <Icon name="settings" size={38} color="#3a160e" />
+                )}
               </View>
             ) : (
-              <IconSymbol
-                style={styles.unfocused}
-                size={38}
-                name="line.3.horizontal.circle"
-                color={"#a2adba"}
-              />
+              <View style={styles.unfocused}>
+                {Platform.OS === "ios" ? (
+                  <IconSymbol
+                    size={38}
+                    name="line.3.horizontal.circle"
+                    color="#a2adba"
+                  />
+                ) : (
+                  <Icon name="settings" size={38} color="#a2adba" />
+                )}
+              </View>
             ),
           tabBarLabelStyle: {
             display: "none",
@@ -60,7 +71,11 @@ export default function TabLayout() {
                   { borderRadius: 30, width: 100, height: 50, marginTop: 12 },
                 ]}
               >
-                <IconSymbol size={38} name="house" color="#faf6ea" />
+                {Platform.OS === "ios" ? (
+                  <IconSymbol size={38} name="house" color="#faf6ea" />
+                ) : (
+                  <Icon name="home" size={38} color="#faf6ea" />
+                )}
               </View>
             ) : (
               <View
@@ -75,7 +90,11 @@ export default function TabLayout() {
                   },
                 ]}
               >
-                <IconSymbol size={38} name="house.fill" color="#faf6ea" />
+                {Platform.OS === "ios" ? (
+                  <IconSymbol size={38} name="house.fill" color="#faf6ea" />
+                ) : (
+                  <Icon name="home" size={38} color="#faf6ea" />
+                )}
               </View>
             ),
           tabBarLabelStyle: {
@@ -90,19 +109,24 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>
-                <IconSymbol
-                  size={38}
-                  name="person.circle.fill"
-                  color="#3a160e"
-                />
+                {Platform.OS === "ios" ? (
+                  <IconSymbol
+                    size={38}
+                    name="person.circle.fill"
+                    color="#3a160e"
+                  />
+                ) : (
+                  <Icon name="build" size={38} color="#3a160e" />
+                )}
               </View>
             ) : (
-              <IconSymbol
-                style={styles.unfocused}
-                size={38}
-                name="person.circle"
-                color={"#a2adba"}
-              />
+              <View style={styles.unfocused}>
+                {Platform.OS === "ios" ? (
+                  <IconSymbol size={38} name="person.circle" color="#a2adba" />
+                ) : (
+                  <Icon name="build" size={38} color="#a2adba" />
+                )}
+              </View>
             ),
           tabBarLabelStyle: {
             display: "none",
@@ -140,7 +164,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "Bungee",
+    fontFamily: "Bungee-Regular",
     color: "#faf6ea",
     marginTop: 3,
     marginBottom: 5,

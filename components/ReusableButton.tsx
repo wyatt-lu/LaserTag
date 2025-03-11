@@ -9,7 +9,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import React from "react";
 
 type Props = {
-  label: string;
+  label?: string;
   theme?: string;
   onPress?: () => void;
   buttonStyle?: ViewStyle;
@@ -31,7 +31,9 @@ export default function ReusableButton({
       {theme === "username" && (
         <FontAwesome name="address-book" size={18} style={styles.buttonIcon} />
       )}
-      <Text style={[styles.buttonText, buttonTextStyle]}>{label}</Text>
+      {label && (
+        <Text style={[styles.buttonText, buttonTextStyle]}>{label}</Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -58,6 +60,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 18,
     color: "#faf6ea",
-    fontFamily: "Bungee",
+    fontFamily: "Bungee-Regular",
   },
 });

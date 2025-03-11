@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 10,
     color: "#faf6ea",
-    fontFamily: "Bungee",
+    fontFamily: "Bungee-Regular",
   },
   buttonsContainer: {
     flexDirection: "row",
@@ -73,6 +73,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#faf6ea",
     fontSize: 16,
-    fontFamily: "Bungee",
+    fontFamily: "Bungee-Regular",
   },
 });

@@ -43,24 +43,20 @@ export default function PlayScreen() {
   Magnetometer.setUpdateInterval(1000);
 
   const magnetometerDataRef = useRef(magnetometerData);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const magnetometerSubscriptionRef = useRef<any>(null);
 
   const storage = getStorage();
 
-  const [userImageURI, setUserImageURI] = useState<any>();
   const [playerIDArray, setPlayers] = useState<any>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any>([]);
 
-  const [unsubscribe, setUnsubscribe] = useState<any>();
 
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
 
   useEffect(() => {
-    let interval: string | number | NodeJS.Timeout | undefined;
-    let magnetometerSubscription: { remove: any };
+    let locationSubscription: Location.LocationSubscription | null = null;
 
     async function updateLocation() {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -69,7 +65,7 @@ export default function PlayScreen() {
         return;
       }
 
-    const subscription = await Location.watchPositionAsync(
+    locationSubscription = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
         timeInterval: 1000,  // The time interval to get updated location data
@@ -97,7 +93,7 @@ export default function PlayScreen() {
     getCurrentDirection();
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (locationSubscription) locationSubscription.remove();
       if (magnetometerSubscriptionRef.current)
         magnetometerSubscriptionRef.current.remove();
     };
@@ -245,8 +241,6 @@ export default function PlayScreen() {
       try {
         if (auth.currentUser) {
           //current user's URI
-          const currentUserURI = await fetchUserURI(auth.currentUser.uid);
-          setUserImageURI(currentUserURI);
           const playerId = auth.currentUser.uid;
           const playerRef = ref(database, `players/${playerId}`);
           const playerInfo = await get(playerRef);

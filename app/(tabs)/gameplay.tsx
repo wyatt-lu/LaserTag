@@ -24,7 +24,6 @@ import {
   uploadBytes,
 } from "firebase/storage";
 
-import * as FileSystem from "expo-file-system";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import AppText from "@/components/AppText";
@@ -47,7 +46,7 @@ export default function PlayScreen() {
 
   const storage = getStorage();
 
-  const [playerIDArray, setPlayers] = useState<any>([]);
+  const [playerIDArray, setPlayersID] = useState<any>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any>([]);
 
 
@@ -117,7 +116,6 @@ export default function PlayScreen() {
     const fetchRoomRef = async () => {
       const playerInfo = await get(playerRef);
 
-
       if (!playerInfo.exists()) return;
 
       const playerData = playerInfo.val();
@@ -128,7 +126,6 @@ export default function PlayScreen() {
 
         //find the room
         if (roomData){
-
           const playersList = await Promise.all(Object.entries(roomData)
             .map(async ([key, userData]) => {
             const player = userData as PlayerData;
@@ -259,12 +256,10 @@ export default function PlayScreen() {
                 Object.entries(roomData)
                 .map(async ([key]) => {
                   let userURI = await fetchUserURI(key);
-                  console.log("user: ", key, "userURI", userURI);
                   return { id: key, profile: userURI };
                 })
               );
-              setPlayers(playersList);
-              console.log("playerIDArray", playerIDArray);
+              setPlayersID(playersList);
             }
           }
         }

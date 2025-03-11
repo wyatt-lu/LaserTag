@@ -8,14 +8,22 @@ import {
   TouchableOpacity,
   View,
   StatusBar,
-  Image
+  Image,
 } from "react-native";
 import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
 import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
-import { get, getDatabase, onValue, ref, remove, set, update } from "firebase/database";
+import {
+  get,
+  getDatabase,
+  onValue,
+  ref,
+  remove,
+  set,
+  update,
+} from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { onAuthStateChanged } from "@firebase/auth";
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from "expo-file-system";
 import MapView, { Marker } from "react-native-maps";
 import { globalStyles } from "@/constants/styles";
 import React from "react";
@@ -51,7 +59,6 @@ export default function PlayScreen() {
   const [playerURLArray, setPlayersURL] = useState<any>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any>([]);
 
-
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
@@ -66,21 +73,26 @@ export default function PlayScreen() {
         return;
       }
 
-    locationSubscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 1000,  // The time interval to get updated location data
-        distanceInterval: 0.001,  // The minimum distance (in meters) before updating the location
-      },
-      (newLocation) => {
-        setLocation(newLocation);
-        setMagnetometerData((prevData) => {
-        const direction = degree(prevData.x, prevData.y);
-        updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
-        return prevData;
-      });
-    })
-  };
+      locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000, // The time interval to get updated location data
+          distanceInterval: 0.001, // The minimum distance (in meters) before updating the location
+        },
+        (newLocation) => {
+          setLocation(newLocation);
+          setMagnetometerData((prevData) => {
+            const direction = degree(prevData.x, prevData.y);
+            updatePlayerLocation(
+              newLocation.coords.latitude,
+              newLocation.coords.longitude,
+              direction
+            );
+            return prevData;
+          });
+        }
+      );
+    }
 
     function getCurrentDirection() {
       if (magnetometerSubscriptionRef.current) {
@@ -102,7 +114,7 @@ export default function PlayScreen() {
     };
   }, []);
 
-  useEffect (() => {
+  useEffect(() => {
     const database = getDatabase();
 
     interface PlayerData {
@@ -124,24 +136,28 @@ export default function PlayScreen() {
 
       const playerData = playerInfo.val();
       const roomRef = ref(database, `rooms/${playerData.room}/players`);
-        
+
       const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
         const roomData = snapshotRoom.val();
 
         //find the room
-        if (roomData){
-          const playersList = await Promise.all(Object.entries(roomData)
-            .map(async ([key, userData]) => {
-            const player = userData as PlayerData;
+        if (roomData) {
+          const playersList = await Promise.all(
+            Object.entries(roomData).map(async ([key, userData]) => {
+              const player = userData as PlayerData;
 
-            return { id: key, latitude: player.latitude, longitude: player.longitude };
-          }));
+              return {
+                id: key,
+                latitude: player.latitude,
+                longitude: player.longitude,
+              };
+            })
+          );
           setPlayersLocation(playersList);
-
         }
-      })
+      });
       return unsubscribeRoom;
-    }
+    };
 
     fetchRoomRef();
     return () => {
@@ -224,24 +240,23 @@ export default function PlayScreen() {
     });
   };
 
-  const fireLaser = () => {
-  }
+  const fireLaser = () => {};
 
   const fetchUserURL = async (id: any) => {
     try {
-        const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
-        const url = await getDownloadURL(placeholderRef);
-        const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
+      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
+      const url = await getDownloadURL(placeholderRef);
+      const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
 
-        const { uri } = await FileSystem.downloadAsync(url, localUri);
-        return url;
+      const { uri } = await FileSystem.downloadAsync(url, localUri);
+      return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
     }
   };
 
-  useEffect(() =>{
-    const getPlayersURL = async ()=> {
+  useEffect(() => {
+    const getPlayersURL = async () => {
       try {
         if (auth.currentUser) {
           //current user's URL
@@ -252,16 +267,12 @@ export default function PlayScreen() {
           if (playerInfo.exists()) {
             //find room info inside the player
             const playerData = playerInfo.val();
-            const roomRef = ref(
-              database,
-              `rooms/${playerData.room}/players`
-            );
+            const roomRef = ref(database, `rooms/${playerData.room}/players`);
             const roomInfo = await get(roomRef);
-            if (roomInfo.exists()){
+            if (roomInfo.exists()) {
               const roomData = roomInfo.val();
               const playersList = await Promise.all(
-                Object.entries(roomData)
-                .map(async ([key]) => {
+                Object.entries(roomData).map(async ([key]) => {
                   let userURL = await fetchUserURL(key);
                   return { id: key, profile: userURL };
                 })
@@ -360,12 +371,11 @@ export default function PlayScreen() {
             longitudeDelta: 0.000821,
           }}
           showsScale={true}
-          mapPadding={{ top: 10, right: 10, bottom: 10, left: 10}}
+          mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
           mapType="hybrid"
           rotateEnabled={false}
           loadingEnabled={true}
         >
-          
           {playerURLArray.map((player: { id: any; profile: any }) => {
             const playerLocation = playerLocationArray.find(
               (location: { id: any }) => location.id === player.id
@@ -379,14 +389,14 @@ export default function PlayScreen() {
                 }}
               >
                 <Image
-                  source={{uri : player.profile}}
+                  source={{ uri: player.profile }}
                   style={styles.user}
-                  >
-                </Image>
+                ></Image>
               </Marker>
-            ) : <Text>Loading...</Text>;
+            ) : (
+              <Text>Loading...</Text>
+            );
           })}
-
         </MapView>
       ) : (
         <Text>Loading map...</Text>

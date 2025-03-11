@@ -74,7 +74,6 @@ export default function PlayScreen() {
         setLocation(newLocation);
         setMagnetometerData((prevData) => {
         const direction = degree(prevData.x, prevData.y);
-        console.log(prevData.x, prevData.y, direction);
         updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
         return prevData;
       });

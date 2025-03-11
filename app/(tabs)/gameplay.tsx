@@ -8,12 +8,14 @@ import {
   TouchableOpacity,
   View,
   StatusBar,
+  Image
 } from "react-native";
 import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
 import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
 import { get, getDatabase, onValue, ref, remove, set, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import { onAuthStateChanged } from "@firebase/auth";
+import * as FileSystem from 'expo-file-system';
 import MapView, { Marker } from "react-native-maps";
 import { globalStyles } from "@/constants/styles";
 import React from "react";
@@ -229,6 +231,9 @@ export default function PlayScreen() {
     try {
         const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
         const url = await getDownloadURL(placeholderRef);
+        const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
+
+        const { uri } = await FileSystem.downloadAsync(url, localUri);
         return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
@@ -354,28 +359,33 @@ export default function PlayScreen() {
             latitudeDelta: 0.001222,
             longitudeDelta: 0.000821,
           }}
-          showsUserLocation={true}
+          showsScale={true}
+          mapPadding={{ top: 10, right: 10, bottom: 10, left: 10}}
+          mapType="hybrid"
+          rotateEnabled={false}
+          loadingEnabled={true}
         >
           
-          <>
-            {playerURLArray.map((player: { id: any; profile: any }) => {
-              const playerLocation = playerLocationArray.find(
-                (location: { id: any }) => location.id === player.id
-              );
-
-              return playerLocation ? (
-                <Marker
+          {playerURLArray.map((player: { id: any; profile: any }) => {
+            const playerLocation = playerLocationArray.find(
+              (location: { id: any }) => location.id === player.id
+            );
+            return playerLocation ? (
+              <Marker
+                key={player.id}
+                coordinate={{
+                  latitude: playerLocation.latitude,
+                  longitude: playerLocation.longitude,
+                }}
+              >
+                <Image
+                  source={{uri : player.profile}}
                   style={styles.user}
-                  key={player.id}
-                  coordinate={{
-                    latitude: playerLocation.latitude,
-                    longitude: playerLocation.longitude,
-                  }}
-                  image={{ uri: player.profile }}
-                />
-              ) : <Text>Loading...</Text>;
-            })}
-          </>
+                  >
+                </Image>
+              </Marker>
+            ) : <Text>Loading...</Text>;
+          })}
 
         </MapView>
       ) : (
@@ -405,7 +415,6 @@ export default function PlayScreen() {
           </AppText>
           <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
           <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
-          ''
           {/* <Button title="Snap To 90%" onPress={() => handleSnapPress(2)} /> */}
           <TouchableOpacity
             onPress={async () => {
@@ -504,10 +513,10 @@ const styles = StyleSheet.create({
   user: {
     width: 60,
     height: 60,
-    borderColor: "#fff",
+    borderColor: "#000",
     borderWidth: 2,
     borderRadius: 20,
-    overflow: "hidden",
+    //overflow: "hidden",
     zIndex: 1,
   },
   button: {

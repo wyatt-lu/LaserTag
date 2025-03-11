@@ -206,7 +206,16 @@ export default function PlayScreen() {
           ref={mapRef}
         />
         <View style={styles.circleButton}>
-          <Button title="Fire Laser" color="red" onPress={fireLaser} />
+          <Button title="Fire Laser" color="red" onPress={() => {
+          if (location?.coords.latitude && location?.coords.longitude) {
+            updatePlayerLocation(
+              location?.coords.latitude,
+              location?.coords.longitude,
+              degree(x, y)
+            );
+            console.log(location?.coords.latitude)
+          }
+        }} />
         </View>
       </View>
     </SafeAreaView>

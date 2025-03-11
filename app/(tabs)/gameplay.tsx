@@ -46,7 +46,7 @@ export default function PlayScreen() {
 
   const storage = getStorage();
 
-  const [playerIDArray, setPlayersID] = useState<any>([]);
+  const [playerURLArray, setPlayersURL] = useState<any>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any>([]);
 
 
@@ -68,14 +68,17 @@ export default function PlayScreen() {
       {
         accuracy: Location.Accuracy.High,
         timeInterval: 1000,  // The time interval to get updated location data
-        distanceInterval: 0.01,  // The minimum distance (in meters) before updating the location
+        distanceInterval: 0.001,  // The minimum distance (in meters) before updating the location
       },
       (newLocation) => {
         setLocation(newLocation);
-        const direction = degree(magnetometerDataRef.current.x, magnetometerDataRef.current.y);
+        setMagnetometerData((prevData) => {
+        const direction = degree(prevData.x, prevData.y);
+        console.log(prevData.x, prevData.y, direction);
         updatePlayerLocation(newLocation.coords.latitude, newLocation.coords.longitude, direction);
-      }
-    )
+        return prevData;
+      });
+    })
   };
 
     function getCurrentDirection() {
@@ -223,7 +226,7 @@ export default function PlayScreen() {
   const fireLaser = () => {
   }
 
-  const fetchUserURI = async (id: any) => {
+  const fetchUserURL = async (id: any) => {
     try {
         const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
         const url = await getDownloadURL(placeholderRef);
@@ -234,10 +237,10 @@ export default function PlayScreen() {
   };
 
   useEffect(() =>{
-    const getCurrentUserURI = async ()=> {
+    const getPlayersURL = async ()=> {
       try {
         if (auth.currentUser) {
-          //current user's URI
+          //current user's URL
           const playerId = auth.currentUser.uid;
           const playerRef = ref(database, `players/${playerId}`);
           const playerInfo = await get(playerRef);
@@ -255,11 +258,11 @@ export default function PlayScreen() {
               const playersList = await Promise.all(
                 Object.entries(roomData)
                 .map(async ([key]) => {
-                  let userURI = await fetchUserURI(key);
-                  return { id: key, profile: userURI };
+                  let userURL = await fetchUserURL(key);
+                  return { id: key, profile: userURL };
                 })
               );
-              setPlayersID(playersList);
+              setPlayersURL(playersList);
             }
           }
         }
@@ -268,7 +271,7 @@ export default function PlayScreen() {
       }
     };
 
-    getCurrentUserURI();
+    getPlayersURL();
   }, []);
 
   const mapRef = useRef<MapView | null>(null);
@@ -356,7 +359,7 @@ export default function PlayScreen() {
         >
           
           <>
-            {playerIDArray.map((player: { id: any; profile: any }) => {
+            {playerURLArray.map((player: { id: any; profile: any }) => {
               const playerLocation = playerLocationArray.find(
                 (location: { id: any }) => location.id === player.id
               );

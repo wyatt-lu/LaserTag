@@ -1,53 +1,61 @@
 import React, { useState } from "react";
-import { SafeAreaView, View, Text, Button} from "react-native";
+import { SafeAreaView, View, Text, Button } from "react-native";
 import styled from "styled-components";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
 import { TabActions } from "@react-navigation/native";
-import { get, ref, set, update, onDisconnect, onValue, remove } from "firebase/database";
+import {
+  get,
+  ref,
+  set,
+  update,
+  onDisconnect,
+  onValue,
+  remove,
+} from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
+import ReusableButton from "@/components/ReusableButton";
 
-
-function ButtonComponent ({laserCode, setLaserCode}) {
+function ButtonComponent({ laserCode, setLaserCode }) {
   const [showButtons, setShowButtons] = useState(false);
 
-  const defaultCode = "111"
-  const widthCode = "222"
-  const radiusCode = "333"
+  const defaultCode = "111";
+  const widthCode = "222";
+  const radiusCode = "333";
 
   const createLaser = async (laserType: string) => {
-      if (!auth.currentUser) return;
+    if (!auth.currentUser) return;
 
-      var lCode;
-      if (laserType == "Default") {
-        lCode = defaultCode;
-        setLaserCode(defaultCode);
-      }
+    var lCode;
+    if (laserType == "Default") {
+      lCode = defaultCode;
+      setLaserCode(defaultCode);
+    }
 
-      if (laserType == "2x Width") {
-        lCode = widthCode;
-        setLaserCode(widthCode);
-      }
+    if (laserType == "2x Width") {
+      lCode = widthCode;
+      setLaserCode(widthCode);
+    }
 
-      if (laserType == "Radius") {
-        lCode = radiusCode;
-        setLaserCode(radiusCode);
-      }
+    if (laserType == "Radius") {
+      lCode = radiusCode;
+      setLaserCode(radiusCode);
+    }
 
-      const laserRef = ref(database, `lasers/${lCode}`);
+    const laserRef = ref(database, `lasers/${lCode}`);
 
-      await set(laserRef, {
-            host: auth.currentUser.uid,
-            laserType,
-            players: {
-              [auth.currentUser.uid]: {
-                username: auth.currentUser.displayName,
-              },
-            },
-          });
+    await set(laserRef, {
+      host: auth.currentUser.uid,
+      laserType,
+      players: {
+        [auth.currentUser.uid]: {
+          username: auth.currentUser.displayName,
+        },
+      },
+    });
 
-      onDisconnect(laserRef).remove();
-    };
+    onDisconnect(laserRef).remove();
+  };
 
   const getLaser = async (laserType: string) => {
     if (!auth.currentUser) return;
@@ -72,49 +80,45 @@ function ButtonComponent ({laserCode, setLaserCode}) {
     const laserSnapshot = await get(laserRef);
 
     if (!laserSnapshot.exists()) {
-      createLaser(laserType)
+      createLaser(laserType);
     }
-    
-  }
+  };
 
   const toggleButtons = () => {
     setShowButtons(!showButtons);
   };
 
-  
   return (
     <View>
-      <Button 
+      <ReusableButton
         onPress={toggleButtons}
-        title={showButtons ? 'Select Laser' : 'Show Lasers'}
+        label={showButtons ? "Select Laser" : "Show Lasers"}
       />
-
       {showButtons && (
         <View>
-          <Button 
-            title = "Default" 
-            onPress = {() => {
-              getLaser("Default")
+          <ReusableButton
+            label="Default"
+            onPress={() => {
+              getLaser("Default");
               toggleButtons();
             }}
           />
-          <Button 
-            title = "2x Width" 
-            onPress = {() => {
-              getLaser("2x Width")
+          <ReusableButton
+            label="2x Width"
+            onPress={() => {
+              getLaser("2x Width");
               toggleButtons();
             }}
           />
-          <Button 
-            title = "Radius" 
-            onPress = {() => {
-              getLaser("Radius")
+          <ReusableButton
+            label="Radius"
+            onPress={() => {
+              getLaser("Radius");
               toggleButtons();
             }}
           />
         </View>
       )}
-      SettingsScreen();
     </View>
   );
 }
@@ -131,30 +135,24 @@ function getLaserType(laserCode: string) {
   if (laserCode == "333") {
     return "Radius";
   }
-  
+
   if (laserCode == "None") {
-    return "None"
+    return "None";
   }
 }
 
 export default function SettingsScreen() {
   const [laserCode, setLaserCode] = useState<string | "None">("None");
-  return (   
+  return (
     <SafeAreaView style={globalStyles.container}>
       <View>
         <AppText> Current Selected Laser: {getLaserType(laserCode)}</AppText>
       </View>
 
-      <ButtonComponent laserCode={laserCode} setLaserCode={setLaserCode}/>
-
+      <ButtonComponent laserCode={laserCode} setLaserCode={setLaserCode} />
     </SafeAreaView>
   );
 }
-
-
-
-
-
 
 /*
 const types = ["Default Laser", "2x Width", "Radius"];

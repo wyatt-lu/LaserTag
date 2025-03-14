@@ -32,7 +32,7 @@ export default function GameLobbyModal({
 }: Props) {
   const [roomInfo, setRoomInfo] = useState<any>(null);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
-  const [numTeams, setNumTeams] = useState(2); // Default to 2 teams
+  const [numTeams, setNumTeams] = useState(2);
 
   useEffect(() => {
     if (roomCode) {
@@ -52,7 +52,6 @@ export default function GameLobbyModal({
           });
           setPlayerTeams(initialTeams);
 
-          // Set the number of teams based on room capacity
           const maxTeams = Math.floor(Object.keys(roomData.players).length / 2);
           setNumTeams(maxTeams > 1 ? maxTeams : 2);
         },

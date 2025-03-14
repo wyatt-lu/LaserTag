@@ -35,16 +35,23 @@ function ButtonComponent ({laserCode, setLaserCode}) {
       }
 
       const laserRef = ref(database, `lasers/${lCode}`);
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `players/${playerId}`);
 
       await set(laserRef, {
-            host: auth.currentUser.uid,
-            laserType,
-            players: {
+            /*host: auth.currentUser.uid,*/
+            type: laserType,
+            /*players: {
               [auth.currentUser.uid]: {
                 username: auth.currentUser.displayName,
               },
-            },
+            },*/
           });
+
+      await update(playerRef, {
+            laser: lCode
+      } ) ;
+
 
       onDisconnect(laserRef).remove();
     };

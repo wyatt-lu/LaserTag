@@ -84,6 +84,20 @@ export default function HomeScreen() {
     };
   }, [roomCode]);
 
+  /*const updatePlayerLaser = async () => {
+      if (!auth.currentUser) return;
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `players/${playerId}`);
+      const snapshot = await get(playerRef)
+      if (snapshot.exists()) {
+        const playerData = snapshot.val();
+        const roomRef = ref(database, `rooms/${playerData.room}/players/${playerId}`)
+        await update(roomRef, {
+          laser: playerData.laser
+        });
+      }
+    }*/
+
   const createRoom = async (roomType: string) => {
     if (!auth.currentUser) return;
     closeRoomSettings();
@@ -101,22 +115,29 @@ export default function HomeScreen() {
 
     const roomRef = ref(database, `rooms/${newRoomCode}`);
     const playerRef = ref(database, `players/${auth.currentUser.uid}`);
-
-    await set(roomRef, {
-      host: auth.currentUser.uid,
-      gameStarted: false,
-      roomType,
-      players: {
-        [auth.currentUser.uid]: {
-          username: auth.currentUser.displayName,
+    const snapshot = await get(playerRef)
+    if (snapshot.exists()) {
+      const playerData = snapshot.val();
+      await set(roomRef, {
+        host: auth.currentUser.uid,
+        gameStarted: false,
+        roomType,
+        players: {
+          [auth.currentUser.uid]: {
+            username: auth.currentUser.displayName,
+          },
+          laser: {
+            id: playerData.laser
+          }
         },
-      },
-    });
+      });
+    }
 
     await update(playerRef, { room: newRoomCode });
 
     onDisconnect(roomRef).remove();
     onDisconnect(playerRef).update({ room: null });
+    onDisconnect(playerRef).update({ laser: null});
 
     openLobby();
   };

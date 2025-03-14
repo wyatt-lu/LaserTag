@@ -223,7 +223,15 @@ export default function PlayScreen() {
     });
   };
 
-  const fireLaser = () => {
+  const fireLaser = async () => {
+    if (!auth.currentUser) return;
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `players/${playerId}`);
+    const playerSnapshot = await get(playerRef);
+    if (playerSnapshot.exists()) {
+      const playerData = playerSnapshot.val();
+
+    } 
   }
 
   const fetchUserURL = async (id: any) => {

@@ -10,8 +10,8 @@ import {
   StatusBar,
   Image,
 } from "react-native";
-import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
-import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
+import { Magnetometer } from "expo-sensors";
+import * as Location from "expo-location";
 import {
   get,
   getDatabase,
@@ -56,8 +56,9 @@ export default function PlayScreen() {
 
   const storage = getStorage();
 
-  const [playerURLArray, setPlayersURL] = useState<any>([]);
-  const [playerLocationArray, setPlayersLocation] = useState<any>([]);
+  const [playerURLArray, setPlayersURL] = useState<any[]>([]);
+  const [playerLocationArray, setPlayersLocation] = useState<any[]>([]);
+  const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
@@ -66,7 +67,7 @@ export default function PlayScreen() {
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
-    async function updateLocation() {
+    const updateLocation = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setErrorMsg("Permission to access location was denied.");
@@ -76,8 +77,8 @@ export default function PlayScreen() {
       locationSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 1000, // The time interval to get updated location data
-          distanceInterval: 0.001, // The minimum distance (in meters) before updating the location
+          timeInterval: 1000,
+          distanceInterval: 0.001,
         },
         (newLocation) => {
           setLocation(newLocation);
@@ -92,9 +93,9 @@ export default function PlayScreen() {
           });
         }
       );
-    }
+    };
 
-    function getCurrentDirection() {
+    const getCurrentDirection = () => {
       if (magnetometerSubscriptionRef.current) {
         magnetometerSubscriptionRef.current?.remove();
       }
@@ -102,15 +103,14 @@ export default function PlayScreen() {
       magnetometerSubscriptionRef.current = Magnetometer.addListener((data) => {
         setMagnetometerData(data);
       });
-    }
+    };
 
     updateLocation();
     getCurrentDirection();
 
     return () => {
-      if (locationSubscription) locationSubscription.remove();
-      if (magnetometerSubscriptionRef.current)
-        magnetometerSubscriptionRef.current.remove();
+      locationSubscription?.remove();
+      magnetometerSubscriptionRef.current?.remove();
     };
   }, []);
 
@@ -122,14 +122,14 @@ export default function PlayScreen() {
       latitude: number;
       longitude: number;
       username: string;
+      team: number;
     }
-    if (!auth.currentUser) return;
-
-    //current user's ref
-    const playerId = auth.currentUser.uid;
-    const playerRef = ref(database, `players/${playerId}`);
 
     const fetchRoomRef = async () => {
+      if (!auth.currentUser) return;
+
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `players/${playerId}`);
       const playerInfo = await get(playerRef);
 
       if (!playerInfo.exists()) return;
@@ -140,11 +140,15 @@ export default function PlayScreen() {
       const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
         const roomData = snapshotRoom.val();
 
-        //find the room
         if (roomData) {
           const playersList = await Promise.all(
             Object.entries(roomData).map(async ([key, userData]) => {
               const player = userData as PlayerData;
+
+              setPlayerTeams((prevTeams) => ({
+                ...prevTeams,
+                [key]: player.team,
+              }));
 
               return {
                 id: key,
@@ -161,12 +165,11 @@ export default function PlayScreen() {
 
     fetchRoomRef();
     return () => {
-      fetchRoomRef().then((unsubscribe) => unsubscribe && unsubscribe());
+      fetchRoomRef().then((unsubscribe) => unsubscribe?.());
     };
   }, []);
 
   const degree = (x: number, y: number): number => {
-    // https://stackoverflow.com/questions/55034145/how-can-i-calculate-the-heading-n-w-s-e-given-x-y-z-magnetometer-and-acceler
     let degree = 0;
     if (Math.atan2(y, x) >= 0) {
       degree = Math.atan2(y, x) * (180 / Math.PI);
@@ -177,24 +180,15 @@ export default function PlayScreen() {
     return degree;
   };
 
-  const cardinal = (degree: number) => {
-    if (degree >= 22.5 && degree < 67.5) {
-      return "NE";
-    } else if (degree >= 67.5 && degree < 112.5) {
-      return "E";
-    } else if (degree >= 112.5 && degree < 157.5) {
-      return "SE";
-    } else if (degree >= 157.5 && degree < 202.5) {
-      return "S";
-    } else if (degree >= 202.5 && degree < 247.5) {
-      return "SW";
-    } else if (degree >= 247.5 && degree < 292.5) {
-      return "W";
-    } else if (degree >= 292.5 && degree < 337.5) {
-      return "NW";
-    } else {
-      return "N";
-    }
+  const cardinal = (degree: number): string => {
+    if (degree >= 22.5 && degree < 67.5) return "NE";
+    if (degree >= 67.5 && degree < 112.5) return "E";
+    if (degree >= 112.5 && degree < 157.5) return "SE";
+    if (degree >= 157.5 && degree < 202.5) return "S";
+    if (degree >= 202.5 && degree < 247.5) return "SW";
+    if (degree >= 247.5 && degree < 292.5) return "W";
+    if (degree >= 292.5 && degree < 337.5) return "NW";
+    return "N";
   };
 
   const updatePlayerLocation = async (
@@ -212,6 +206,9 @@ export default function PlayScreen() {
 
       if (snapshot.exists()) {
         const playerData = snapshot.val();
+        if (!playerData.room) {
+          return;
+        }
         const roomRef = ref(
           database,
           `rooms/${playerData.room}/players/${playerId}`
@@ -228,18 +225,7 @@ export default function PlayScreen() {
     }
   };
 
-  const eliminatePlayer = async (username: string) => {
-    const usernameRef = ref(database, `usernames/${username}/uid`);
-    get(usernameRef).then((snapshot) => {
-      if (snapshot.exists()) {
-        const uid = snapshot.val();
-        update(ref(database, `players/${uid}`), { eliminated: true });
-      } else {
-        console.log("Username not found!");
-      }
-    });
-  };
-
+  const eliminatePlayer = async (username: string) => {};
   const fireLaser = () => {};
 
   const fetchUserURL = async (id: any) => {
@@ -258,27 +244,25 @@ export default function PlayScreen() {
   useEffect(() => {
     const getPlayersURL = async () => {
       try {
-        if (auth.currentUser) {
-          //current user's URL
-          const playerId = auth.currentUser.uid;
-          const playerRef = ref(database, `players/${playerId}`);
-          const playerInfo = await get(playerRef);
+        if (!auth.currentUser) return;
 
-          if (playerInfo.exists()) {
-            //find room info inside the player
-            const playerData = playerInfo.val();
-            const roomRef = ref(database, `rooms/${playerData.room}/players`);
-            const roomInfo = await get(roomRef);
-            if (roomInfo.exists()) {
-              const roomData = roomInfo.val();
-              const playersList = await Promise.all(
-                Object.entries(roomData).map(async ([key]) => {
-                  let userURL = await fetchUserURL(key);
-                  return { id: key, profile: userURL };
-                })
-              );
-              setPlayersURL(playersList);
-            }
+        const playerId = auth.currentUser.uid;
+        const playerRef = ref(database, `players/${playerId}`);
+        const playerInfo = await get(playerRef);
+
+        if (playerInfo.exists()) {
+          const playerData = playerInfo.val();
+          const roomRef = ref(database, `rooms/${playerData.room}/players`);
+          const roomInfo = await get(roomRef);
+          if (roomInfo.exists()) {
+            const roomData = roomInfo.val();
+            const playersList = await Promise.all(
+              Object.entries(roomData).map(async ([key]) => {
+                let userURL = await fetchUserURL(key);
+                return { id: key, profile: userURL };
+              })
+            );
+            setPlayersURL(playersList);
           }
         }
       } catch (error) {
@@ -318,6 +302,10 @@ export default function PlayScreen() {
 
   const router = useRouter();
 
+  const getTeamColor = (teamNumber: number): string => {
+    return teamNumber === 1 ? "#FFD700" : "#8BAAFF";
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -336,9 +324,18 @@ export default function PlayScreen() {
             <Text style={styles.buttonText}>
               {auth.currentUser?.displayName}
             </Text>
-            <Text style={[styles.buttonText, { color: "#FFFFAA" }]}>
+            <Text
+              style={[
+                styles.buttonText,
+                {
+                  color: auth.currentUser
+                    ? getTeamColor(playerTeams[auth.currentUser.uid || ""] || 1)
+                    : "#FFFFAA",
+                },
+              ]}
+            >
               {"  "}
-              [TEAM 1]
+              [TEAM {playerTeams[auth.currentUser?.uid || ""] || 1}]
             </Text>
           </View>
         </View>
@@ -376,9 +373,9 @@ export default function PlayScreen() {
           rotateEnabled={false}
           loadingEnabled={true}
         >
-          {playerURLArray.map((player: { id: any; profile: any }) => {
+          {playerURLArray.map((player) => {
             const playerLocation = playerLocationArray.find(
-              (location: { id: any }) => location.id === player.id
+              (location) => location.id === player.id
             );
             return playerLocation ? (
               <Marker
@@ -425,7 +422,6 @@ export default function PlayScreen() {
           </AppText>
           <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
           <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
-          {/* <Button title="Snap To 90%" onPress={() => handleSnapPress(2)} /> */}
           <TouchableOpacity
             onPress={async () => {
               if (auth.currentUser) {
@@ -526,7 +522,6 @@ const styles = StyleSheet.create({
     borderColor: "#000",
     borderWidth: 2,
     borderRadius: 20,
-    //overflow: "hidden",
     zIndex: 1,
   },
   button: {

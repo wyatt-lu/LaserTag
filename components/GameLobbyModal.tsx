@@ -158,9 +158,11 @@ export default function GameLobbyModal({
                     }
                   >
                     <AppText>{player.username}</AppText>
-                    <AppText style={{ marginLeft: 10 }}>
-                      [Team {playerTeams[userId]}]
-                    </AppText>
+                    {roomInfo.roomType !== "solo" && (
+                      <AppText style={{ marginLeft: 10 }}>
+                        [Team {playerTeams[userId]}]
+                      </AppText>
+                    )}
                   </Pressable>
                 </View>
               );

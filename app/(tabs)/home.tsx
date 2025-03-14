@@ -1,19 +1,17 @@
 import { auth, database } from "@/firebaseconfig";
-import { router, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
 import React, { useState } from "react";
 import { useEffect } from "react";
 import {
   StyleSheet,
-  Text,
   SafeAreaView,
   TouchableOpacity,
   View,
   Alert,
   Image,
   Modal,
-  StatusBar,
   Platform,
 } from "react-native";
 import {
@@ -68,6 +66,7 @@ export default function HomeScreen() {
         Alert.alert("Room Deleted", "Please join again.");
         closeLobby();
         setRoomCode(null);
+        router.replace("/(tabs)/home");
       }
     });
 

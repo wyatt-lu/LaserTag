@@ -1,18 +1,8 @@
 import React, { useState } from "react";
-import { SafeAreaView, View, Text, Button } from "react-native";
-import styled from "styled-components";
+import { SafeAreaView, View } from "react-native";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
-import { TabActions } from "@react-navigation/native";
-import {
-  get,
-  ref,
-  set,
-  update,
-  onDisconnect,
-  onValue,
-  remove,
-} from "firebase/database";
+import { get, ref, set, onDisconnect } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import ReusableButton from "@/components/ReusableButton";
 

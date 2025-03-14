@@ -1,8 +1,7 @@
 import React from "react";
 import { Tabs } from "expo-router";
-import TabBarBackground from "@/components/ui/TabBarBackground";
 import { IconSymbol } from "@/components/ui/IconSymbol";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, StyleSheet, Platform } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 
 export default function TabLayout() {

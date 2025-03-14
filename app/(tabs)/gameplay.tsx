@@ -1,15 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  Button,
-  GestureResponderEvent,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  StatusBar,
-  Image,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import {
@@ -18,20 +8,16 @@ import {
   onValue,
   ref,
   remove,
-  set,
   update,
 } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
-import { onAuthStateChanged } from "@firebase/auth";
 import * as FileSystem from "expo-file-system";
-import MapView, { Marker } from "react-native-maps";
-import { globalStyles } from "@/constants/styles";
+import MapView, { Marker, Polygon } from "react-native-maps";
 import React from "react";
 import {
   getStorage,
   ref as ref_storage,
   getDownloadURL,
-  uploadBytes,
 } from "firebase/storage";
 
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -39,7 +25,8 @@ import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import AppText from "@/components/AppText";
 import ReusableButton from "@/components/ReusableButton";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import PowerUpMarker from "@/components/PowerUpMarker";
 
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
@@ -221,7 +208,7 @@ export default function PlayScreen() {
         });
       }
     } catch (error) {
-      console.log("Error updating player location:", error);
+      console.error("Error updating player location:", error);
     }
   };
 
@@ -306,6 +293,110 @@ export default function PlayScreen() {
     return teamNumber === 1 ? "#FFD700" : "#8BAAFF";
   };
 
+  type LatLng = {
+    latitude: number;
+    longitude: number;
+  };
+
+  type PowerUp = {
+    id: string;
+    type: string;
+    coordinate: LatLng;
+  };
+
+  const powerUpTypes = [
+    { type: "Lasso" },
+    { type: "Horseshoe" },
+    { type: "Cowboy Boots" },
+    { type: "Bounty" },
+    { type: "Sheriff Badge" },
+    { type: "Cowboy Hat" },
+    { type: "Cactus" },
+    { type: "Ox Stampede" },
+    { type: "Money" },
+  ];
+
+  const generateCircleCoordinates = (
+    center: LatLng,
+    radius: number,
+    numPoints: number
+  ): LatLng[] => {
+    const coordinates: LatLng[] = [];
+    const lat = center.latitude;
+    const lng = center.longitude;
+    const earthRadius = 6378137;
+
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * (2 * Math.PI);
+      const deltaLat = (radius / earthRadius) * Math.sin(angle);
+      const deltaLng =
+        (radius / (earthRadius * Math.cos((lat * Math.PI) / 180))) *
+        Math.cos(angle);
+
+      coordinates.push({
+        latitude: lat + (deltaLat * 180) / Math.PI,
+        longitude: lng + (deltaLng * 180) / Math.PI,
+      });
+    }
+    coordinates.push(coordinates[0]);
+
+    return coordinates;
+  };
+
+  const generateRandomCoordinate = (center: LatLng, radius: number): LatLng => {
+    const earthRadius = 6378137; // Earth's radius in meters
+    const randomAngle = Math.random() * 2 * Math.PI; // Random angle in radians
+    const randomRadius = Math.sqrt(Math.random()) * radius; // Random radius within the circle
+
+    const deltaLat = (randomRadius / earthRadius) * Math.sin(randomAngle);
+    const deltaLng =
+      (randomRadius /
+        (earthRadius * Math.cos((center.latitude * Math.PI) / 180))) *
+      Math.cos(randomAngle);
+
+    return {
+      latitude: center.latitude + (deltaLat * 180) / Math.PI,
+      longitude: center.longitude + (deltaLng * 180) / Math.PI,
+    };
+  };
+
+  const getRandomPowerUp = (center: LatLng, radius: number): PowerUp => {
+    const randomType =
+      powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+    return {
+      id: Math.random().toString(36).substring(7), // Random ID
+      type: randomType.type,
+      coordinate: generateRandomCoordinate(center, radius),
+    };
+  };
+
+  const center = {
+    latitude: 47.732473984376654,
+    longitude: -122.32739349311144,
+  };
+
+  const circleCoordinates = generateCircleCoordinates(center, 160, 100);
+  const randomPowerUp = getRandomPowerUp(center, 160);
+
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newPowerUp = getRandomPowerUp(center, 160);
+      setPowerUps((prevPowerUps) => [...prevPowerUps, newPowerUp]);
+    }, Math.random() * (180000 - 30000) + 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setPowerUps([]);
+      };
+    }, [])
+  );
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -373,6 +464,19 @@ export default function PlayScreen() {
           rotateEnabled={false}
           loadingEnabled={true}
         >
+          <Polygon
+            coordinates={circleCoordinates}
+            strokeColor="#FF0000"
+            strokeWidth={2}
+            fillColor="#FF000040"
+          />
+          {powerUps.map((powerUp) => (
+            <PowerUpMarker
+              key={powerUp.id}
+              coordinate={powerUp.coordinate}
+              name={powerUp.type}
+            />
+          ))}
           {playerURLArray.map((player) => {
             const playerLocation = playerLocationArray.find(
               (location) => location.id === player.id
@@ -456,6 +560,7 @@ export default function PlayScreen() {
                   }
                 }
               }
+              setPowerUps([]);
               router.replace("/(tabs)/home");
             }}
             style={styles.exit}

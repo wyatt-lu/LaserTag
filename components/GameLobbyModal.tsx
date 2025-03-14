@@ -117,22 +117,23 @@ export default function GameLobbyModal({
         </View>
         <RopeIcon style={styles.rope} width={"100%"} />
         <View style={styles.middleContainer}>
-          {auth.currentUser?.uid === roomInfo.host && (
-            <View style={styles.sliderContainer}>
-              <AppText>Select Number of Teams:</AppText>
-              <SliderComponent
-                style={{ width: 200, height: 40 }}
-                minimumValue={2}
-                maximumValue={Math.floor(
-                  Object.keys(roomInfo.players).length / 2
-                )}
-                step={1}
-                value={numTeams}
-                onValueChange={handleNumTeamsChange}
-              />
-              <AppText>Number of Teams: {numTeams}</AppText>
-            </View>
-          )}
+          {auth.currentUser?.uid === roomInfo.host &&
+            roomInfo.roomType !== "solo" && (
+              <View style={styles.sliderContainer}>
+                <AppText>Select Number of Teams:</AppText>
+                <SliderComponent
+                  style={{ width: 200, height: 40 }}
+                  minimumValue={2}
+                  maximumValue={Math.floor(
+                    Object.keys(roomInfo.players).length / 2
+                  )}
+                  step={1}
+                  value={numTeams}
+                  onValueChange={handleNumTeamsChange}
+                />
+                <AppText>Number of Teams: {numTeams}</AppText>
+              </View>
+            )}
           {Object.keys(roomInfo.players)
             .sort((a: any, b: any) => {
               if (a === roomInfo.host) return -1;

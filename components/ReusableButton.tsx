@@ -31,6 +31,9 @@ export default function ReusableButton({
       {theme === "username" && (
         <FontAwesome name="address-book" size={18} style={styles.buttonIcon} />
       )}
+      {theme === "ready" && (
+        <FontAwesome name="address-book" size={18} style={styles.buttonIcon} />
+      )}
       {label && (
         <Text style={[styles.buttonText, buttonTextStyle]}>{label}</Text>
       )}

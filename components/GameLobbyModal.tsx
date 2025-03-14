@@ -9,7 +9,7 @@ import {
   Pressable,
 } from "react-native";
 import ReusableButton from "./ReusableButton";
-import { onValue, ref, update } from "firebase/database";
+import { get, onValue, ref, update } from "firebase/database";
 import { globalStyles } from "@/constants/styles";
 import { IconSymbol } from "./ui/IconSymbol";
 import AppText from "./AppText";
@@ -20,6 +20,7 @@ import SliderComponent from "@react-native-community/slider";
 type Props = {
   visible: boolean;
   roomCode: string | null;
+  beginReadyGame: () => void;
   enterGame: () => void;
   closeLobby: () => void;
 };
@@ -28,6 +29,7 @@ export default function GameLobbyModal({
   visible,
   roomCode,
   enterGame,
+  beginReadyGame,
   closeLobby,
 }: Props) {
   const [roomInfo, setRoomInfo] = useState<any>(null);
@@ -96,6 +98,27 @@ export default function GameLobbyModal({
     });
   };
 
+  const toggleReady = async (userId: string) => {
+    if (!roomCode) return;
+  
+    const playerRef = ref(database, `rooms/${roomCode}/players/${userId}`);
+    const newReadyState = !roomInfo.players[userId]?.ready;
+  
+    await update(playerRef, { ready: newReadyState });
+  
+    // Check if all players are ready
+    const updatedRoomSnapshot = await get(ref(database, `rooms/${roomCode}`));
+    const updatedRoom = updatedRoomSnapshot.val();
+  
+
+    const roomRef = ref(database, `rooms/${roomCode}`);
+    const allReady = Object.values(updatedRoom.players).every((player: any) => player.ready === true);
+    if (allReady) {
+      await update(roomRef, { gameReady: true });
+      enterGame();
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide">
       <View style={globalStyles.container}>
@@ -144,45 +167,63 @@ export default function GameLobbyModal({
               const player = roomInfo.players[userId];
               const teamColor =
                 playerTeams[userId] === 1 ? "#FFD700" : "#8BAAFF";
+              const isReady = player.ready === true;
               return (
-                <View key={userId} style={{ flexDirection: "row" }}>
+                <View key={userId} style={{ flexDirection: "row", alignItems: "center" }}>
                   <Pressable
-                    style={[
-                      styles.playerContainer,
-                      { backgroundColor: teamColor },
-                    ]}
-                    onPress={
-                      auth.currentUser?.uid === roomInfo.host
-                        ? () => handleTeams(userId)
-                        : undefined
-                    }
+                    style={[styles.playerContainer, { backgroundColor: teamColor }]}
+                    onPress={auth.currentUser?.uid === roomInfo.host ? () => handleTeams(userId) : undefined}
                   >
                     <AppText>{player.username}</AppText>
-                    <AppText style={{ marginLeft: 10 }}>
-                      [Team {playerTeams[userId]}]
-                    </AppText>
+                    <AppText style={{ marginLeft: 10 }}>[Team {playerTeams[userId]}]</AppText>
                   </Pressable>
+                  {isReady ? (
+                    <AppText style={styles.readyText}>Ready</AppText>
+                  ) : (
+                    auth.currentUser?.uid === userId && (
+                      <TouchableOpacity style={[styles.invisibleReadyText]} onPress={() => toggleReady(userId)}>
+                        <AppText>Ready?</AppText>
+                      </TouchableOpacity>
+                    )
+                  )}
                 </View>
               );
             })}
         </View>
 
         <View style={styles.bottomContainer}>
-          <ReusableButton
-            label={
-              auth.currentUser?.uid === roomInfo.host
-                ? "Start Game"
-                : "Waiting for host to start..."
-            }
-            onPress={
-              auth.currentUser?.uid === roomInfo.host ? enterGame : () => {}
-            }
-            buttonStyle={
-              auth.currentUser?.uid === roomInfo.host
-                ? {}
-                : { backgroundColor: "#968e84" }
-            }
-          />
+          {roomInfo.gameStarted ? (
+            Object.keys(roomInfo.players).map((userId) => {
+              const isReady = roomInfo.players[userId]?.ready === true;
+              return (
+                <View key={userId} style={[styles.playerContainerOnTop]}>
+                  {isReady ? (
+                    <AppText style={styles.readyText}></AppText>
+                  ) : (
+                    auth.currentUser?.uid === userId && (
+                      <TouchableOpacity
+                        style = {[styles.readyButton]}
+                        onPress={() => toggleReady(userId)}>
+                        <AppText style={styles.buttonText}> Ready?</AppText>
+                      </TouchableOpacity>
+                    )
+                  )}
+                </View>
+              );
+            })
+          ) : (
+            <ReusableButton
+              label={
+                auth.currentUser?.uid === roomInfo.host
+                  ? "Start Game"
+                  : "Waiting for host to start..."
+              }
+              onPress={auth.currentUser?.uid === roomInfo.host ? beginReadyGame : () => {}}
+              buttonStyle={
+                auth.currentUser?.uid === roomInfo.host ? {} : { backgroundColor: "#968e84" }
+              }
+            />
+          )}
         </View>
       </View>
     </Modal>
@@ -235,5 +276,44 @@ const styles = StyleSheet.create({
     width: "80%",
     marginBottom: 20,
     alignItems: "center",
+  },
+  readyText: {
+    color: "#00FF00",
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  invisibleReadyText: {
+    display: "none",
+  },
+  playerContainerOnTop:{
+    width: "75%",
+    borderRadius: 15,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+    flexDirection: "row",
+    position: "absolute",
+  },
+  readyButton: {
+    width: "80%",
+    backgroundColor: "#3a160e",
+    padding: 20,
+    borderRadius: 20,
+    alignItems: "center",
+    shadowColor: "#3a160e",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  buttonText: {
+    fontSize: 18,
+    color: "#FFFFFF",
+    fontFamily: "Bungee-Regular",
+    position: "absolute",
+    zIndex: 1,
   },
 });

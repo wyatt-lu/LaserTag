@@ -19,6 +19,7 @@
     "@expo/vector-icons": "^14.0.2",
     "@gorhom/bottom-sheet": "^5.1.2",
     "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-native-community/slider": "^4.5.5",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "expo": "~52.0.36",
@@ -55,8 +56,7 @@
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.5",
     "styled-components": "^6.1.15",
-    "yarn": "^1.22.22",
-    "@react-native-community/slider": "4.5.5"
+    "yarn": "^1.22.22"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

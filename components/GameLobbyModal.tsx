@@ -175,7 +175,11 @@ export default function GameLobbyModal({
                     onPress={auth.currentUser?.uid === roomInfo.host ? () => handleTeams(userId) : undefined}
                   >
                     <AppText>{player.username}</AppText>
-                    <AppText style={{ marginLeft: 10 }}>[Team {playerTeams[userId]}]</AppText>
+                    {roomInfo.roomType !== "solo" && (
+                      <AppText style={{ marginLeft: 10 }}>
+                        [Team {playerTeams[userId]}]
+                      </AppText>
+                    )}
                   </Pressable>
                   {isReady ? (
                     <AppText style={styles.readyText}>Ready</AppText>

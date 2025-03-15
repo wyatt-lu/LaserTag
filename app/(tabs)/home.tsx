@@ -39,6 +39,7 @@ import RoomSettingsModal from "@/components/RoomSettingsModal";
 import GameLobbyModal from "@/components/GameLobbyModal";
 import { getAuth } from "firebase/auth";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import * as Location from "expo-location";
 
 export default function HomeScreen() {
   // HOME SCREEN //
@@ -219,12 +220,19 @@ export default function HomeScreen() {
   const openRoomSettings = () => setIsRoomSettingsVisible(true);
   const closeRoomSettings = () => setIsRoomSettingsVisible(false);
 
-
   const beginReadyGame = async () => {
     if (!roomCode) return;
 
     const roomRef = ref(database, `rooms/${roomCode}`);
-    await update(roomRef, { gameStarted: true });
+    const hostLocation = await Location.getCurrentPositionAsync({});
+
+    await update(roomRef, {
+      gameStarted: true,
+      initialLocation: {
+        latitude: hostLocation.coords.latitude,
+        longitude: hostLocation.coords.longitude,
+      },
+    });
   };
 
   const enterGame = async () => {
@@ -232,21 +240,22 @@ export default function HomeScreen() {
 
     const roomRef = ref(database, `rooms/${roomCode}`);
 
-
     await update(roomRef, { gameReady: true });
-    
+
     const playersRef = ref(database, `rooms/${roomCode}/players`);
 
     const playersSnapshot = await get(playersRef);
     const players = playersSnapshot.val();
 
-    const allReady = Object.values(players).every((player: any) => player.ready === true);
+    const allReady = Object.values(players).every(
+      (player: any) => player.ready === true
+    );
 
     if (allReady) {
       await update(roomRef, { gameReady: true });
     }
   };
-/*
+  /*
   // GAME START MODAL //
 
   const [isGameStartModalVisible, setIsGameStartModalVisible] = useState(false);
@@ -489,7 +498,7 @@ export default function HomeScreen() {
           handleLeave();
         }}
       />
-      
+
       {/* // HOME SCREEN // */}
       <View style={styles.joinContainer}>
         <AppText style={{ bottom: 75 }}>Adventure is waiting...</AppText>

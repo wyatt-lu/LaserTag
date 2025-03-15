@@ -8,6 +8,7 @@ import {
   onValue,
   ref,
   remove,
+  set,
   update,
 } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
@@ -46,6 +47,9 @@ export default function PlayScreen() {
   const [playerURLArray, setPlayersURL] = useState<any[]>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any[]>([]);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+
+  const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
@@ -122,6 +126,7 @@ export default function PlayScreen() {
       if (!playerInfo.exists()) return;
 
       const playerData = playerInfo.val();
+      setRoomCode(playerData.room);
       const roomRef = ref(database, `rooms/${playerData.room}/players`);
 
       const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
@@ -322,24 +327,20 @@ export default function PlayScreen() {
     numPoints: number
   ): LatLng[] => {
     const coordinates: LatLng[] = [];
-    const lat = center.latitude;
-    const lng = center.longitude;
     const earthRadius = 6378137;
-
     for (let i = 0; i < numPoints; i++) {
       const angle = (i / numPoints) * (2 * Math.PI);
       const deltaLat = (radius / earthRadius) * Math.sin(angle);
       const deltaLng =
-        (radius / (earthRadius * Math.cos((lat * Math.PI) / 180))) *
+        (radius / (earthRadius * Math.cos((center.latitude * Math.PI) / 180))) *
         Math.cos(angle);
 
       coordinates.push({
-        latitude: lat + (deltaLat * 180) / Math.PI,
-        longitude: lng + (deltaLng * 180) / Math.PI,
+        latitude: center.latitude + (deltaLat * 180) / Math.PI,
+        longitude: center.longitude + (deltaLng * 180) / Math.PI,
       });
     }
     coordinates.push(coordinates[0]);
-
     return coordinates;
   };
 
@@ -360,6 +361,43 @@ export default function PlayScreen() {
     };
   };
 
+  const getCenter = async () => {
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerInfo = await get(ref(database, `players/${playerId}`));
+
+    if (!playerInfo.exists()) return;
+
+    const roomRef = ref(
+      database,
+      `rooms/${playerInfo.val().room}/initialLocation`
+    );
+    const roomInfo = await get(roomRef);
+    return roomInfo.val();
+  };
+
+  const [center, setCenter] = useState<LatLng>({
+    latitude: 47.732473984376654,
+    longitude: -122.32739349311144,
+  }); // default center at lakeside
+
+  useFocusEffect(
+    useCallback(() => {
+      const initializeGame = async () => {
+        const center = await getCenter();
+        if (center) {
+          setCenter(center);
+        }
+      };
+      initializeGame();
+    }, [])
+  );
+
+  const circleCoordinates = generateCircleCoordinates(center, 160, 100);
+
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
   const getRandomPowerUp = (center: LatLng, radius: number): PowerUp => {
     const randomType =
       powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
@@ -370,32 +408,101 @@ export default function PlayScreen() {
     };
   };
 
-  const center = {
-    latitude: 47.732473984376654,
-    longitude: -122.32739349311144,
-  };
+  useEffect(() => {
+    generatePowerUpIntervalRef.current = setInterval(async () => {
+      if (!roomCode) return;
 
-  const circleCoordinates = generateCircleCoordinates(center, 160, 100);
-  const randomPowerUp = getRandomPowerUp(center, 160);
+      const newPowerUp = getRandomPowerUp(center, 160);
+      const powerUpsRef = ref(
+        database,
+        `rooms/${roomCode}/powerUps/${newPowerUp.id}`
+      );
+      await set(powerUpsRef, newPowerUp);
 
-  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+      const despawnTime = Math.random() * (18000 - 3000) + 3000;
+      setTimeout(async () => {
+        await remove(powerUpsRef);
+      }, despawnTime);
+    }, Math.random() * (18000 - 3000) + 3000);
+
+    return () => {
+      if (generatePowerUpIntervalRef.current) {
+        clearInterval(generatePowerUpIntervalRef.current);
+      }
+    };
+  }, [roomCode, center]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newPowerUp = getRandomPowerUp(center, 160);
-      setPowerUps((prevPowerUps) => [...prevPowerUps, newPowerUp]);
-    }, Math.random() * (180000 - 30000) + 30000);
+    const fetchPowerUps = async () => {
+      if (!roomCode) return;
 
-    return () => clearInterval(interval);
-  }, []);
+      const powerUpsRef = ref(database, `rooms/${roomCode}/powerUps`);
+      const unsubscribe = onValue(powerUpsRef, (snapshot) => {
+        const powerUpsData = snapshot.val();
+        if (powerUpsData) {
+          const powerUpsList = Object.values(powerUpsData).map(
+            (powerUp: any) => ({
+              id: powerUp.id,
+              type: powerUp.type,
+              coordinate: {
+                latitude: powerUp.coordinate.latitude,
+                longitude: powerUp.coordinate.longitude,
+              },
+            })
+          );
+          setPowerUps(powerUpsList);
+        } else {
+          setPowerUps([]);
+        }
+      });
 
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        setPowerUps([]);
-      };
-    }, [])
-  );
+      return () => unsubscribe();
+    };
+
+    fetchPowerUps();
+  }, [roomCode]);
+
+  const resetGame = async () => {
+    if (!auth.currentUser) return;
+
+    const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+    const playerSnapshot = await get(playerRef);
+
+    if (playerSnapshot.exists()) {
+      const playerData = playerSnapshot.val();
+      await update(playerRef, { room: null });
+      if (playerData.room !== null) {
+        const roomRef = ref(database, `rooms/${playerData.room}`);
+        const roomSnapshot = await get(roomRef);
+        if (roomSnapshot.exists()) {
+          const roomData = roomSnapshot.val();
+          if (roomData.host === auth.currentUser.uid) {
+            await remove(roomRef);
+          } else {
+            await remove(
+              ref(
+                database,
+                `rooms/${playerData.room}/players/${auth.currentUser.uid}`
+              )
+            );
+          }
+        }
+      }
+    }
+
+    // Clear the interval that generates power-ups
+    if (generatePowerUpIntervalRef.current) {
+      clearInterval(generatePowerUpIntervalRef.current);
+    }
+
+    setPowerUps([]);
+    setPlayersURL([]);
+    setPlayersLocation([]);
+    setPlayerTeams({});
+    setRoomCode(null);
+
+    router.replace("/(tabs)/home");
+  };
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -526,45 +633,7 @@ export default function PlayScreen() {
           </AppText>
           <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
           <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
-          <TouchableOpacity
-            onPress={async () => {
-              if (auth.currentUser) {
-                const playerRef = ref(
-                  database,
-                  `players/${auth.currentUser.uid}`
-                );
-                const playerSnapshot = await get(playerRef);
-
-                if (playerSnapshot.exists()) {
-                  const playerData = playerSnapshot.val();
-
-                  await update(playerRef, { room: null });
-
-                  if (playerData.room !== null) {
-                    const roomRef = ref(database, `rooms/${playerData.room}`);
-                    const roomSnapshot = await get(roomRef);
-
-                    if (roomSnapshot.exists()) {
-                      const roomData = roomSnapshot.val();
-                      if (roomData.host === auth.currentUser.uid) {
-                        await remove(roomRef);
-                      } else {
-                        await remove(
-                          ref(
-                            database,
-                            `rooms/${playerData.room}/players/${auth.currentUser.uid}`
-                          )
-                        );
-                      }
-                    }
-                  }
-                }
-              }
-              setPowerUps([]);
-              router.replace("/(tabs)/home");
-            }}
-            style={styles.exit}
-          >
+          <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
           </TouchableOpacity>
         </BottomSheetView>

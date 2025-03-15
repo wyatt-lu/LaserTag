@@ -100,19 +100,20 @@ export default function GameLobbyModal({
 
   const toggleReady = async (userId: string) => {
     if (!roomCode) return;
-  
+
     const playerRef = ref(database, `rooms/${roomCode}/players/${userId}`);
     const newReadyState = !roomInfo.players[userId]?.ready;
-  
+
     await update(playerRef, { ready: newReadyState });
-  
+
     // Check if all players are ready
     const updatedRoomSnapshot = await get(ref(database, `rooms/${roomCode}`));
     const updatedRoom = updatedRoomSnapshot.val();
-  
 
     const roomRef = ref(database, `rooms/${roomCode}`);
-    const allReady = Object.values(updatedRoom.players).every((player: any) => player.ready === true);
+    const allReady = Object.values(updatedRoom.players).every(
+      (player: any) => player.ready === true
+    );
     if (allReady) {
       await update(roomRef, { gameReady: true });
       enterGame();
@@ -139,24 +140,26 @@ export default function GameLobbyModal({
           </TouchableOpacity>
         </View>
         <RopeIcon style={styles.rope} width={"100%"} />
+        {auth.currentUser?.uid === roomInfo.host &&
+          roomInfo.roomType !== "solo" && (
+            <View style={styles.sliderContainer}>
+              <AppText style={{ fontSize: 17 }}>
+                Select Number of Teams:
+              </AppText>
+              <SliderComponent
+                style={{ width: 200, height: 40 }}
+                minimumValue={2}
+                maximumValue={Math.floor(
+                  Object.keys(roomInfo.players).length / 2
+                )}
+                step={1}
+                value={numTeams}
+                onValueChange={handleNumTeamsChange}
+              />
+              <AppText>Number of Teams: {numTeams}</AppText>
+            </View>
+          )}
         <View style={styles.middleContainer}>
-          {auth.currentUser?.uid === roomInfo.host &&
-            roomInfo.roomType !== "solo" && (
-              <View style={styles.sliderContainer}>
-                <AppText>Select Number of Teams:</AppText>
-                <SliderComponent
-                  style={{ width: 200, height: 40 }}
-                  minimumValue={2}
-                  maximumValue={Math.floor(
-                    Object.keys(roomInfo.players).length / 2
-                  )}
-                  step={1}
-                  value={numTeams}
-                  onValueChange={handleNumTeamsChange}
-                />
-                <AppText>Number of Teams: {numTeams}</AppText>
-              </View>
-            )}
           {Object.keys(roomInfo.players)
             .sort((a: any, b: any) => {
               if (a === roomInfo.host) return -1;
@@ -169,10 +172,20 @@ export default function GameLobbyModal({
                 playerTeams[userId] === 1 ? "#FFD700" : "#8BAAFF";
               const isReady = player.ready === true;
               return (
-                <View key={userId} style={{ flexDirection: "row", alignItems: "center" }}>
+                <View
+                  key={userId}
+                  style={{ flexDirection: "row", alignItems: "center" }}
+                >
                   <Pressable
-                    style={[styles.playerContainer, { backgroundColor: teamColor }]}
-                    onPress={auth.currentUser?.uid === roomInfo.host ? () => handleTeams(userId) : undefined}
+                    style={[
+                      styles.playerContainer,
+                      { backgroundColor: teamColor },
+                    ]}
+                    onPress={
+                      auth.currentUser?.uid === roomInfo.host
+                        ? () => handleTeams(userId)
+                        : undefined
+                    }
                   >
                     <AppText>{player.username}</AppText>
                     {roomInfo.roomType !== "solo" && (
@@ -185,7 +198,10 @@ export default function GameLobbyModal({
                     <AppText style={styles.readyText}>Ready</AppText>
                   ) : (
                     auth.currentUser?.uid === userId && (
-                      <TouchableOpacity style={[styles.invisibleReadyText]} onPress={() => toggleReady(userId)}>
+                      <TouchableOpacity
+                        style={[styles.invisibleReadyText]}
+                        onPress={() => toggleReady(userId)}
+                      >
                         <AppText>Ready?</AppText>
                       </TouchableOpacity>
                     )
@@ -205,11 +221,12 @@ export default function GameLobbyModal({
                     <AppText style={styles.readyText}></AppText>
                   ) : (
                     auth.currentUser?.uid === userId && (
-                      <TouchableOpacity
-                        style = {[styles.readyButton]}
-                        onPress={() => toggleReady(userId)}>
-                        <AppText style={styles.buttonText}> Ready?</AppText>
-                      </TouchableOpacity>
+                      <ReusableButton
+                        label="Ready?"
+                        buttonTextStyle={{ position: "absolute" }}
+                        buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
+                        onPress={() => toggleReady(userId)}
+                      />
                     )
                   )}
                 </View>
@@ -222,9 +239,15 @@ export default function GameLobbyModal({
                   ? "Start Game"
                   : "Waiting for host to start..."
               }
-              onPress={auth.currentUser?.uid === roomInfo.host ? beginReadyGame : () => {}}
+              onPress={
+                auth.currentUser?.uid === roomInfo.host
+                  ? beginReadyGame
+                  : () => {}
+              }
               buttonStyle={
-                auth.currentUser?.uid === roomInfo.host ? {} : { backgroundColor: "#968e84" }
+                auth.currentUser?.uid === roomInfo.host
+                  ? {}
+                  : { backgroundColor: "#968e84" }
               }
             />
           )}
@@ -278,18 +301,18 @@ const styles = StyleSheet.create({
   },
   sliderContainer: {
     width: "80%",
-    marginBottom: 20,
     alignItems: "center",
   },
   readyText: {
-    color: "#00FF00",
+    color: "#32CD32",
     fontWeight: "bold",
     marginLeft: 10,
+    marginBottom: 20,
   },
   invisibleReadyText: {
     display: "none",
   },
-  playerContainerOnTop:{
+  playerContainerOnTop: {
     width: "75%",
     borderRadius: 15,
     height: 50,
@@ -298,26 +321,5 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     flexDirection: "row",
     position: "absolute",
-  },
-  readyButton: {
-    width: "80%",
-    backgroundColor: "#3a160e",
-    padding: 20,
-    borderRadius: 20,
-    alignItems: "center",
-    shadowColor: "#3a160e",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  buttonText: {
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontFamily: "Bungee-Regular",
-    position: "absolute",
-    zIndex: 1,
   },
 });

@@ -56,6 +56,7 @@ const index = () => {
         set(ref(database, `players/${userCredential.user.uid}`), {
           username: userCredential.user.displayName,
           email,
+          laser: "default",
           room: null,
         });
 

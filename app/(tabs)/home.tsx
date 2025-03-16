@@ -110,6 +110,8 @@ export default function HomeScreen() {
 
     const roomRef = ref(database, `rooms/${newRoomCode}`);
     const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`)
+    const laserData = await get(laserRef);
 
     await set(roomRef, {
       host: auth.currentUser.uid,
@@ -120,6 +122,7 @@ export default function HomeScreen() {
         [auth.currentUser.uid]: {
           username: auth.currentUser.displayName,
           ready: false,
+          laser: laserData.val(),
         },
       },
     });
@@ -184,9 +187,14 @@ export default function HomeScreen() {
       return;
     }
 
+    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`)
+    const laserData = await get(laserRef);
+
     await update(ref(database, `rooms/${roomCode}/players`), {
       [auth.currentUser.uid]: {
         username: auth.currentUser.displayName,
+        ready: false,
+        laser: laserData.val()
       },
     });
 

@@ -5,7 +5,7 @@ import AppText from "@/components/AppText";
 import { get, ref, set, onDisconnect } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import ReusableButton from "@/components/ReusableButton";
-
+/*
 function ButtonComponent({ laserCode, setLaserCode }) {
   const [showButtons, setShowButtons] = useState(false);
 
@@ -130,8 +130,15 @@ function getLaserType(laserCode: string) {
     return "None";
   }
 }
-
+*/
 export default function SettingsScreen() {
+  return (
+    <SafeAreaView style={globalStyles.container}>
+      <View>
+        <AppText> Settings?</AppText>
+      </View>
+    </SafeAreaView>
+  /*
   const [laserCode, setLaserCode] = useState<string | "None">("None");
   return (
     <SafeAreaView style={globalStyles.container}>
@@ -140,7 +147,7 @@ export default function SettingsScreen() {
       </View>
 
       <ButtonComponent laserCode={laserCode} setLaserCode={setLaserCode} />
-    </SafeAreaView>
+    </SafeAreaView>*/
   );
 }
 

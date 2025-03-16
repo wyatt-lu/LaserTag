@@ -64,5 +64,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#faf6ea",
     fontFamily: "Bungee-Regular",
+    textAlign: "center",
   },
 });

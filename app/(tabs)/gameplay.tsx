@@ -224,9 +224,11 @@ export default function PlayScreen() {
     try {
       const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
       const url = await getDownloadURL(placeholderRef);
+      /*
       const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
 
       const { uri } = await FileSystem.downloadAsync(url, localUri);
+      */
       return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
@@ -273,8 +275,8 @@ export default function PlayScreen() {
         {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-          latitudeDelta: 0.001222,
-          longitudeDelta: 0.000821,
+          latitudeDelta: 0.003022,
+          longitudeDelta: 0.002521,
         },
         1000
       );
@@ -562,8 +564,8 @@ export default function PlayScreen() {
           initialRegion={{
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
-            latitudeDelta: 0.001222,
-            longitudeDelta: 0.000821,
+            latitudeDelta: 0.002222,
+            longitudeDelta: 0.001521,
           }}
           showsScale={true}
           mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}

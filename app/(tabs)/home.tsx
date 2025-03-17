@@ -263,24 +263,6 @@ export default function HomeScreen() {
       await update(roomRef, { gameReady: true });
     }
   };
-  /*
-  // GAME START MODAL //
-
-  const [isGameStartModalVisible, setIsGameStartModalVisible] = useState(false);
-
-  useEffect(() => {
-    if (!roomCode) return;
-
-    const startRef = ref(database, `rooms/${roomCode}/gameStarted`);
-
-    const unsubscribeStart = onValue(startRef, (startSnapshot) => {
-      if (startSnapshot.exists() && startSnapshot.val()) {
-        setIsGameStartModalVisible(true);
-      }
-    });
-
-    return () => unsubscribeStart();
-  }, [roomCode]);*/
 
   // SETTINGS PAGE //
 

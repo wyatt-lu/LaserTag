@@ -150,7 +150,7 @@ export default function GameLobbyModal({
                 style={{ width: 200, height: 40 }}
                 minimumValue={2}
                 maximumValue={Math.floor(
-                  Object.keys(roomInfo.players).length / 2
+                  Object.keys(roomInfo.players).length / 2 + 1
                 )}
                 step={1}
                 value={numTeams}
@@ -168,8 +168,17 @@ export default function GameLobbyModal({
             })
             .map((userId) => {
               const player = roomInfo.players[userId];
-              const teamColor =
-                playerTeams[userId] === 1 ? "#FFD700" : "#8BAAFF";
+              const TeamColors = [
+                { team: 1, color: "#8baaff" }, //blue
+                { team: 2, color: "#ffe08b" }, //yellow
+                { team: 3, color: "#ffbb8b" }, //orange
+                { team: 4, color: "#bd99e6" }, //purple
+                { team: 5, color: "#99d199" }, //green
+                { team: 6, color: "#68dbcc" }, //teal
+                { team: 7, color: "#e481c8" }, //pink
+                { team: 8, color: "#ff9090" }, //red
+              ];
+              const teamColor = TeamColors.find(team => team.team === playerTeams[userId])?.color || "#8baaff";
               const isReady = player.ready === true;
               return (
                 <View

@@ -230,14 +230,18 @@ export default function PlayScreen() {
   };
 
   const fireLaser = async () => {
-    //if (!auth.currentUser) return;
-    //const playerId = auth.currentUser.uid;
-    //const playerRef = ref(database, `players/${playerId}`);
-    //const playerSnapshot = await get(playerRef);
-    //if (playerSnapshot.exists()) {
-      //SSconst playerData = playerSnapshot.val();
-      //any code after this much breaks the entire thing --- find solution for second sprint//
-    //}S
+    //when button pressed, via snapshots, get the laser type and code
+    //feed this code into generateLaserLine, which returns mock geometry that has a radius of the circle on the map
+    //with the mock geometry code, then feed that code into eliminatePlayer method
+    //checks whether player coordinates when laser was shot falls into mock geometry
+    //if yes, eliminate player, if not, then nothing happens
+  }
+  
+  const generateLaserLine = async () => {
+    //via laser code, get laser information stored in the laser code and save into variables
+    //do some math that creates the geometry mockup for default and 2x width
+    //the length of the rectangle will be the length
+    //rectangle will be pointing in the direction that the player is pointing, and it will branch out from the point where the player is
   }
 
   const fetchUserURL = async (id: any) => {

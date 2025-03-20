@@ -178,7 +178,9 @@ export default function GameLobbyModal({
                 { team: 7, color: "#e481c8" }, //pink
                 { team: 8, color: "#ff9090" }, //red
               ];
-              const teamColor = TeamColors.find(team => team.team === playerTeams[userId])?.color || "#8baaff";
+              const teamColor =
+                TeamColors.find((team) => team.team === playerTeams[userId])
+                  ?.color || "#8baaff";
               const isReady = player.ready === true;
               return (
                 <View

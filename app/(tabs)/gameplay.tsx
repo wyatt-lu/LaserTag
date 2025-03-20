@@ -241,14 +241,14 @@ export default function PlayScreen() {
   };
 
   const fireLaser = async () => {
-    if (!auth.currentUser) return;
-    const playerId = auth.currentUser.uid;
-    const playerRef = ref(database, `players/${playerId}`);
-    const playerSnapshot = await get(playerRef);
-    if (playerSnapshot.exists()) {
-      const playerData = playerSnapshot.val();
-
-    } 
+    //if (!auth.currentUser) return;
+    //const playerId = auth.currentUser.uid;
+    //const playerRef = ref(database, `players/${playerId}`);
+    //const playerSnapshot = await get(playerRef);
+    //if (playerSnapshot.exists()) {
+      //SSconst playerData = playerSnapshot.val();
+      //any code after this much breaks the entire thing --- find solution for second sprint//
+    //}S
   }
 
   const fetchUserURL = async (id: any) => {

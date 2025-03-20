@@ -1,17 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  Button,
-  GestureResponderEvent,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  StatusBar,
-  Image,
-} from "react-native";
-import { Magnetometer } from "expo-sensors"; // https://docs.expo.dev/versions/latest/sdk/magnetometer/#setupdateintervalintervalms
-import * as Location from "expo-location"; // https://docs.expo.dev/versions/latest/sdk/location/
+import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
+import { Magnetometer } from "expo-sensors";
+import * as Location from "expo-location";
 import {
   get,
   getDatabase,
@@ -22,16 +12,13 @@ import {
   update,
 } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
-import { onAuthStateChanged } from "@firebase/auth";
 import * as FileSystem from "expo-file-system";
-import MapView, { Marker } from "react-native-maps";
-import { globalStyles } from "@/constants/styles";
+import MapView, { Marker, Polygon } from "react-native-maps";
 import React from "react";
 import {
   getStorage,
   ref as ref_storage,
   getDownloadURL,
-  uploadBytes,
 } from "firebase/storage";
 
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -39,7 +26,8 @@ import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import AppText from "@/components/AppText";
 import ReusableButton from "@/components/ReusableButton";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import PowerUpMarker from "@/components/PowerUpMarker";
 
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
@@ -56,8 +44,12 @@ export default function PlayScreen() {
 
   const storage = getStorage();
 
-  const [playerURLArray, setPlayersURL] = useState<any>([]);
-  const [playerLocationArray, setPlayersLocation] = useState<any>([]);
+  const [playerURLArray, setPlayersURL] = useState<any[]>([]);
+  const [playerLocationArray, setPlayersLocation] = useState<any[]>([]);
+  const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+
+  const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
@@ -66,7 +58,7 @@ export default function PlayScreen() {
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
-    async function updateLocation() {
+    const updateLocation = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setErrorMsg("Permission to access location was denied.");
@@ -76,8 +68,8 @@ export default function PlayScreen() {
       locationSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 1000, // The time interval to get updated location data
-          distanceInterval: 0.001, // The minimum distance (in meters) before updating the location
+          timeInterval: 1000,
+          distanceInterval: 0.001,
         },
         (newLocation) => {
           setLocation(newLocation);
@@ -92,9 +84,9 @@ export default function PlayScreen() {
           });
         }
       );
-    }
+    };
 
-    function getCurrentDirection() {
+    const getCurrentDirection = () => {
       if (magnetometerSubscriptionRef.current) {
         magnetometerSubscriptionRef.current?.remove();
       }
@@ -102,15 +94,14 @@ export default function PlayScreen() {
       magnetometerSubscriptionRef.current = Magnetometer.addListener((data) => {
         setMagnetometerData(data);
       });
-    }
+    };
 
     updateLocation();
     getCurrentDirection();
 
     return () => {
-      if (locationSubscription) locationSubscription.remove();
-      if (magnetometerSubscriptionRef.current)
-        magnetometerSubscriptionRef.current.remove();
+      locationSubscription?.remove();
+      magnetometerSubscriptionRef.current?.remove();
     };
   }, []);
 
@@ -122,29 +113,34 @@ export default function PlayScreen() {
       latitude: number;
       longitude: number;
       username: string;
+      team: number;
     }
-    if (!auth.currentUser) return;
-
-    //current user's ref
-    const playerId = auth.currentUser.uid;
-    const playerRef = ref(database, `players/${playerId}`);
 
     const fetchRoomRef = async () => {
+      if (!auth.currentUser) return;
+
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `players/${playerId}`);
       const playerInfo = await get(playerRef);
 
       if (!playerInfo.exists()) return;
 
       const playerData = playerInfo.val();
+      setRoomCode(playerData.room);
       const roomRef = ref(database, `rooms/${playerData.room}/players`);
 
       const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
         const roomData = snapshotRoom.val();
 
-        //find the room
         if (roomData) {
           const playersList = await Promise.all(
             Object.entries(roomData).map(async ([key, userData]) => {
               const player = userData as PlayerData;
+
+              setPlayerTeams((prevTeams) => ({
+                ...prevTeams,
+                [key]: player.team,
+              }));
 
               return {
                 id: key,
@@ -161,12 +157,11 @@ export default function PlayScreen() {
 
     fetchRoomRef();
     return () => {
-      fetchRoomRef().then((unsubscribe) => unsubscribe && unsubscribe());
+      fetchRoomRef().then((unsubscribe) => unsubscribe?.());
     };
   }, []);
 
   const degree = (x: number, y: number): number => {
-    // https://stackoverflow.com/questions/55034145/how-can-i-calculate-the-heading-n-w-s-e-given-x-y-z-magnetometer-and-acceler
     let degree = 0;
     if (Math.atan2(y, x) >= 0) {
       degree = Math.atan2(y, x) * (180 / Math.PI);
@@ -177,24 +172,15 @@ export default function PlayScreen() {
     return degree;
   };
 
-  const cardinal = (degree: number) => {
-    if (degree >= 22.5 && degree < 67.5) {
-      return "NE";
-    } else if (degree >= 67.5 && degree < 112.5) {
-      return "E";
-    } else if (degree >= 112.5 && degree < 157.5) {
-      return "SE";
-    } else if (degree >= 157.5 && degree < 202.5) {
-      return "S";
-    } else if (degree >= 202.5 && degree < 247.5) {
-      return "SW";
-    } else if (degree >= 247.5 && degree < 292.5) {
-      return "W";
-    } else if (degree >= 292.5 && degree < 337.5) {
-      return "NW";
-    } else {
-      return "N";
-    }
+  const cardinal = (degree: number): string => {
+    if (degree >= 22.5 && degree < 67.5) return "NE";
+    if (degree >= 67.5 && degree < 112.5) return "E";
+    if (degree >= 112.5 && degree < 157.5) return "SE";
+    if (degree >= 157.5 && degree < 202.5) return "S";
+    if (degree >= 202.5 && degree < 247.5) return "SW";
+    if (degree >= 247.5 && degree < 292.5) return "W";
+    if (degree >= 292.5 && degree < 337.5) return "NW";
+    return "N";
   };
 
   const updatePlayerLocation = async (
@@ -212,6 +198,9 @@ export default function PlayScreen() {
 
       if (snapshot.exists()) {
         const playerData = snapshot.val();
+        if (!playerData.room) {
+          return;
+        }
         const roomRef = ref(
           database,
           `rooms/${playerData.room}/players/${playerId}`
@@ -224,7 +213,7 @@ export default function PlayScreen() {
         });
       }
     } catch (error) {
-      console.log("Error updating player location:", error);
+      console.error("Error updating player location:", error);
     }
   };
 
@@ -255,9 +244,11 @@ export default function PlayScreen() {
     try {
       const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
       const url = await getDownloadURL(placeholderRef);
+      /*
       const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
 
       const { uri } = await FileSystem.downloadAsync(url, localUri);
+      */
       return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
@@ -267,27 +258,25 @@ export default function PlayScreen() {
   useEffect(() => {
     const getPlayersURL = async () => {
       try {
-        if (auth.currentUser) {
-          //current user's URL
-          const playerId = auth.currentUser.uid;
-          const playerRef = ref(database, `players/${playerId}`);
-          const playerInfo = await get(playerRef);
+        if (!auth.currentUser) return;
 
-          if (playerInfo.exists()) {
-            //find room info inside the player
-            const playerData = playerInfo.val();
-            const roomRef = ref(database, `rooms/${playerData.room}/players`);
-            const roomInfo = await get(roomRef);
-            if (roomInfo.exists()) {
-              const roomData = roomInfo.val();
-              const playersList = await Promise.all(
-                Object.entries(roomData).map(async ([key]) => {
-                  let userURL = await fetchUserURL(key);
-                  return { id: key, profile: userURL };
-                })
-              );
-              setPlayersURL(playersList);
-            }
+        const playerId = auth.currentUser.uid;
+        const playerRef = ref(database, `players/${playerId}`);
+        const playerInfo = await get(playerRef);
+
+        if (playerInfo.exists()) {
+          const playerData = playerInfo.val();
+          const roomRef = ref(database, `rooms/${playerData.room}/players`);
+          const roomInfo = await get(roomRef);
+          if (roomInfo.exists()) {
+            const roomData = roomInfo.val();
+            const playersList = await Promise.all(
+              Object.entries(roomData).map(async ([key]) => {
+                let userURL = await fetchUserURL(key);
+                return { id: key, profile: userURL };
+              })
+            );
+            setPlayersURL(playersList);
           }
         }
       } catch (error) {
@@ -306,8 +295,8 @@ export default function PlayScreen() {
         {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-          latitudeDelta: 0.001222,
-          longitudeDelta: 0.000821,
+          latitudeDelta: 0.003022,
+          longitudeDelta: 0.002521,
         },
         1000
       );
@@ -327,6 +316,216 @@ export default function PlayScreen() {
 
   const router = useRouter();
 
+  const getTeamColor = (teamNumber: number): string => {
+    return teamNumber === 1 ? "#FFD700" : "#8BAAFF";
+  };
+
+  type LatLng = {
+    latitude: number;
+    longitude: number;
+  };
+
+  type PowerUp = {
+    id: string;
+    type: string;
+    coordinate: LatLng;
+  };
+
+  const powerUpTypes = [
+    { type: "Lasso" },
+    { type: "Horseshoe" },
+    { type: "Cowboy Boots" },
+    { type: "Bounty" },
+    { type: "Sheriff Badge" },
+    { type: "Cowboy Hat" },
+    { type: "Cactus" },
+    { type: "Ox Stampede" },
+    { type: "Money" },
+  ];
+
+  const generateCircleCoordinates = (
+    center: LatLng,
+    radius: number,
+    numPoints: number
+  ): LatLng[] => {
+    const coordinates: LatLng[] = [];
+    const earthRadius = 6378137;
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * (2 * Math.PI);
+      const deltaLat = (radius / earthRadius) * Math.sin(angle);
+      const deltaLng =
+        (radius / (earthRadius * Math.cos((center.latitude * Math.PI) / 180))) *
+        Math.cos(angle);
+
+      coordinates.push({
+        latitude: center.latitude + (deltaLat * 180) / Math.PI,
+        longitude: center.longitude + (deltaLng * 180) / Math.PI,
+      });
+    }
+    coordinates.push(coordinates[0]);
+    return coordinates;
+  };
+
+  const generateRandomCoordinate = (center: LatLng, radius: number): LatLng => {
+    const earthRadius = 6378137; // Earth's radius in meters
+    const randomAngle = Math.random() * 2 * Math.PI; // Random angle in radians
+    const randomRadius = Math.sqrt(Math.random()) * radius; // Random radius within the circle
+
+    const deltaLat = (randomRadius / earthRadius) * Math.sin(randomAngle);
+    const deltaLng =
+      (randomRadius /
+        (earthRadius * Math.cos((center.latitude * Math.PI) / 180))) *
+      Math.cos(randomAngle);
+
+    return {
+      latitude: center.latitude + (deltaLat * 180) / Math.PI,
+      longitude: center.longitude + (deltaLng * 180) / Math.PI,
+    };
+  };
+
+  const getCenter = async () => {
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerInfo = await get(ref(database, `players/${playerId}`));
+
+    if (!playerInfo.exists()) return;
+
+    const roomRef = ref(
+      database,
+      `rooms/${playerInfo.val().room}/initialLocation`
+    );
+    const roomInfo = await get(roomRef);
+    return roomInfo.val();
+  };
+
+  const [center, setCenter] = useState<LatLng>({
+    latitude: 47.732473984376654,
+    longitude: -122.32739349311144,
+  }); // default center at lakeside
+
+  useFocusEffect(
+    useCallback(() => {
+      const initializeGame = async () => {
+        const center = await getCenter();
+        if (center) {
+          setCenter(center);
+        }
+      };
+      initializeGame();
+    }, [])
+  );
+
+  const circleCoordinates = generateCircleCoordinates(center, 160, 100);
+
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  const getRandomPowerUp = (center: LatLng, radius: number): PowerUp => {
+    const randomType =
+      powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+    return {
+      id: Math.random().toString(36).substring(7), // Random ID
+      type: randomType.type,
+      coordinate: generateRandomCoordinate(center, radius),
+    };
+  };
+
+  useEffect(() => {
+    generatePowerUpIntervalRef.current = setInterval(async () => {
+      if (!roomCode) return;
+
+      const newPowerUp = getRandomPowerUp(center, 160);
+      const powerUpsRef = ref(
+        database,
+        `rooms/${roomCode}/powerUps/${newPowerUp.id}`
+      );
+      await set(powerUpsRef, newPowerUp);
+
+      const despawnTime = Math.random() * (18000 - 3000) + 3000;
+      setTimeout(async () => {
+        await remove(powerUpsRef);
+      }, despawnTime);
+    }, Math.random() * (18000 - 3000) + 3000);
+
+    return () => {
+      if (generatePowerUpIntervalRef.current) {
+        clearInterval(generatePowerUpIntervalRef.current);
+      }
+    };
+  }, [roomCode, center]);
+
+  useEffect(() => {
+    const fetchPowerUps = async () => {
+      if (!roomCode) return;
+
+      const powerUpsRef = ref(database, `rooms/${roomCode}/powerUps`);
+      const unsubscribe = onValue(powerUpsRef, (snapshot) => {
+        const powerUpsData = snapshot.val();
+        if (powerUpsData) {
+          const powerUpsList = Object.values(powerUpsData).map(
+            (powerUp: any) => ({
+              id: powerUp.id,
+              type: powerUp.type,
+              coordinate: {
+                latitude: powerUp.coordinate.latitude,
+                longitude: powerUp.coordinate.longitude,
+              },
+            })
+          );
+          setPowerUps(powerUpsList);
+        } else {
+          setPowerUps([]);
+        }
+      });
+
+      return () => unsubscribe();
+    };
+
+    fetchPowerUps();
+  }, [roomCode]);
+
+  const resetGame = async () => {
+    if (!auth.currentUser) return;
+
+    const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+    const playerSnapshot = await get(playerRef);
+
+    if (playerSnapshot.exists()) {
+      const playerData = playerSnapshot.val();
+      await update(playerRef, { room: null });
+      if (playerData.room !== null) {
+        const roomRef = ref(database, `rooms/${playerData.room}`);
+        const roomSnapshot = await get(roomRef);
+        if (roomSnapshot.exists()) {
+          const roomData = roomSnapshot.val();
+          if (roomData.host === auth.currentUser.uid) {
+            await remove(roomRef);
+          } else {
+            await remove(
+              ref(
+                database,
+                `rooms/${playerData.room}/players/${auth.currentUser.uid}`
+              )
+            );
+          }
+        }
+      }
+    }
+
+    // Clear the interval that generates power-ups
+    if (generatePowerUpIntervalRef.current) {
+      clearInterval(generatePowerUpIntervalRef.current);
+    }
+
+    setPowerUps([]);
+    setPlayersURL([]);
+    setPlayersLocation([]);
+    setPlayerTeams({});
+    setRoomCode(null);
+
+    router.replace("/(tabs)/home");
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -345,9 +544,18 @@ export default function PlayScreen() {
             <Text style={styles.buttonText}>
               {auth.currentUser?.displayName}
             </Text>
-            <Text style={[styles.buttonText, { color: "#FFFFAA" }]}>
+            <Text
+              style={[
+                styles.buttonText,
+                {
+                  color: auth.currentUser
+                    ? getTeamColor(playerTeams[auth.currentUser.uid || ""] || 1)
+                    : "#FFFFAA",
+                },
+              ]}
+            >
               {"  "}
-              [TEAM 1]
+              [TEAM {playerTeams[auth.currentUser?.uid || ""] || 1}]
             </Text>
           </View>
         </View>
@@ -376,8 +584,8 @@ export default function PlayScreen() {
           initialRegion={{
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
-            latitudeDelta: 0.001222,
-            longitudeDelta: 0.000821,
+            latitudeDelta: 0.002222,
+            longitudeDelta: 0.001521,
           }}
           showsScale={true}
           mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
@@ -385,9 +593,22 @@ export default function PlayScreen() {
           rotateEnabled={false}
           loadingEnabled={true}
         >
-          {playerURLArray.map((player: { id: any; profile: any }) => {
+          <Polygon
+            coordinates={circleCoordinates}
+            strokeColor="#FF0000"
+            strokeWidth={2}
+            fillColor="#FF000040"
+          />
+          {powerUps.map((powerUp) => (
+            <PowerUpMarker
+              key={powerUp.id}
+              coordinate={powerUp.coordinate}
+              name={powerUp.type}
+            />
+          ))}
+          {playerURLArray.map((player) => {
             const playerLocation = playerLocationArray.find(
-              (location: { id: any }) => location.id === player.id
+              (location) => location.id === player.id
             );
             return playerLocation ? (
               <Marker
@@ -434,45 +655,7 @@ export default function PlayScreen() {
           </AppText>
           <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
           <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
-          {/* <Button title="Snap To 90%" onPress={() => handleSnapPress(2)} /> */}
-          <TouchableOpacity
-            onPress={async () => {
-              if (auth.currentUser) {
-                const playerRef = ref(
-                  database,
-                  `players/${auth.currentUser.uid}`
-                );
-                const playerSnapshot = await get(playerRef);
-
-                if (playerSnapshot.exists()) {
-                  const playerData = playerSnapshot.val();
-
-                  await update(playerRef, { room: null });
-
-                  if (playerData.room !== null) {
-                    const roomRef = ref(database, `rooms/${playerData.room}`);
-                    const roomSnapshot = await get(roomRef);
-
-                    if (roomSnapshot.exists()) {
-                      const roomData = roomSnapshot.val();
-                      if (roomData.host === auth.currentUser.uid) {
-                        await remove(roomRef);
-                      } else {
-                        await remove(
-                          ref(
-                            database,
-                            `rooms/${playerData.room}/players/${auth.currentUser.uid}`
-                          )
-                        );
-                      }
-                    }
-                  }
-                }
-              }
-              router.replace("/(tabs)/home");
-            }}
-            style={styles.exit}
-          >
+          <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
           </TouchableOpacity>
         </BottomSheetView>
@@ -535,7 +718,6 @@ const styles = StyleSheet.create({
     borderColor: "#000",
     borderWidth: 2,
     borderRadius: 20,
-    //overflow: "hidden",
     zIndex: 1,
   },
   button: {

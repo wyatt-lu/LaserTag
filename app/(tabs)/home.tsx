@@ -1,19 +1,17 @@
 import { auth, database } from "@/firebaseconfig";
-import { router, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
 import React, { useState } from "react";
 import { useEffect } from "react";
 import {
   StyleSheet,
-  Text,
   SafeAreaView,
   TouchableOpacity,
   View,
   Alert,
   Image,
   Modal,
-  StatusBar,
   Platform,
 } from "react-native";
 import {
@@ -41,6 +39,7 @@ import RoomSettingsModal from "@/components/RoomSettingsModal";
 import GameLobbyModal from "@/components/GameLobbyModal";
 import { getAuth } from "firebase/auth";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import * as Location from "expo-location";
 
 export default function HomeScreen() {
   // HOME SCREEN //
@@ -57,29 +56,39 @@ export default function HomeScreen() {
   const openInput = () => setIsCodeInputVisible(true);
   const closeInput = () => setIsCodeInputVisible(false);
 
+  const [roomInfo, setRoomInfo] = useState<any>();
+
   useEffect(() => {
     if (!roomCode) return;
 
     const roomRef = ref(database, `rooms/${roomCode}`);
-    const startRef = ref(database, `rooms/${roomCode}/gameStarted`);
+    const readyRef = ref(database, `rooms/${roomCode}/gameReady`);
+    const startRef = ref(database, `rooms/${roomCode}/gameStart`);
 
     const unsubscribeRoom = onValue(roomRef, (roomSnapshot) => {
       if (!roomSnapshot.exists()) {
         Alert.alert("Room Deleted", "Please join again.");
         closeLobby();
         setRoomCode(null);
+        router.replace("/(tabs)/home");
       }
     });
 
-    const unsubscribeStart = onValue(startRef, (startSnapshot) => {
-      if (startSnapshot.exists() && startSnapshot.val()) {
+    const unsubscribeReady = onValue(readyRef, (readySnapshot) => {
+      if (readySnapshot.exists() && readySnapshot.val()) {
         router.replace("/(tabs)/gameplay");
         closeLobby();
       }
     });
 
+    const unsubscribeStart = onValue(startRef, (startSnapshot) => {
+      const roomData = startSnapshot.val();
+      setRoomInfo(roomData);
+    });
+
     return () => {
       unsubscribeRoom();
+      unsubscribeReady();
       unsubscribeStart();
     };
   }, [roomCode]);
@@ -115,23 +124,22 @@ export default function HomeScreen() {
 
     const roomRef = ref(database, `rooms/${newRoomCode}`);
     const playerRef = ref(database, `players/${auth.currentUser.uid}`);
-    const snapshot = await get(playerRef)
-    if (snapshot.exists()) {
-      const playerData = snapshot.val();
-      await set(roomRef, {
-        host: auth.currentUser.uid,
-        gameStarted: false,
-        roomType,
-        players: {
-          [auth.currentUser.uid]: {
-            username: auth.currentUser.displayName,
-          },
-          laser: {
-            id: playerData.laser
-          }
+    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`)
+    const laserData = await get(laserRef);
+
+    await set(roomRef, {
+      host: auth.currentUser.uid,
+      gameStarted: false,
+      gameReady: false,
+      roomType,
+      players: {
+        [auth.currentUser.uid]: {
+          username: auth.currentUser.displayName,
+          ready: false,
+          laser: laserData.val(),
         },
-      });
-    }
+      },
+    });
 
     await update(playerRef, { room: newRoomCode });
 
@@ -159,12 +167,21 @@ export default function HomeScreen() {
       return;
     }
 
+    const gameReadyRef = ref(database, `rooms/${roomCode}/gameReady`);
+    const gameReadySnapshot = await get(gameReadyRef);
+    const gameReady = gameReadySnapshot.val();
+
     const gameStartedRef = ref(database, `rooms/${roomCode}/gameStarted`);
     const gameStartedSnapshot = await get(gameStartedRef);
     const gameStarted = gameStartedSnapshot.val();
 
+    if (gameStarted) {
+      Alert.alert("Game has already started. You cannot join this room.");
+      return;
+    }
+
     if (roomData.host === auth.currentUser.uid) {
-      if (gameStarted) {
+      if (gameReady) {
         router.replace("/(tabs)/gameplay");
       } else {
         openLobby();
@@ -173,7 +190,7 @@ export default function HomeScreen() {
     }
 
     if (roomData.players && roomData.players[auth.currentUser.uid]) {
-      if (gameStarted) {
+      if (gameReady) {
         router.replace("/(tabs)/gameplay");
       } else {
         openLobby();
@@ -185,9 +202,14 @@ export default function HomeScreen() {
       return;
     }
 
+    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`)
+    const laserData = await get(laserRef);
+
     await update(ref(database, `rooms/${roomCode}/players`), {
       [auth.currentUser.uid]: {
         username: auth.currentUser.displayName,
+        ready: false,
+        laser: laserData.val()
       },
     });
 
@@ -221,11 +243,40 @@ export default function HomeScreen() {
   const openRoomSettings = () => setIsRoomSettingsVisible(true);
   const closeRoomSettings = () => setIsRoomSettingsVisible(false);
 
+  const beginReadyGame = async () => {
+    if (!roomCode) return;
+
+    const roomRef = ref(database, `rooms/${roomCode}`);
+    const hostLocation = await Location.getCurrentPositionAsync({});
+
+    await update(roomRef, {
+      gameStarted: true,
+      initialLocation: {
+        latitude: hostLocation.coords.latitude,
+        longitude: hostLocation.coords.longitude,
+      },
+    });
+  };
+
   const enterGame = async () => {
     if (!roomCode) return;
 
     const roomRef = ref(database, `rooms/${roomCode}`);
-    await update(roomRef, { gameStarted: true });
+
+    await update(roomRef, { gameReady: true });
+
+    const playersRef = ref(database, `rooms/${roomCode}/players`);
+
+    const playersSnapshot = await get(playersRef);
+    const players = playersSnapshot.val();
+
+    const allReady = Object.values(players).every(
+      (player: any) => player.ready === true
+    );
+
+    if (allReady) {
+      await update(roomRef, { gameReady: true });
+    }
   };
 
   // SETTINGS PAGE //
@@ -445,6 +496,7 @@ export default function HomeScreen() {
       <GameLobbyModal
         visible={isLobbyVisible}
         roomCode={roomCode}
+        beginReadyGame={beginReadyGame}
         enterGame={enterGame}
         closeLobby={() => {
           closeLobby();

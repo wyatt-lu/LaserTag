@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Text,
   SafeAreaView,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   View,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Asset } from "expo-asset";
@@ -57,7 +56,8 @@ const index = () => {
         set(ref(database, `players/${userCredential.user.uid}`), {
           username: userCredential.user.displayName,
           email,
-          room: null
+          laser: "default",
+          room: null,
         });
 
         try {

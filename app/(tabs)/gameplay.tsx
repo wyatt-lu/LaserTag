@@ -235,14 +235,27 @@ export default function PlayScreen() {
     //with the mock geometry code, then feed that code into eliminatePlayer method
     //checks whether player coordinates when laser was shot falls into mock geometry
     //if yes, eliminate player, if not, then nothing happens
-  }
-  
+    const roomRef = ref(database, `rooms/${roomCode}/players`);
+    const roomInfo = await get(roomRef);
+    const roomsgklj = roomInfo.val();
+    Object.entries(roomsgklj).forEach(([roomId, roomData]) => {
+      console.log(`Room ID: ${roomId}`);
+
+      // Loop through each property of the room
+      Object.entries(roomData as { [key: string]: any }).forEach(
+        ([key, value]) => {
+          console.log(`  ${key}: ${value}`);
+        }
+      );
+    });
+  };
+
   const generateLaserLine = async () => {
     //via laser code, get laser information stored in the laser code and save into variables
     //do some math that creates the geometry mockup for default and 2x width
     //the length of the rectangle will be the length
     //rectangle will be pointing in the direction that the player is pointing, and it will branch out from the point where the player is
-  }
+  };
 
   const fetchUserURL = async (id: any) => {
     try {

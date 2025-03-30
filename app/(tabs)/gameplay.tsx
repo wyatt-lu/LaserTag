@@ -105,6 +105,53 @@ export default function PlayScreen() {
     };
   }, []);
 
+  //all of user's powerups in their inventory
+  const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
+
+  //all of the powerups currently in play in the game
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  //see if powerups are close to user's location
+  useEffect(()=>{
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`)
+    const getPlayerPowerUps = (async ()=>{
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      //in case we need to do anything with powerref!
+      /*
+      const powerRef = ref(database, `rooms/${roomCode}/powerUps`)
+      const powerInfo = await get(powerRef);
+      if (!powerInfo.exists()) return;
+      const powerData = powerInfo.val();*/
+
+      let playerPowerUps = userPowerUps;
+
+      powerUps.map(async (powerUp) =>{
+      /* change the delta to be whatever value u want*/
+        if ((powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 && powerUp.coordinate.latitude - playerData.latitude >= -0.0001703)
+          && (powerUp.coordinate.longitude - playerData.longitude <= 0.000703 && powerUp.coordinate.longitude - playerData.longitude >= -0.0001703)){
+            playerPowerUps.push(powerUp);
+            setUserPowerUps(playerPowerUps);
+            //keeps crashing with the below code?? i can't remove the ref once the user gets it??
+            console.log("setUserPowerUps", userPowerUps)
+            try {
+              const individualPowerRef = ref(database, `rooms/${roomCode}/powerUps/${powerUp.id}`);
+              console.log("individualPowerRef", individualPowerRef)
+              await remove(individualPowerRef);
+              console.log("Power-up removed successfully");
+            } catch (error) {
+              console.error("Error removing power-up:", error);
+            }
+        }
+      });
+    })
+
+    getPlayerPowerUps();
+  }, [playerLocationArray])
   useEffect(() => {
     const database = getDatabase();
 
@@ -395,10 +442,8 @@ export default function PlayScreen() {
       initializeGame();
     }, [])
   );
-
-  const circleCoordinates = generateCircleCoordinates(center, 160, 100);
-
-  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+  //160 was original radius
+  const circleCoordinates = generateCircleCoordinates(center, 20, 20);
 
   const getRandomPowerUp = (center: LatLng, radius: number): PowerUp => {
     const randomType =
@@ -413,8 +458,8 @@ export default function PlayScreen() {
   useEffect(() => {
     generatePowerUpIntervalRef.current = setInterval(async () => {
       if (!roomCode) return;
-
-      const newPowerUp = getRandomPowerUp(center, 160);
+      //160 was original radius
+      const newPowerUp = getRandomPowerUp(center, 20);
       const powerUpsRef = ref(
         database,
         `rooms/${roomCode}/powerUps/${newPowerUp.id}`
@@ -425,7 +470,8 @@ export default function PlayScreen() {
       setTimeout(async () => {
         await remove(powerUpsRef);
       }, despawnTime);
-    }, Math.random() * (18000 - 3000) + 3000);
+    //18000 was original time
+    }, Math.random() * (4000 - 3000) + 3000);
 
     return () => {
       if (generatePowerUpIntervalRef.current) {
@@ -572,6 +618,7 @@ export default function PlayScreen() {
           mapType="hybrid"
           rotateEnabled={false}
           loadingEnabled={true}
+          zoomEnabled={false}
         >
           <Polygon
             coordinates={circleCoordinates}
@@ -598,10 +645,12 @@ export default function PlayScreen() {
                   longitude: playerLocation.longitude,
                 }}
               >
-                <Image
-                  source={{ uri: player.profile }}
-                  style={styles.user}
-                ></Image>
+                <View>
+                  <Image
+                    source={{ uri: player.profile }}
+                    style={styles.user}
+                  ></Image>
+                </View>
               </Marker>
             ) : (
               <Text>Loading...</Text>

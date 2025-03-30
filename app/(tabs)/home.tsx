@@ -93,6 +93,20 @@ export default function HomeScreen() {
     };
   }, [roomCode]);
 
+  /*const updatePlayerLaser = async () => {
+      if (!auth.currentUser) return;
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `players/${playerId}`);
+      const snapshot = await get(playerRef)
+      if (snapshot.exists()) {
+        const playerData = snapshot.val();
+        const roomRef = ref(database, `rooms/${playerData.room}/players/${playerId}`)
+        await update(roomRef, {
+          laser: playerData.laser
+        });
+      }
+    }*/
+
   const createRoom = async (roomType: string) => {
     if (!auth.currentUser) return;
     closeRoomSettings();
@@ -131,6 +145,7 @@ export default function HomeScreen() {
 
     onDisconnect(roomRef).remove();
     onDisconnect(playerRef).update({ room: null });
+    onDisconnect(playerRef).update({ laser: null});
 
     openLobby();
   };

@@ -28,6 +28,7 @@ import ReusableButton from "@/components/ReusableButton";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFocusEffect, useRouter } from "expo-router";
 import PowerUpMarker from "@/components/PowerUpMarker";
+import SelectTargetModal from "@/components/StampedeModal";
 
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
@@ -47,6 +48,7 @@ export default function PlayScreen() {
   const [playerURLArray, setPlayersURL] = useState<any[]>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any[]>([]);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
+  const [playerArray, setPlayerArray] = useState<any[]>([]);
   const [roomCode, setRoomCode] = useState<string | null>(null);
 
   const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -133,7 +135,7 @@ export default function PlayScreen() {
         const roomData = snapshotRoom.val();
 
         if (roomData) {
-          const playersList = await Promise.all(
+          const playersLocationList = await Promise.all(
             Object.entries(roomData).map(async ([key, userData]) => {
               const player = userData as PlayerData;
 
@@ -149,7 +151,7 @@ export default function PlayScreen() {
               };
             })
           );
-          setPlayersLocation(playersList);
+          setPlayersLocation(playersLocationList);
         }
       });
       return unsubscribeRoom;
@@ -238,8 +240,8 @@ export default function PlayScreen() {
     const roomRef = ref(database, `rooms/${roomCode}/players`);
     const roomInfo = await get(roomRef);
     const roomsgklj = roomInfo.val();
-    Object.entries(roomsgklj).forEach(([roomId, roomData]) => {
-      console.log(`Room ID: ${roomId}`);
+    Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
+      console.log(`Player ID: ${playerId}`);
 
       // Loop through each property of the room
       Object.entries(roomData as { [key: string]: any }).forEach(
@@ -333,8 +335,20 @@ export default function PlayScreen() {
 
   const router = useRouter();
 
+  const teamColors = [
+    { team: 1, color: "#8baaff" }, // blue
+    { team: 2, color: "#ffe08b" }, // yellow
+    { team: 3, color: "#ffbb8b" }, // orange
+    { team: 4, color: "#bd99e6" }, // purple
+    { team: 5, color: "#99d199" }, // green
+    { team: 6, color: "#68dbcc" }, // teal
+    { team: 7, color: "#e481c8" }, // pink
+    { team: 8, color: "#ff9090" }, // red
+  ];
+
   const getTeamColor = (teamNumber: number): string => {
-    return teamNumber === 1 ? "#FFD700" : "#8BAAFF";
+    const teamColor = teamColors.find((team) => team.team === teamNumber);
+    return teamColor ? teamColor.color : "#8baaff";
   };
 
   type LatLng = {
@@ -543,6 +557,31 @@ export default function PlayScreen() {
     router.replace("/(tabs)/home");
   };
 
+  const [isOxStampedeModalVisible, setOxStampedeModalVisible] = useState(false);
+
+  const useOx = () => {
+    console.log("Using Ox Stampede power-up");
+    setOxStampedeModalVisible(true);
+  };
+
+  const handleTargetSelect = (targetId: string) => {
+    setOxStampedeModalVisible(false);
+    // do stuff on target's screen
+    setDustStormActive(true);
+  };
+
+  const [isDustStormActive, setDustStormActive] = useState(false);
+
+  const useHorseshoe = () => {
+    console.log("Using Horseshoe power-up");
+    // horseshoe logic
+  };
+
+  const useBadge = () => {
+    console.log("Using Sheriff's Badge power-up");
+    // sheriff's badge
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -672,11 +711,24 @@ export default function PlayScreen() {
           </AppText>
           <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
           <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
+
+          <ReusableButton label="Use Ox" onPress={useOx} />
+          <ReusableButton label="Use Horseshoe" onPress={useHorseshoe} />
+          <ReusableButton label="Use Badge" onPress={useBadge} />
+
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
           </TouchableOpacity>
         </BottomSheetView>
       </BottomSheet>
+
+      <SelectTargetModal
+        visible={isOxStampedeModalVisible}
+        onClose={() => setOxStampedeModalVisible(false)}
+        players={playerTeams}
+        onSelect={handleTargetSelect}
+        currentPlayerTeam={playerTeams[auth.currentUser?.uid || ""] || 1}
+      />
     </GestureHandlerRootView>
   );
 }

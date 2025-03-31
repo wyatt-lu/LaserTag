@@ -41,6 +41,7 @@
     "expo-system-ui": "~4.0.8",
     "expo-web-browser": "~14.0.2",
     "firebase": "^11.2.0",
+    "jest-expo": "~52.0.6",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.7",
@@ -55,9 +56,9 @@
     "react-native-vector-icons": "^10.2.0",
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.5",
+    "recyclerlistview": "^4.2.3",
     "styled-components": "^6.1.15",
-    "yarn": "^1.22.22",
-    "jest-expo": "~52.0.6"
+    "yarn": "^1.22.22"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -235,18 +235,49 @@ export default function PlayScreen() {
     //with the mock geometry code, then feed that code into eliminatePlayer method
     //checks whether player coordinates when laser was shot falls into mock geometry
     //if yes, eliminate player, if not, then nothing happens
-    const roomRef = ref(database, `rooms/${roomCode}/players`);
-    const roomInfo = await get(roomRef);
-    const roomsgklj = roomInfo.val();
-    Object.entries(roomsgklj).forEach(([roomId, roomData]) => {
-      console.log(`Room ID: ${roomId}`);
-
-      // Loop through each property of the room
+    type PLD = {
+      playerId: string;
+      direction: number;
+      latitude: number;
+      longitude: number;
+    };
+    const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
+    const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
+    const roomPlayerInfo = await get(roomPlayerRef);
+    const roomsgklj = roomPlayerInfo.val();
+    Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
+      const fireLaserRef = ref(database, `rooms/${roomCode}/players/${playerId}/fireLaser`)
+      console.log(`Player ID: ${playerId}`);
+      //initialize vars outside
+      let curDir, curLat, curLon;
+      // Loop through each property of the player
       Object.entries(roomData as { [key: string]: any }).forEach(
         ([key, value]) => {
           console.log(`  ${key}: ${value}`);
+          if (key === "direction") {
+            curDir = value
+          }
+          if (key === "latitude") {
+            curLat = value
+          }
+          if (key === "longitude") {
+            curLon = value
+          }
         }
       );
+      console.log(`Direction: ${curDir}, Latitude: ${curLat}, Longitude: ${curLon}`);
+      if (typeof curDir === "number" && typeof curLat === "number" && curLon === "number") {
+        console.log("condition met: adding data to player-laser state")
+
+        const fireCoords = {
+          playerId,
+          direction: curDir,
+          latitude: curLat,
+          longitude: curLon
+        }
+        //update state and add data to array
+        setPlayerLaserData(prevData => [...prevData, fireCoords]);
+      }
     });
   };
 

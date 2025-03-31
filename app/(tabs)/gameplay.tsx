@@ -53,10 +53,13 @@ export default function PlayScreen() {
 
   const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  //Getting correct location, direction, and cardinal directions!//
+
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
 
+  //get user's location and set it in the database
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
@@ -107,6 +110,7 @@ export default function PlayScreen() {
     };
   }, []);
 
+  //getting all player's locations and putting it in readable data here
   useEffect(() => {
     const database = getDatabase();
 
@@ -118,7 +122,7 @@ export default function PlayScreen() {
       team: number;
     }
 
-    const fetchRoomRef = async () => {
+    const setPlayersLocations = async () => {
       if (!auth.currentUser) return;
 
       const playerId = auth.currentUser.uid;
@@ -157,9 +161,9 @@ export default function PlayScreen() {
       return unsubscribeRoom;
     };
 
-    fetchRoomRef();
+    setPlayersLocations();
     return () => {
-      fetchRoomRef().then((unsubscribe) => unsubscribe?.());
+      setPlayersLocations().then((unsubscribe) => unsubscribe?.());
     };
   }, []);
 
@@ -219,6 +223,7 @@ export default function PlayScreen() {
     }
   };
 
+  //USER MOVES!!//
   const eliminatePlayer = async (username: string) => {
     const usernameRef = ref(database, `usernames/${username}/uid`);
     get(usernameRef).then((snapshot) => {
@@ -237,18 +242,58 @@ export default function PlayScreen() {
     //with the mock geometry code, then feed that code into eliminatePlayer method
     //checks whether player coordinates when laser was shot falls into mock geometry
     //if yes, eliminate player, if not, then nothing happens
-    const roomRef = ref(database, `rooms/${roomCode}/players`);
-    const roomInfo = await get(roomRef);
-    const roomsgklj = roomInfo.val();
+    type PLD = {
+      playerId: string;
+      direction: number;
+      latitude: number;
+      longitude: number;
+    };
+    const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
+    const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
+    const roomPlayerInfo = await get(roomPlayerRef);
+    const roomsgklj = roomPlayerInfo.val();
     Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
+      const fireLaserRef = ref(
+        database,
+        `rooms/${roomCode}/players/${playerId}/fireLaser`
+      );
       console.log(`Player ID: ${playerId}`);
-
-      // Loop through each property of the room
+      //initialize vars outside
+      let curDir, curLat, curLon;
+      // Loop through each property of the player
       Object.entries(roomData as { [key: string]: any }).forEach(
         ([key, value]) => {
           console.log(`  ${key}: ${value}`);
+          if (key === "direction") {
+            curDir = value;
+          }
+          if (key === "latitude") {
+            curLat = value;
+          }
+          if (key === "longitude") {
+            curLon = value;
+          }
         }
       );
+      console.log(
+        `Direction: ${curDir}, Latitude: ${curLat}, Longitude: ${curLon}`
+      );
+      if (
+        typeof curDir === "number" &&
+        typeof curLat === "number" &&
+        curLon === "number"
+      ) {
+        console.log("condition met: adding data to player-laser state");
+
+        const fireCoords = {
+          playerId,
+          direction: curDir,
+          latitude: curLat,
+          longitude: curLon,
+        };
+        //update state and add data to array
+        setPlayerLaserData((prevData) => [...prevData, fireCoords]);
+      }
     });
   };
 
@@ -259,21 +304,19 @@ export default function PlayScreen() {
     //rectangle will be pointing in the direction that the player is pointing, and it will branch out from the point where the player is
   };
 
+  //URL information getting and setting
+  //get individual user url
   const fetchUserURL = async (id: any) => {
     try {
       const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
       const url = await getDownloadURL(placeholderRef);
-      /*
-      const localUri = `${FileSystem.documentDirectory}pfp.jpg`;
-
-      const { uri } = await FileSystem.downloadAsync(url, localUri);
-      */
       return url;
     } catch (error) {
       console.error("Error fetching image URL:", error);
     }
   };
 
+  //get list of player's url once gameplay begins runnings
   useEffect(() => {
     const getPlayersURL = async () => {
       try {
@@ -356,24 +399,7 @@ export default function PlayScreen() {
     longitude: number;
   };
 
-  type PowerUp = {
-    id: string;
-    type: string;
-    coordinate: LatLng;
-  };
-
-  const powerUpTypes = [
-    { type: "Lasso" },
-    { type: "Horseshoe" },
-    { type: "Cowboy Boots" },
-    { type: "Bounty" },
-    { type: "Sheriff Badge" },
-    { type: "Cowboy Hat" },
-    { type: "Cactus" },
-    { type: "Ox Stampede" },
-    { type: "Money" },
-  ];
-
+  // CIRCLE/BOUNDARY GENERATION //
   const generateCircleCoordinates = (
     center: LatLng,
     radius: number,
@@ -395,23 +421,6 @@ export default function PlayScreen() {
     }
     coordinates.push(coordinates[0]);
     return coordinates;
-  };
-
-  const generateRandomCoordinate = (center: LatLng, radius: number): LatLng => {
-    const earthRadius = 6378137; // Earth's radius in meters
-    const randomAngle = Math.random() * 2 * Math.PI; // Random angle in radians
-    const randomRadius = Math.sqrt(Math.random()) * radius; // Random radius within the circle
-
-    const deltaLat = (randomRadius / earthRadius) * Math.sin(randomAngle);
-    const deltaLng =
-      (randomRadius /
-        (earthRadius * Math.cos((center.latitude * Math.PI) / 180))) *
-      Math.cos(randomAngle);
-
-    return {
-      latitude: center.latitude + (deltaLat * 180) / Math.PI,
-      longitude: center.longitude + (deltaLng * 180) / Math.PI,
-    };
   };
 
   const getCenter = async () => {
@@ -446,11 +455,48 @@ export default function PlayScreen() {
       initializeGame();
     }, [])
   );
+  //160 was original radius
+  const circleCoordinates = generateCircleCoordinates(center, 20, 20);
 
-  const circleCoordinates = generateCircleCoordinates(center, 160, 100);
+  // POWER UPS //
 
-  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+  type PowerUp = {
+    id: string;
+    type: string;
+    coordinate: LatLng;
+  };
 
+  const powerUpTypes = [
+    { type: "Lasso" },
+    { type: "Horseshoe" },
+    { type: "Cowboy Boots" },
+    { type: "Bounty" },
+    { type: "Sheriff Badge" },
+    { type: "Cowboy Hat" },
+    { type: "Cactus" },
+    { type: "Ox Stampede" },
+    { type: "Money" },
+  ];
+
+  //generate random coords for powerups
+  const generateRandomCoordinate = (center: LatLng, radius: number): LatLng => {
+    const earthRadius = 6378137; // Earth's radius in meters
+    const randomAngle = Math.random() * 2 * Math.PI; // Random angle in radians
+    const randomRadius = Math.sqrt(Math.random()) * radius; // Random radius within the circle
+
+    const deltaLat = (randomRadius / earthRadius) * Math.sin(randomAngle);
+    const deltaLng =
+      (randomRadius /
+        (earthRadius * Math.cos((center.latitude * Math.PI) / 180))) *
+      Math.cos(randomAngle);
+
+    return {
+      latitude: center.latitude + (deltaLat * 180) / Math.PI,
+      longitude: center.longitude + (deltaLng * 180) / Math.PI,
+    };
+  };
+
+  //make random powerups
   const getRandomPowerUp = (center: LatLng, radius: number): PowerUp => {
     const randomType =
       powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
@@ -461,11 +507,12 @@ export default function PlayScreen() {
     };
   };
 
+  //despawn powerups
   useEffect(() => {
     generatePowerUpIntervalRef.current = setInterval(async () => {
       if (!roomCode) return;
-
-      const newPowerUp = getRandomPowerUp(center, 160);
+      //160 was original radius
+      const newPowerUp = getRandomPowerUp(center, 20);
       const powerUpsRef = ref(
         database,
         `rooms/${roomCode}/powerUps/${newPowerUp.id}`
@@ -476,7 +523,8 @@ export default function PlayScreen() {
       setTimeout(async () => {
         await remove(powerUpsRef);
       }, despawnTime);
-    }, Math.random() * (18000 - 3000) + 3000);
+      //18000 was original time
+    }, Math.random() * (4000 - 3000) + 3000);
 
     return () => {
       if (generatePowerUpIntervalRef.current) {
@@ -485,6 +533,7 @@ export default function PlayScreen() {
     };
   }, [roomCode, center]);
 
+  //set powerups up in a usestate
   useEffect(() => {
     const fetchPowerUps = async () => {
       if (!roomCode) return;
@@ -514,6 +563,63 @@ export default function PlayScreen() {
 
     fetchPowerUps();
   }, [roomCode]);
+
+  //all of user's powerups in their inventory
+  const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
+
+  //all of the powerups currently in play in the game
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  //see if powerups are close to user's location
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    const getPlayerPowerUps = async () => {
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      //in case we need to do anything with powerref!
+      /*
+        const powerRef = ref(database, `rooms/${roomCode}/powerUps`)
+        const powerInfo = await get(powerRef);
+        if (!powerInfo.exists()) return;
+        const powerData = powerInfo.val();*/
+
+      let playerPowerUps = userPowerUps;
+
+      powerUps.map(async (powerUp) => {
+        /* change the delta to be whatever value u want*/
+        if (
+          powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 &&
+          powerUp.coordinate.latitude - playerData.latitude >= -0.0001703 &&
+          powerUp.coordinate.longitude - playerData.longitude <= 0.000703 &&
+          powerUp.coordinate.longitude - playerData.longitude >= -0.0001703
+        ) {
+          playerPowerUps.push(powerUp);
+          setUserPowerUps(playerPowerUps);
+          //keeps crashing with the below code?? i can't remove the ref once the user gets it??
+          console.log("setUserPowerUps", userPowerUps);
+          try {
+            const individualPowerRef = ref(
+              database,
+              `rooms/${roomCode}/powerUps/${powerUp.id}`
+            );
+            console.log("individualPowerRef", individualPowerRef);
+            await remove(individualPowerRef);
+            console.log("Power-up removed successfully");
+          } catch (error) {
+            console.error("Error removing power-up:", error);
+          }
+        }
+      });
+    };
+
+    getPlayerPowerUps();
+  }, [playerLocationArray]);
+
+  //  GENERAL GAME MECHANICS
 
   const resetGame = async () => {
     if (!auth.currentUser) return;
@@ -648,6 +754,7 @@ export default function PlayScreen() {
           mapType="hybrid"
           rotateEnabled={false}
           loadingEnabled={true}
+          zoomEnabled={false}
         >
           <Polygon
             coordinates={circleCoordinates}
@@ -674,10 +781,12 @@ export default function PlayScreen() {
                   longitude: playerLocation.longitude,
                 }}
               >
-                <Image
-                  source={{ uri: player.profile }}
-                  style={styles.user}
-                ></Image>
+                <View>
+                  <Image
+                    source={{ uri: player.profile }}
+                    style={styles.user}
+                  ></Image>
+                </View>
               </Marker>
             ) : (
               <Text>Loading...</Text>

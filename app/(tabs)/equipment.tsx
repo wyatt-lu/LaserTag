@@ -50,7 +50,7 @@ export default function EquipmentScreen() {
           theme="laser"
           label="Default"
           onPress={() => {
-            changeLaser("default");
+            changeLaser("Default");
           }}
         />
         <ReusableButton

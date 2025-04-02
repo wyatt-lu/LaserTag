@@ -236,23 +236,32 @@ export default function PlayScreen() {
     });
   };
 
+  type PLD = {
+    playerId: string;
+    direction: number;
+    latitude: number;
+    longitude: number;
+  };
+
   const fireLaser = async () => {
+    console.log(`entered firelaser`)
     //when button pressed, via snapshots, get the laser type and code
     //feed this code into generateLaserLine, which returns mock geometry that has a radius of the circle on the map
     //with the mock geometry code, then feed that code into eliminatePlayer method
     //checks whether player coordinates when laser was shot falls into mock geometry
     //if yes, eliminate player, if not, then nothing happens
-    type PLD = {
-      playerId: string;
-      direction: number;
-      latitude: number;
-      longitude: number;
-    };
-    const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
     const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
     const roomPlayerInfo = await get(roomPlayerRef);
     const roomsgklj = roomPlayerInfo.val();
+    if (!roomsgklj) {
+      console.log("No player data found in Firebase");
+      return;
+    }
+    console.log("about to enter first loop")
+    let playerLaserData: PLD[] = [];
+    //const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
     Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
+      console.log("inside first loop")
       const fireLaserRef = ref(database, `rooms/${roomCode}/players/${playerId}/fireLaser`)
       console.log(`Player ID: ${playerId}`);
       //initialize vars outside
@@ -273,27 +282,88 @@ export default function PlayScreen() {
         }
       );
       console.log(`Direction: ${curDir}, Latitude: ${curLat}, Longitude: ${curLon}`);
-      if (typeof curDir === "number" && typeof curLat === "number" && curLon === "number") {
+      if (curDir != null && curLat != null && curLon != null) {
         console.log("condition met: adding data to player-laser state")
 
         const fireCoords = {
-          playerId,
+          playerId: playerId,
           direction: curDir,
           latitude: curLat,
           longitude: curLon
         }
         //update state and add data to array
-        setPlayerLaserData(prevData => [...prevData, fireCoords]);
+        //setPlayerLaserData((prevData) => [...prevData, fireCoords]);
+        playerLaserData.push(fireCoords);
       }
     });
+    //generateLaserLine(playerLaserData);
+    // Now call generateLaserLine once after all the data is collected
+    if (playerLaserData.length > 0) {
+      console.log("Generated playerLaserData: ", playerLaserData);
+      generateLaserLine(playerLaserData);
+    } else {
+      console.log("No valid player data collected");
+    }
   };
 
-  const generateLaserLine = async () => {
+  const generateLaserLine = async (dataArray: PLD[]) => {
     //via laser code, get laser information stored in the laser code and save into variables
     //do some math that creates the geometry mockup for default and 2x width
     //the length of the rectangle will be the length
     //rectangle will be pointing in the direction that the player is pointing, and it will branch out from the point where the player is
+    let direction, latitude, longitude, length, width;
+    if (!auth.currentUser) return;
+    const playerId = auth.currentUser.uid;
+    const playerData = dataArray.find(player => player.playerId === playerId);
+    if (playerData) {
+      direction = playerData.direction
+      latitude = playerData.latitude;
+      longitude = playerData.longitude;
+      console.log(`Player ID: ${playerId}`);
+      console.log(`Direction: ${direction}, Latitude: ${latitude}, Longitude: ${longitude}`);
+    }
+    //find laser
+    const playerRef = ref(database, `players/${playerId}`);
+    const playerSnapshot = await get(playerRef)
+    if (playerSnapshot.exists()) {
+      const playerData = playerSnapshot.val();
+      const laserType = playerData.laser;
+      console.log(`Player ID: ${playerId}, Laser Type: ${laserType}`);
+      const laserRef = ref(database, `lasers/${laserType}`)
+      const laserSnapshot = await get(laserRef);
+      if (laserSnapshot.exists()) {
+        const laserData = laserSnapshot.val();
+        length = laserData.length;
+        width = laserData.width;
+      }
+    }
+    //convert direction to radians
+    if (direction == null || latitude == null || longitude == null) return;
+    const directionInRadians = degToRad(direction);
+    const laserArea = width * length
+    //forward direction (laser length)
+    const frontCoordinates = calculateOffset(latitude, longitude, length, directionInRadians);
+    // Sideways direction (laser width, perpendicular to the direction the player is facing)
+    const rightCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians + Math.PI / 2);
+    const leftCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians - Math.PI / 2);
   };
+
+  //helper function to calculate offset
+  function calculateOffset(lat: number, lon: number, distance: number, angle: number) {
+    const radius = 6371000; // Earth's radius in meters
+    const latOffset = (distance * Math.cos(angle)) / radius;
+    const lonOffset = (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
+    
+    const newLat = lat + latOffset;
+    const newLon = lon + lonOffset;
+    
+    return { lat: newLat, lon: newLon };
+  };
+
+  //helper function for degree to radian conversion
+  function degToRad(deg: number) {
+    return deg * (Math.PI / 180);
+  }
 
   //URL information getting and setting
   //get individual user url

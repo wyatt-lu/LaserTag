@@ -28,6 +28,7 @@ import ReusableButton from "@/components/ReusableButton";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFocusEffect, useRouter } from "expo-router";
 import PowerUpMarker from "@/components/PowerUpMarker";
+import SelectTargetModal from "@/components/StampedeModal";
 
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
@@ -47,13 +48,13 @@ export default function PlayScreen() {
   const [playerURLArray, setPlayersURL] = useState<any[]>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any[]>([]);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
+  const [playerArray, setPlayerArray] = useState<any[]>([]);
   const [roomCode, setRoomCode] = useState<string | null>(null);
 
   const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-
   //Getting correct location, direction, and cardinal directions!//
-  
+
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
@@ -138,7 +139,7 @@ export default function PlayScreen() {
         const roomData = snapshotRoom.val();
 
         if (roomData) {
-          const playersList = await Promise.all(
+          const playersLocationList = await Promise.all(
             Object.entries(roomData).map(async ([key, userData]) => {
               const player = userData as PlayerData;
 
@@ -154,7 +155,7 @@ export default function PlayScreen() {
               };
             })
           );
-          setPlayersLocation(playersList);
+          setPlayersLocation(playersLocationList);
         }
       });
       return unsubscribeRoom;
@@ -222,7 +223,6 @@ export default function PlayScreen() {
     }
   };
 
-
   //USER MOVES!!//
   const eliminatePlayer = async (username: string) => {
     const usernameRef = ref(database, `usernames/${username}/uid`);
@@ -271,13 +271,13 @@ export default function PlayScreen() {
         ([key, value]) => {
           console.log(`  ${key}: ${value}`);
           if (key === "direction") {
-            curDir = value
+            curDir = value;
           }
           if (key === "latitude") {
-            curLat = value
+            curLat = value;
           }
           if (key === "longitude") {
-            curLon = value
+            curLon = value;
           }
         }
       );
@@ -289,8 +289,8 @@ export default function PlayScreen() {
           playerId: playerId,
           direction: curDir,
           latitude: curLat,
-          longitude: curLon
-        }
+          longitude: curLon,
+        };
         //update state and add data to array
         //setPlayerLaserData((prevData) => [...prevData, fireCoords]);
         playerLaserData.push(fireCoords);
@@ -439,8 +439,20 @@ export default function PlayScreen() {
 
   const router = useRouter();
 
+  const teamColors = [
+    { team: 1, color: "#8baaff" }, // blue
+    { team: 2, color: "#ffe08b" }, // yellow
+    { team: 3, color: "#ffbb8b" }, // orange
+    { team: 4, color: "#bd99e6" }, // purple
+    { team: 5, color: "#99d199" }, // green
+    { team: 6, color: "#68dbcc" }, // teal
+    { team: 7, color: "#e481c8" }, // pink
+    { team: 8, color: "#ff9090" }, // red
+  ];
+
   const getTeamColor = (teamNumber: number): string => {
-    return teamNumber === 1 ? "#FFD700" : "#8BAAFF";
+    const teamColor = teamColors.find((team) => team.team === teamNumber);
+    return teamColor ? teamColor.color : "#8baaff";
   };
 
   type LatLng = {
@@ -507,7 +519,6 @@ export default function PlayScreen() {
   //160 was original radius
   const circleCoordinates = generateCircleCoordinates(center, 20, 20);
 
-
   // POWER UPS //
 
   type PowerUp = {
@@ -573,7 +584,7 @@ export default function PlayScreen() {
       setTimeout(async () => {
         await remove(powerUpsRef);
       }, despawnTime);
-    //18000 was original time
+      //18000 was original time
     }, Math.random() * (4000 - 3000) + 3000);
 
     return () => {
@@ -614,53 +625,60 @@ export default function PlayScreen() {
     fetchPowerUps();
   }, [roomCode]);
 
-    //all of user's powerups in their inventory
-    const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
+  //all of user's powerups in their inventory
+  const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
 
-    //all of the powerups currently in play in the game
-    const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
-  
-    //see if powerups are close to user's location
-    useEffect(()=>{
-      if (!auth.currentUser) return;
-  
-      const playerId = auth.currentUser.uid;
-      const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`)
-      const getPlayerPowerUps = (async ()=>{
-        const playerInfo = await get(playerRef);
-        if (!playerInfo.exists()) return;
-        const playerData = playerInfo.val();
-        //in case we need to do anything with powerref!
-        /*
+  //all of the powerups currently in play in the game
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  //see if powerups are close to user's location
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    const getPlayerPowerUps = async () => {
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      //in case we need to do anything with powerref!
+      /*
         const powerRef = ref(database, `rooms/${roomCode}/powerUps`)
         const powerInfo = await get(powerRef);
         if (!powerInfo.exists()) return;
         const powerData = powerInfo.val();*/
-  
-        let playerPowerUps = userPowerUps;
-  
-        powerUps.map(async (powerUp) =>{
+
+      let playerPowerUps = userPowerUps;
+
+      powerUps.map(async (powerUp) => {
         /* change the delta to be whatever value u want*/
-          if ((powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 && powerUp.coordinate.latitude - playerData.latitude >= -0.0001703)
-            && (powerUp.coordinate.longitude - playerData.longitude <= 0.000703 && powerUp.coordinate.longitude - playerData.longitude >= -0.0001703)){
-              playerPowerUps.push(powerUp);
-              setUserPowerUps(playerPowerUps);
-              //keeps crashing with the below code?? i can't remove the ref once the user gets it??
-              console.log("setUserPowerUps", userPowerUps)
-              try {
-                const individualPowerRef = ref(database, `rooms/${roomCode}/powerUps/${powerUp.id}`);
-                console.log("individualPowerRef", individualPowerRef)
-                await remove(individualPowerRef);
-                console.log("Power-up removed successfully");
-              } catch (error) {
-                console.error("Error removing power-up:", error);
-              }
+        if (
+          powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 &&
+          powerUp.coordinate.latitude - playerData.latitude >= -0.0001703 &&
+          powerUp.coordinate.longitude - playerData.longitude <= 0.000703 &&
+          powerUp.coordinate.longitude - playerData.longitude >= -0.0001703
+        ) {
+          playerPowerUps.push(powerUp);
+          setUserPowerUps(playerPowerUps);
+          //keeps crashing with the below code?? i can't remove the ref once the user gets it??
+          console.log("setUserPowerUps", userPowerUps);
+          try {
+            const individualPowerRef = ref(
+              database,
+              `rooms/${roomCode}/powerUps/${powerUp.id}`
+            );
+            console.log("individualPowerRef", individualPowerRef);
+            await remove(individualPowerRef);
+            console.log("Power-up removed successfully");
+          } catch (error) {
+            console.error("Error removing power-up:", error);
           }
-        });
-      })
-  
-      getPlayerPowerUps();
-    }, [playerLocationArray])
+        }
+      });
+    };
+
+    getPlayerPowerUps();
+  }, [playerLocationArray]);
 
   //  GENERAL GAME MECHANICS
 
@@ -704,6 +722,31 @@ export default function PlayScreen() {
     setRoomCode(null);
 
     router.replace("/(tabs)/home");
+  };
+
+  const [isOxStampedeModalVisible, setOxStampedeModalVisible] = useState(false);
+
+  const useOx = () => {
+    console.log("Using Ox Stampede power-up");
+    setOxStampedeModalVisible(true);
+  };
+
+  const handleTargetSelect = (targetId: string) => {
+    setOxStampedeModalVisible(false);
+    // do stuff on target's screen
+    setDustStormActive(true);
+  };
+
+  const [isDustStormActive, setDustStormActive] = useState(false);
+
+  const useHorseshoe = () => {
+    console.log("Using Horseshoe power-up");
+    // horseshoe logic
+  };
+
+  const useBadge = () => {
+    console.log("Using Sheriff's Badge power-up");
+    // sheriff's badge
   };
 
   return (
@@ -838,11 +881,24 @@ export default function PlayScreen() {
           </AppText>
           <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
           <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
+
+          <ReusableButton label="Use Ox" onPress={useOx} />
+          <ReusableButton label="Use Horseshoe" onPress={useHorseshoe} />
+          <ReusableButton label="Use Badge" onPress={useBadge} />
+
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
           </TouchableOpacity>
         </BottomSheetView>
       </BottomSheet>
+
+      <SelectTargetModal
+        visible={isOxStampedeModalVisible}
+        onClose={() => setOxStampedeModalVisible(false)}
+        players={playerTeams}
+        onSelect={handleTargetSelect}
+        currentPlayerTeam={playerTeams[auth.currentUser?.uid || ""] || 1}
+      />
     </GestureHandlerRootView>
   );
 }

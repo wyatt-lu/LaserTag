@@ -17,6 +17,21 @@ import * as Clipboard from "expo-clipboard";
 import { RopeIcon } from "@/constants/icons";
 import SliderComponent from "@react-native-community/slider";
 
+interface Player {
+  username: string;
+  team?: number;
+  ready?: boolean;
+}
+
+interface RoomInfo {
+  host: string;
+  roomType: string;
+  players: { [key: string]: Player };
+  gameStarted?: boolean;
+  gameReady?: boolean;
+  numTeams?: number;
+}
+
 type Props = {
   visible: boolean;
   roomCode: string | null;
@@ -32,9 +47,9 @@ export default function GameLobbyModal({
   beginReadyGame,
   closeLobby,
 }: Props) {
-  const [roomInfo, setRoomInfo] = useState<any>(null);
+  const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
-  const [numTeams, setNumTeams] = useState(2);
+  const [numTeams, setNumTeams] = useState(1);
 
   useEffect(() => {
     if (roomCode) {
@@ -49,13 +64,16 @@ export default function GameLobbyModal({
           if (!roomData) return;
 
           const initialTeams: { [key: string]: number } = {};
-          Object.keys(roomData.players).forEach((player: any) => {
-            initialTeams[player] = roomData.players[player].team || 1;
+          Object.keys(roomData.players).forEach((playerId) => {
+            initialTeams[playerId] = roomData.players[playerId].team || 1;
           });
           setPlayerTeams(initialTeams);
 
-          const maxTeams = Math.floor(Object.keys(roomData.players).length / 2);
-          setNumTeams(maxTeams > 1 ? maxTeams : 2);
+          const initialNumTeams = Math.min(
+            Object.keys(roomData.players).length,
+            roomData.numTeams || 1
+          );
+          setNumTeams(initialNumTeams);
         },
         (error) => {
           console.error("Error fetching room data:", error);
@@ -70,17 +88,17 @@ export default function GameLobbyModal({
     return null;
   }
 
-  const handleTeams = (uid: string) => {
+  const handleTeamChange = (playerId: string) => {
     if (roomInfo.roomType === "solo") return;
 
-    const currentTeam = playerTeams[uid];
+    const currentTeam = playerTeams[playerId];
     let newTeam = (currentTeam % numTeams) + 1;
     setPlayerTeams((prev) => ({
       ...prev,
-      [uid]: newTeam,
+      [playerId]: newTeam,
     }));
 
-    const playerRef = ref(database, `rooms/${roomCode}/players/${uid}`);
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
     update(playerRef, {
       team: newTeam,
     }).catch((error) => {
@@ -88,35 +106,47 @@ export default function GameLobbyModal({
     });
   };
 
-  const handleNumTeamsChange = (value: number) => {
-    setNumTeams(value);
+  const handleNumTeamsChange = (newNumTeams: number) => {
+    if (newNumTeams < Math.max(...Object.values(playerTeams))) {
+      Alert.alert(
+        "Error",
+        "Cannot reduce the number of teams below the current assignments."
+      );
+      return;
+    }
+    setNumTeams(newNumTeams);
     const roomRef = ref(database, `rooms/${roomCode}`);
     update(roomRef, {
-      numTeams: value,
+      numTeams: newNumTeams,
     }).catch((error) => {
       console.error("Error updating number of teams:", error);
     });
   };
 
-  const toggleReady = async (userId: string) => {
+  const togglePlayerReady = async (playerId: string) => {
     if (!roomCode) return;
 
-    const playerRef = ref(database, `rooms/${roomCode}/players/${userId}`);
-    const newReadyState = !roomInfo.players[userId]?.ready;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    const newReadyState = !roomInfo.players[playerId]?.ready;
 
-    await update(playerRef, { ready: newReadyState });
+    try {
+      await update(playerRef, { ready: newReadyState });
 
-    // Check if all players are ready
-    const updatedRoomSnapshot = await get(ref(database, `rooms/${roomCode}`));
-    const updatedRoom = updatedRoomSnapshot.val();
+      // check if all players are ready
+      const updatedRoomSnapshot = await get(ref(database, `rooms/${roomCode}`));
+      const updatedRoom = updatedRoomSnapshot.val();
 
-    const roomRef = ref(database, `rooms/${roomCode}`);
-    const allReady = Object.values(updatedRoom.players).every(
-      (player: any) => player.ready === true
-    );
-    if (allReady) {
-      await update(roomRef, { gameReady: true });
-      enterGame();
+      const allReady = Object.values(updatedRoom.players).every(
+        (player: any) => player.ready === true
+      );
+      if (allReady) {
+        await update(ref(database, `rooms/${roomCode}`), { gameReady: true });
+        enterGame();
+      } else {
+        await update(ref(database, `rooms/${roomCode}`), { gameReady: false });
+      }
+    } catch (error) {
+      console.error("Error updating player ready state:", error);
     }
   };
 
@@ -148,10 +178,8 @@ export default function GameLobbyModal({
               </AppText>
               <SliderComponent
                 style={{ width: 200, height: 40 }}
-                minimumValue={2}
-                maximumValue={Math.floor(
-                  Object.keys(roomInfo.players).length / 2 + 1
-                )}
+                minimumValue={1}
+                maximumValue={Object.keys(roomInfo.players).length}
                 step={1}
                 value={numTeams}
                 onValueChange={handleNumTeamsChange}
@@ -161,14 +189,14 @@ export default function GameLobbyModal({
           )}
         <View style={styles.middleContainer}>
           {Object.keys(roomInfo.players)
-            .sort((a: any, b: any) => {
+            .sort((a, b) => {
               if (a === roomInfo.host) return -1;
               if (b === roomInfo.host) return 1;
               return 0;
             })
-            .map((userId) => {
-              const player = roomInfo.players[userId];
-              const TeamColors = [
+            .map((playerId) => {
+              const player = roomInfo.players[playerId];
+              const teamColors = [
                 { team: 1, color: "#8baaff" }, //blue
                 { team: 2, color: "#ffe08b" }, //yellow
                 { team: 3, color: "#ffbb8b" }, //orange
@@ -179,12 +207,12 @@ export default function GameLobbyModal({
                 { team: 8, color: "#ff9090" }, //red
               ];
               const teamColor =
-                TeamColors.find((team) => team.team === playerTeams[userId])
+                teamColors.find((team) => team.team === playerTeams[playerId])
                   ?.color || "#8baaff";
               const isReady = player.ready === true;
               return (
                 <View
-                  key={userId}
+                  key={playerId}
                   style={{ flexDirection: "row", alignItems: "center" }}
                 >
                   <Pressable
@@ -194,29 +222,18 @@ export default function GameLobbyModal({
                     ]}
                     onPress={
                       auth.currentUser?.uid === roomInfo.host
-                        ? () => handleTeams(userId)
+                        ? () => handleTeamChange(playerId)
                         : undefined
                     }
                   >
                     <AppText>{player.username}</AppText>
                     {roomInfo.roomType !== "solo" && (
                       <AppText style={{ marginLeft: 10 }}>
-                        [Team {playerTeams[userId]}]
+                        [Team {playerTeams[playerId]}]
                       </AppText>
                     )}
                   </Pressable>
-                  {isReady ? (
-                    <AppText style={styles.readyText}>Ready</AppText>
-                  ) : (
-                    auth.currentUser?.uid === userId && (
-                      <TouchableOpacity
-                        style={[styles.invisibleReadyText]}
-                        onPress={() => toggleReady(userId)}
-                      >
-                        <AppText>Ready?</AppText>
-                      </TouchableOpacity>
-                    )
-                  )}
+                  {isReady && <AppText style={styles.readyText}>Ready</AppText>}
                 </View>
               );
             })}
@@ -224,21 +241,18 @@ export default function GameLobbyModal({
 
         <View style={styles.bottomContainer}>
           {roomInfo.gameStarted ? (
-            Object.keys(roomInfo.players).map((userId) => {
-              const isReady = roomInfo.players[userId]?.ready === true;
+            Object.keys(roomInfo.players).map((playerId) => {
+              const isReady = roomInfo.players[playerId]?.ready === true;
+              const readyLabel = isReady ? "Unready?" : "Ready?";
               return (
-                <View key={userId} style={[styles.playerContainerOnTop]}>
-                  {isReady ? (
-                    <AppText style={styles.readyText}></AppText>
-                  ) : (
-                    auth.currentUser?.uid === userId && (
-                      <ReusableButton
-                        label="Ready?"
-                        buttonTextStyle={{ position: "absolute" }}
-                        buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
-                        onPress={() => toggleReady(userId)}
-                      />
-                    )
+                <View key={playerId} style={[styles.playerContainerOnTop]}>
+                  {auth.currentUser?.uid === playerId && (
+                    <ReusableButton
+                      label={readyLabel}
+                      buttonTextStyle={{ position: "absolute" }}
+                      buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
+                      onPress={() => togglePlayerReady(playerId)}
+                    />
                   )}
                 </View>
               );

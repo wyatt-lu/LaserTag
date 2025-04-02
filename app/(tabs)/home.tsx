@@ -124,7 +124,7 @@ export default function HomeScreen() {
 
     const roomRef = ref(database, `rooms/${newRoomCode}`);
     const playerRef = ref(database, `players/${auth.currentUser.uid}`);
-    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`)
+    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`);
     const laserData = await get(laserRef);
 
     await set(roomRef, {
@@ -145,7 +145,7 @@ export default function HomeScreen() {
 
     onDisconnect(roomRef).remove();
     onDisconnect(playerRef).update({ room: null });
-    onDisconnect(playerRef).update({ laser: null});
+    onDisconnect(playerRef).update({ laser: null });
 
     openLobby();
   };
@@ -197,19 +197,19 @@ export default function HomeScreen() {
       }
     }
 
-    if (Object.keys(roomData.players).length >= 4) {
+    if (Object.keys(roomData.players).length >= 8) {
       Alert.alert("Room is full");
       return;
     }
 
-    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`)
+    const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`);
     const laserData = await get(laserRef);
 
     await update(ref(database, `rooms/${roomCode}/players`), {
       [auth.currentUser.uid]: {
         username: auth.currentUser.displayName,
         ready: false,
-        laser: laserData.val()
+        laser: laserData.val(),
       },
     });
 

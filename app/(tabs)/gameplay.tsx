@@ -1,10 +1,17 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import {
   get,
   getDatabase,
+  off,
   onValue,
   ref,
   remove,
@@ -14,7 +21,6 @@ import {
 import { auth, database } from "../../firebaseconfig";
 import * as FileSystem from "expo-file-system";
 import MapView, { Marker, Polygon } from "react-native-maps";
-import React from "react";
 import {
   getStorage,
   ref as ref_storage,
@@ -28,11 +34,67 @@ import ReusableButton from "@/components/ReusableButton";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFocusEffect, useRouter } from "expo-router";
 import PowerUpMarker from "@/components/PowerUpMarker";
-import SelectTargetModal from "@/components/StampedeModal";
+import PlayerListModal from "@/components/PlayerListModal";
+import {
+  BadgeIcon,
+  BootsIcon,
+  BountyIcon,
+  CactusIcon,
+  HatIcon,
+  HorseshoeIcon,
+  LassoIcon,
+  OxIcon,
+  MoneyIcon,
+} from "@/constants/icons";
+import { FlatList } from "react-native";
 
+// Utility Functions
+const degree = (x: number, y: number): number => {
+  let degree = 0;
+  if (Math.atan2(y, x) >= 0) {
+    degree = Math.atan2(y, x) * (180 / Math.PI);
+  } else {
+    degree = (Math.atan2(y, x) + 2 * Math.PI) * (180 / Math.PI);
+  }
+  degree = Math.round(degree - 90 >= 0 ? degree - 90 : degree + 271);
+  return degree;
+};
+
+const cardinal = (degree: number): string => {
+  if (degree >= 22.5 && degree < 67.5) return "NE";
+  if (degree >= 67.5 && degree < 112.5) return "E";
+  if (degree >= 112.5 && degree < 157.5) return "SE";
+  if (degree >= 157.5 && degree < 202.5) return "S";
+  if (degree >= 202.5 && degree < 247.5) return "SW";
+  if (degree >= 247.5 && degree < 292.5) return "W";
+  if (degree >= 292.5 && degree < 337.5) return "NW";
+  return "N";
+};
+
+const calculateOffset = (
+  lat: number,
+  lon: number,
+  distance: number,
+  angle: number
+) => {
+  const radius = 6371000; // Earth's radius in meters
+  const latOffset = (distance * Math.cos(angle)) / radius;
+  const lonOffset =
+    (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
+
+  const newLat = lat + latOffset;
+  const newLon = lon + lonOffset;
+
+  return { lat: newLat, lon: newLon };
+};
+
+const degToRad = (deg: number) => {
+  return deg * (Math.PI / 180);
+};
+
+// Main Component
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [magnetometerData, setMagnetometerData] = useState({
     x: 0,
     y: 0,
@@ -53,20 +115,100 @@ export default function PlayScreen() {
 
   const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  //Getting correct location, direction, and cardinal directions!//
+  // Fetch Room Code
+  useEffect(() => {
+    const fetchRoomCode = async () => {
+      if (!auth.currentUser) return;
 
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `players/${playerId}`);
+      const playerInfo = await get(playerRef);
+
+      if (playerInfo.exists()) {
+        const playerData = playerInfo.val();
+        setRoomCode(playerData.room);
+      }
+    };
+
+    fetchRoomCode();
+  }, []);
+
+  //Fetch Player Data
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const database = getDatabase();
+    const playersRef = ref(database, `rooms/${roomCode}/players`);
+
+    const unsubscribe = onValue(playersRef, (snapshot) => {
+      const playersData = snapshot.val() || {};
+      const playerList = Object.entries(playersData).map(([id, data]) => ({
+        id,
+        ...(data as any),
+      }));
+      setPlayerArray(playerList);
+    });
+
+    return () => {
+      unsubscribe();
+      off(playersRef);
+    };
+  }, [roomCode]);
+
+  //Fetch Player Location
+  useEffect(() => {
+    const getPlayersURL = async () => {
+      try {
+        if (!auth.currentUser) return;
+
+        const playerId = auth.currentUser.uid;
+        const playerRef = ref(database, `players/${playerId}`);
+        const playerInfo = await get(playerRef);
+
+        if (playerInfo.exists()) {
+          const playerData = playerInfo.val();
+          const roomRef = ref(database, `rooms/${playerData.room}/players`);
+          const roomInfo = await get(roomRef);
+          if (roomInfo.exists()) {
+            const roomData = roomInfo.val();
+            const playersList = await Promise.all(
+              Object.entries(roomData).map(async ([key]) => {
+                let userURL = await fetchUserURL(key);
+                return { id: key, profile: userURL };
+              })
+            );
+            setPlayersURL(playersList);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching player data:", error);
+      }
+    };
+
+    getPlayersURL();
+  }, [playerArray.length]);
+
+  const fetchUserURL = async (id: any) => {
+    try {
+      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
+      const url = await getDownloadURL(placeholderRef);
+      return url;
+    } catch (error) {
+      console.error("Error fetching image URL:", error);
+    }
+  };
+
+  // Update User Location
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
 
-  //get user's location and set it in the database
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
     const updateLocation = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied.");
         return;
       }
 
@@ -110,85 +252,7 @@ export default function PlayScreen() {
     };
   }, []);
 
-  //getting all player's locations and putting it in readable data here
-  useEffect(() => {
-    const database = getDatabase();
-
-    interface PlayerData {
-      direction: number;
-      latitude: number;
-      longitude: number;
-      username: string;
-      team: number;
-    }
-
-    const setPlayersLocations = async () => {
-      if (!auth.currentUser) return;
-
-      const playerId = auth.currentUser.uid;
-      const playerRef = ref(database, `players/${playerId}`);
-      const playerInfo = await get(playerRef);
-
-      if (!playerInfo.exists()) return;
-
-      const playerData = playerInfo.val();
-      setRoomCode(playerData.room);
-      const roomRef = ref(database, `rooms/${playerData.room}/players`);
-
-      const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
-        const roomData = snapshotRoom.val();
-
-        if (roomData) {
-          const playersLocationList = await Promise.all(
-            Object.entries(roomData).map(async ([key, userData]) => {
-              const player = userData as PlayerData;
-
-              setPlayerTeams((prevTeams) => ({
-                ...prevTeams,
-                [key]: player.team,
-              }));
-
-              return {
-                id: key,
-                latitude: player.latitude,
-                longitude: player.longitude,
-              };
-            })
-          );
-          setPlayersLocation(playersLocationList);
-        }
-      });
-      return unsubscribeRoom;
-    };
-
-    setPlayersLocations();
-    return () => {
-      setPlayersLocations().then((unsubscribe) => unsubscribe?.());
-    };
-  }, []);
-
-  const degree = (x: number, y: number): number => {
-    let degree = 0;
-    if (Math.atan2(y, x) >= 0) {
-      degree = Math.atan2(y, x) * (180 / Math.PI);
-    } else {
-      degree = (Math.atan2(y, x) + 2 * Math.PI) * (180 / Math.PI);
-    }
-    degree = Math.round(degree - 90 >= 0 ? degree - 90 : degree + 271);
-    return degree;
-  };
-
-  const cardinal = (degree: number): string => {
-    if (degree >= 22.5 && degree < 67.5) return "NE";
-    if (degree >= 67.5 && degree < 112.5) return "E";
-    if (degree >= 112.5 && degree < 157.5) return "SE";
-    if (degree >= 157.5 && degree < 202.5) return "S";
-    if (degree >= 202.5 && degree < 247.5) return "SW";
-    if (degree >= 247.5 && degree < 292.5) return "W";
-    if (degree >= 292.5 && degree < 337.5) return "NW";
-    return "N";
-  };
-
+  // Update Player Location in Database
   const updatePlayerLocation = async (
     latitude: number,
     longitude: number,
@@ -267,7 +331,7 @@ export default function PlayScreen() {
   };
 
   const fireLaser = async () => {
-    console.log(`entered firelaser`)
+    console.log(`entered firelaser`);
     //when button pressed, via snapshots, get the laser type and code
     //feed this code into generateLaserLine, which returns mock geometry that has a radius of the circle on the map
     //with the mock geometry code, then feed that code into eliminatePlayer method
@@ -280,12 +344,15 @@ export default function PlayScreen() {
       console.log("No player data found in Firebase");
       return;
     }
-    console.log("about to enter first loop")
+    console.log("about to enter first loop");
     let playerLaserData: PLD[] = [];
     //const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
     Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
-      console.log("inside first loop")
-      const fireLaserRef = ref(database, `rooms/${roomCode}/players/${playerId}/fireLaser`)
+      console.log("inside first loop");
+      const fireLaserRef = ref(
+        database,
+        `rooms/${roomCode}/players/${playerId}/fireLaser`
+      );
       console.log(`Player ID: ${playerId}`);
       //initialize vars outside
       let curDir, curLat, curLon;
@@ -304,9 +371,11 @@ export default function PlayScreen() {
           }
         }
       );
-      console.log(`Direction: ${curDir}, Latitude: ${curLat}, Longitude: ${curLon}`);
+      console.log(
+        `Direction: ${curDir}, Latitude: ${curLat}, Longitude: ${curLon}`
+      );
       if (curDir != null && curLat != null && curLon != null) {
-        console.log("condition met: adding data to player-laser state")
+        console.log("condition met: adding data to player-laser state");
 
         const fireCoords = {
           playerId: playerId,
@@ -337,22 +406,24 @@ export default function PlayScreen() {
     let direction, latitude, longitude, length, width;
     if (!auth.currentUser) return;
     const playerId = auth.currentUser.uid;
-    const playerData = dataArray.find(player => player.playerId === playerId);
+    const playerData = dataArray.find((player) => player.playerId === playerId);
     if (playerData) {
-      direction = playerData.direction
+      direction = playerData.direction;
       latitude = playerData.latitude;
       longitude = playerData.longitude;
       console.log(`Player ID: ${playerId}`);
-      console.log(`Direction: ${direction}, Latitude: ${latitude}, Longitude: ${longitude}`);
+      console.log(
+        `Direction: ${direction}, Latitude: ${latitude}, Longitude: ${longitude}`
+      );
     }
     //find laser
     const playerRef = ref(database, `players/${playerId}`);
-    const playerSnapshot = await get(playerRef)
+    const playerSnapshot = await get(playerRef);
     if (playerSnapshot.exists()) {
       const playerData = playerSnapshot.val();
       const laserType = playerData.laser;
       console.log(`Player ID: ${playerId}, Laser Type: ${laserType}`);
-      const laserRef = ref(database, `lasers/${laserType}`)
+      const laserRef = ref(database, `lasers/${laserType}`);
       const laserSnapshot = await get(laserRef);
       if (laserSnapshot.exists()) {
         const laserData = laserSnapshot.val();
@@ -365,7 +436,12 @@ export default function PlayScreen() {
     const directionInRadians = degToRad(direction);
 
     //forward direction (laser length)
-    const frontCoordinates = calculateOffset(latitude, longitude, length, directionInRadians);
+    const frontCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      length,
+      directionInRadians
+    );
     // Sideways direction (laser width, perpendicular to the direction the player is facing)
     const rightCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians + Math.PI / 2);
     const leftCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians - Math.PI / 2);
@@ -445,6 +521,7 @@ export default function PlayScreen() {
   }, []);
 
   const mapRef = useRef<MapView | null>(null);
+  const sheetRef = useRef<BottomSheet>(null);
 
   const focusOnUserLocation = () => {
     if (mapRef.current && location) {
@@ -459,8 +536,6 @@ export default function PlayScreen() {
       );
     }
   };
-
-  const sheetRef = useRef<BottomSheet>(null);
 
   const snapPoints = useMemo(() => ["18%", "28%", "75%"], []);
 
@@ -489,12 +564,13 @@ export default function PlayScreen() {
     return teamColor ? teamColor.color : "#8baaff";
   };
 
+  //Circle Boundary Generation
+
   type LatLng = {
     latitude: number;
     longitude: number;
   };
 
-  // CIRCLE/BOUNDARY GENERATION //
   const generateCircleCoordinates = (
     center: LatLng,
     radius: number,
@@ -550,10 +626,10 @@ export default function PlayScreen() {
       initializeGame();
     }, [])
   );
-  //160 was original radius
-  const circleCoordinates = generateCircleCoordinates(center, 20, 20);
 
-  // POWER UPS //
+  const circleCoordinates = generateCircleCoordinates(center, 20, 20); //160 was original radius
+
+  // Powerup Generation
 
   type PowerUp = {
     id: string;
@@ -712,9 +788,71 @@ export default function PlayScreen() {
     };
 
     getPlayerPowerUps();
-  }, [playerLocationArray]);
+  }, [playerArray]);
 
-  //  GENERAL GAME MECHANICS
+  // Powerup Usage
+
+  const [isOxStampedeModalVisible, setOxStampedeModalVisible] = useState(false);
+
+  const useOx = () => {
+    console.log("Using Ox Stampede power-up");
+    setOxStampedeModalVisible(true);
+  };
+
+  const handleTargetSelect = (targetId: string) => {
+    setOxStampedeModalVisible(false);
+    // do stuff on target's screen
+    setDustStormActive(true);
+  };
+
+  const [isDustStormActive, setDustStormActive] = useState(false);
+
+  const useHorseshoe = () => {
+    console.log("Using Horseshoe power-up");
+    // horseshoe logic
+  };
+
+  const useBadge = () => {
+    console.log("Using Sheriff's Badge power-up");
+    // sheriff's badge
+  };
+
+  const usePowerUp = (powerUp: {
+    id?: string;
+    type: any;
+    coordinate?: { latitude: number; longitude: number };
+  }) => {
+    console.log(`Using power-up: ${powerUp.type}`);
+    // Add logic to use the power-up
+  };
+
+  const renderPowerUpItem = ({ item }: { item: PowerUp }) => {
+    return (
+      <TouchableOpacity
+        style={styles.powerUpItem}
+        onPress={() => usePowerUp(item)}
+      >
+        <View style={styles.powerUpIconContainer}>
+          {item.type === "Sheriff Badge" && (
+            <BadgeIcon width={30} height={30} />
+          )}
+          {item.type === "Cowboy Boots" && <BootsIcon width={30} height={30} />}
+          {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
+          {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
+          {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
+          {item.type === "Horseshoe" && (
+            <HorseshoeIcon width={30} height={30} />
+          )}
+          {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
+          {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
+          {item.type === "Money" && <MoneyIcon width={30} height={30} />}
+        </View>
+        <AppText style={styles.powerUpName}>{item.type}</AppText>
+      </TouchableOpacity>
+    );
+  };
+
+  //  General Game Mechanics
 
   const resetGame = async () => {
     if (!auth.currentUser) return;
@@ -744,7 +882,7 @@ export default function PlayScreen() {
       }
     }
 
-    // Clear the interval that generates power-ups
+    // clear the interval that generates power-ups
     if (generatePowerUpIntervalRef.current) {
       clearInterval(generatePowerUpIntervalRef.current);
     }
@@ -756,31 +894,6 @@ export default function PlayScreen() {
     setRoomCode(null);
 
     router.replace("/(tabs)/home");
-  };
-
-  const [isOxStampedeModalVisible, setOxStampedeModalVisible] = useState(false);
-
-  const useOx = () => {
-    console.log("Using Ox Stampede power-up");
-    setOxStampedeModalVisible(true);
-  };
-
-  const handleTargetSelect = (targetId: string) => {
-    setOxStampedeModalVisible(false);
-    // do stuff on target's screen
-    setDustStormActive(true);
-  };
-
-  const [isDustStormActive, setDustStormActive] = useState(false);
-
-  const useHorseshoe = () => {
-    console.log("Using Horseshoe power-up");
-    // horseshoe logic
-  };
-
-  const useBadge = () => {
-    console.log("Using Sheriff's Badge power-up");
-    // sheriff's badge
   };
 
   return (
@@ -806,13 +919,20 @@ export default function PlayScreen() {
                 styles.buttonText,
                 {
                   color: auth.currentUser
-                    ? getTeamColor(playerTeams[auth.currentUser.uid || ""] || 1)
+                    ? getTeamColor(
+                        playerArray.find(
+                          (player) => player.id === auth.currentUser?.uid
+                        )?.team || 1
+                      )
                     : "#FFFFAA",
                 },
               ]}
             >
               {"  "}
-              [TEAM {playerTeams[auth.currentUser?.uid || ""] || 1}]
+              [TEAM{" "}
+              {playerArray.find((player) => player.id === auth.currentUser?.uid)
+                ?.team || 1}
+              ]
             </Text>
           </View>
         </View>
@@ -864,27 +984,26 @@ export default function PlayScreen() {
               name={powerUp.type}
             />
           ))}
-          {playerURLArray.map((player) => {
-            const playerLocation = playerLocationArray.find(
-              (location) => location.id === player.id
-            );
-            return playerLocation ? (
+          {playerArray.map((player) => {
+            const playerURL = playerURLArray.find(
+              (urlItem) => urlItem.id === player.id
+            )?.profile;
+            return (
               <Marker
                 key={player.id}
                 coordinate={{
-                  latitude: playerLocation.latitude,
-                  longitude: playerLocation.longitude,
+                  latitude: player.latitude,
+                  longitude: player.longitude,
                 }}
               >
                 <View>
-                  <Image
-                    source={{ uri: player.profile }}
-                    style={styles.user}
-                  ></Image>
+                  {playerURL ? (
+                    <Image source={{ uri: playerURL }} style={styles.user} />
+                  ) : (
+                    <Text>Loading...</Text>
+                  )}
                 </View>
               </Marker>
-            ) : (
-              <Text>Loading...</Text>
             );
           })}
         </MapView>
@@ -913,12 +1032,15 @@ export default function PlayScreen() {
               )
             )}
           </AppText>
-          <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
-          <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
+          <AppText>Latitude: {location?.coords.latitude}</AppText>
+          <AppText>Longitude: {location?.coords.longitude}</AppText>
 
-          <ReusableButton label="Use Ox" onPress={useOx} />
-          <ReusableButton label="Use Horseshoe" onPress={useHorseshoe} />
-          <ReusableButton label="Use Badge" onPress={useBadge} />
+          <FlatList
+            data={userPowerUps}
+            keyExtractor={(item) => item.id}
+            renderItem={renderPowerUpItem}
+            style={styles.powerUpList}
+          />
 
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
@@ -926,12 +1048,11 @@ export default function PlayScreen() {
         </BottomSheetView>
       </BottomSheet>
 
-      <SelectTargetModal
+      <PlayerListModal
         visible={isOxStampedeModalVisible}
         onClose={() => setOxStampedeModalVisible(false)}
-        players={playerTeams}
+        players={playerArray}
         onSelect={handleTargetSelect}
-        currentPlayerTeam={playerTeams[auth.currentUser?.uid || ""] || 1}
       />
     </GestureHandlerRootView>
   );
@@ -1018,5 +1139,23 @@ const styles = StyleSheet.create({
   exit: {
     bottom: 30,
     position: "absolute",
+  },
+  powerUpItem: {
+    padding: 10,
+    marginVertical: 5,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 5,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  powerUpIconContainer: {
+    marginRight: 10,
+  },
+  powerUpName: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  powerUpList: {
+    marginTop: 20,
   },
 });

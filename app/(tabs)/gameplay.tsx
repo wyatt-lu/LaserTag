@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Image, Modal } from "react-native";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import {
@@ -13,12 +13,14 @@ import {
 } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
 import * as FileSystem from "expo-file-system";
-import MapView, { Marker, Polygon } from "react-native-maps";
+import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
 import React from "react";
 import {
   getStorage,
   ref as ref_storage,
   getDownloadURL,
+  uploadBytes,
+  deleteObject,
 } from "firebase/storage";
 
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -53,7 +55,7 @@ export default function PlayScreen() {
 
 
   //Getting correct location, direction, and cardinal directions!//
-  
+
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
@@ -154,6 +156,7 @@ export default function PlayScreen() {
               };
             })
           );
+          console.log("on line 159");
           setPlayersLocation(playersList);
         }
       });
@@ -307,7 +310,7 @@ export default function PlayScreen() {
     };
 
     getPlayersURL();
-  }, []);
+  }, [playerLocationArray]);
 
   const mapRef = useRef<MapView | null>(null);
 
@@ -407,7 +410,7 @@ export default function PlayScreen() {
   const circleCoordinates = generateCircleCoordinates(center, 20, 20);
 
 
-  // POWER UPS //
+  // GENERAL POWER UPS //
 
   type PowerUp = {
     id: string;
@@ -544,22 +547,167 @@ export default function PlayScreen() {
             && (powerUp.coordinate.longitude - playerData.longitude <= 0.000703 && powerUp.coordinate.longitude - playerData.longitude >= -0.0001703)){
               playerPowerUps.push(powerUp);
               setUserPowerUps(playerPowerUps);
-              //keeps crashing with the below code?? i can't remove the ref once the user gets it??
-              console.log("setUserPowerUps", userPowerUps)
               try {
                 const individualPowerRef = ref(database, `rooms/${roomCode}/powerUps/${powerUp.id}`);
-                console.log("individualPowerRef", individualPowerRef)
+                //console.log("individualPowerRef", individualPowerRef)
                 await remove(individualPowerRef);
-                console.log("Power-up removed successfully");
+                //console.log("Power-up removed successfully");
               } catch (error) {
-                console.error("Error removing power-up:", error);
+                //console.error("Error removing power-up:", error);
               }
           }
         });
       })
   
       getPlayerPowerUps();
-    }, [playerLocationArray])
+    }, [playerLocationArray]);
+
+
+
+  //console.log("old urlarray", playerURLArray);
+
+  //console.log("old playerLocationArray", playerLocationArray);
+
+  //console.log("old locationarray", playerLocationArray)
+  // INDIVIDUAL POWER UP FUNCTIONS //
+
+  //Cowboy boots
+  //realtime: make a copy of currentuser's info in new random id
+  //storage: add currentuser's image into this random id
+  //make random movements for fake user with math.random and a step counter, 
+  // northsouth random amount, east west random amount, add to og lat and long, and then update database
+  //set interval? so after a certain amount of time, remove sthis player from storage and realtime?
+  const cowboyBoots = ( async () => {
+
+    //copy realtime database to fake user
+    if (!auth.currentUser) return;
+
+    const roomRef = ref(database, `players/${auth.currentUser.uid}`);
+    const roomInfo = await get(roomRef);
+    if (!roomInfo.exists()) return;
+    const roomData = roomInfo.val();
+    let roomNum = roomData.room;
+
+    const playerRef = ref(database, `rooms/${roomNum}/players/${auth.currentUser.uid}`);
+    const playerInfo = await get(playerRef);
+
+    if (!playerInfo.exists()) return;
+    const playerData = playerInfo.val();
+
+    const randomFakeUserId = Math.random().toString(36).substring(7);
+    const fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`)
+    //create fakeUser data in database
+    await set(fakeUserRef, playerData);
+
+    //copy image to fake user
+
+    const playerStorageRef = ref_storage(storage, `${auth.currentUser.uid}/pfp.jpg`);
+    const fakeUserStorageRef = ref_storage(storage, `${randomFakeUserId}/pfp.jpg`);
+
+    const playerUrl = await getDownloadURL(playerStorageRef);
+    const response = await fetch(playerUrl);
+    const blob = await response.blob();
+
+    await uploadBytes(fakeUserStorageRef, blob);
+
+    //add fakeuser to playerlocationarray and playerurlarray
+/*
+    console.log("playerLocationArray", playerLocationArray);
+    let newPlayerLocationArray = [...playerLocationArray];
+    newPlayerLocationArray.push({"id": randomFakeUserId, "latitude": playerData.latitude, "longitude": playerData.longitude});
+    setPlayersLocation(playerLocationArray);*/
+/*
+
+    console.log("hellO", playerURLArray);
+    let newPlayerURLArray = [...playerURLArray];
+    console.log("newPlayerURLArray", newPlayerURLArray);
+    newPlayerURLArray.push({"id": randomFakeUserId, "profile": playerUrl});
+    setPlayersURL(newPlayerURLArray);
+
+    console.log("playerURLArray", playerURLArray);
+    console.log("playerLocationArray", playerLocationArray);*/
+
+    //allow fake user to exist for 5 seconds
+    const interval = (async () => {
+      const interval = setInterval(async () => {
+        let latDelta = Math.random() * (0.0000503 - (-0.0000503)) + (-0.0000503);
+        let longDelta = Math.random() * (0.0000503 - (-0.0000503)) + (-0.0000503);
+        let fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`);
+        let fakeUserInfo = await get(fakeUserRef);
+        if (!fakeUserInfo.exists()) return;
+
+        let fakeUserData = fakeUserInfo.val();
+        let newLat = fakeUserData.latitude + latDelta;
+        let newLong = fakeUserData.longitude + longDelta;
+
+        await update(fakeUserRef, { latitude: newLat, longitude: newLong });
+      }, 1000);
+      // Stop the interval after 5 seconds
+      setTimeout(async () => {
+        clearInterval(interval);
+        console.log("timeout randomFakeUserId", randomFakeUserId);
+
+        let fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`);
+        const fakeUserStorageRef = ref_storage(storage, `${randomFakeUserId}/pfp.jpg`);
+        await remove(fakeUserRef);
+        await deleteObject(fakeUserStorageRef);
+/*
+        const removeById = (array: any[], id: any) => {
+          return array.filter(item => item.id !== id);
+        };*/
+        //setPlayersLocation(removeById(playerLocationArray, randomFakeUserId));
+        //newPlayerURLArray = removeById(playerLocationArray, randomFakeUserId);
+      }, 10000);
+    });
+    interval();
+  });
+/*
+  const [test1, setTest1] = useState(0);
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const testing = (async ()=>{
+    await wait(5000);
+    cowboyBoots();
+  })
+
+  if (test1==0){
+    console.log("inside test")
+    testing();
+    setTest1(2);
+  }*/
+
+
+  //COWBOY HAT
+
+  const cowboyHat = (async () => {
+    
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    await update(playerRef, {cowboyHat: true});
+    setTimeout(async () => {
+      await update(playerRef, {cowboyHat: false});
+    }, 5000);
+  });
+
+  //CACTUS
+    const [modalVisible, setModalVisible] = useState(false);
+    const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+    const handleMapPress = (event: MapPressEvent) => {
+      const { latitude, longitude } = event.nativeEvent.coordinate;
+      setSelectedLocation({ latitude, longitude });
+    };
+
+    const handleConfirm = () => {
+      if (selectedLocation) {
+        console.log("Confirmed location:", selectedLocation);
+        // Proceed with your logic here (e.g., update a state or call an API)
+      }
+      setModalVisible(false); // Close modal after confirming
+    };
+
+
 
   //  GENERAL GAME MECHANICS
 
@@ -737,6 +885,45 @@ export default function PlayScreen() {
           </AppText>
           <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
           <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
+
+          <ReusableButton label="Pick Location" onPress={() => setModalVisible(true)} />
+      {selectedLocation && (
+        <ReusableButton label={`Selected: ${selectedLocation.latitude}, ${selectedLocation.longitude}`} onPress={() => console.log(selectedLocation)} />
+      )}
+
+      <Modal visible={modalVisible} animationType="slide">
+        {location ? (
+          <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <MapView
+              style={StyleSheet.absoluteFillObject}
+              initialRegion={{
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                latitudeDelta: 0.002222,
+                longitudeDelta: 0.001521,
+              }}
+              showsScale={true}
+              mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              mapType="hybrid"
+              rotateEnabled={false}
+              loadingEnabled={true}
+              zoomEnabled={false}
+              onPress={handleMapPress}
+            >
+              {selectedLocation && <Marker coordinate={selectedLocation} />}
+            </MapView>
+
+            <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
+              <ReusableButton label="Confirm" onPress={handleConfirm} />
+              <ReusableButton label="Cancel" onPress={() => setModalVisible(false)} />
+            </View>
+          </View>
+        ) : (
+          <Text>Loading cactus...</Text>
+        )}
+      </Modal>
+
+
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
           </TouchableOpacity>
@@ -829,3 +1016,7 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
 });
+function wait(arg0: number) {
+  throw new Error("Function not implemented.");
+}
+

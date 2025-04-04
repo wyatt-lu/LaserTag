@@ -137,6 +137,7 @@ export default function HomeScreen() {
           username: auth.currentUser.displayName,
           ready: false,
           laser: laserData.val(),
+          cowboyHat: false,
         },
       },
     });

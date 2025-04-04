@@ -224,8 +224,31 @@ export default function PlayScreen() {
   };
 
   //USER MOVES!!//
-  const eliminatePlayer = async (username: string) => {
-    const usernameRef = ref(database, `usernames/${username}/uid`);
+  const eliminatePlayer = (dataArray: PLD[], currentPlayer: string, laserBounds: any) => {
+    //filters through the datarray and locates players and their coordinates
+    //checks if player coordinates during laser fire are within laser bounds
+    //if true, log "player is eliminated"
+    //if false, log "no one eliminated"
+    //array to store eliminated players
+    let elim = []
+    dataArray.forEach(player => {
+      if (player.playerId === currentPlayer) return;
+      const playerLat = player.latitude
+      const playerLon = player.longitude
+      if (
+        playerLat >= laserBounds.south &&
+        playerLat <= laserBounds.north &&
+        playerLon >= laserBounds.west &&
+        playerLon <= laserBounds.east
+      ) {
+        console.log(`player${player.playerId} is eliminated.`);
+        elim.push(player.playerId)
+      }
+    })
+    if (elim.length == 0) {
+      console.log("no players eliminated")
+    }
+    /*const usernameRef = ref(database, `usernames/${username}/uid`);
     get(usernameRef).then((snapshot) => {
       if (snapshot.exists()) {
         const uid = snapshot.val();
@@ -233,7 +256,7 @@ export default function PlayScreen() {
       } else {
         console.log("Username not found!");
       }
-    });
+    });*/
   };
 
   type PLD = {
@@ -340,12 +363,23 @@ export default function PlayScreen() {
     //convert direction to radians
     if (direction == null || latitude == null || longitude == null) return;
     const directionInRadians = degToRad(direction);
-    const laserArea = width * length
+
     //forward direction (laser length)
     const frontCoordinates = calculateOffset(latitude, longitude, length, directionInRadians);
     // Sideways direction (laser width, perpendicular to the direction the player is facing)
     const rightCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians + Math.PI / 2);
     const leftCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians - Math.PI / 2);
+
+    //define laser area w/ bounds
+    const laserBounds = {
+      north: Math.max(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
+      south: Math.min(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
+      east: Math.max(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon),
+      west: Math.min(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon)
+    }
+    console.log("Laser Bounds:", laserBounds);
+    //pass laser bounds into eliminatePlayer
+    eliminatePlayer(dataArray, playerId, laserBounds);
   };
 
   //helper function to calculate offset

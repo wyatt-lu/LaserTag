@@ -1,48 +1,37 @@
-import React, { useState } from "react";
+import React from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import AppText from "./AppText";
 
-interface SelectTargetModalProps {
+interface PlayerListModalProps {
   visible: boolean;
   onClose: () => void;
-  players: { [key: string]: number };
+  players: { [key: string]: any };
   onSelect: (targetId: string) => void;
-  currentPlayerTeam: number;
 }
 
-const SelectTargetModal: React.FC<SelectTargetModalProps> = ({
+const PlayerListModal: React.FC<PlayerListModalProps> = ({
   visible,
   onClose,
   players,
   onSelect,
-  currentPlayerTeam,
 }) => {
-  //   console.log(players);
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           <AppText style={styles.title}>Select a Target</AppText>
           <View style={styles.optionsContainer}>
-            {/* {players.map((player) => (
+            {Object.keys(players).map((playerId) => (
               <TouchableOpacity
-                key={player.id}
-                onPress={() => onSelect(player.id)}
-                disabled={player.team === currentPlayerTeam}
-                style={[
-                  styles.option,
-                  //   player.team === currentPlayerTeam && styles.disabledItem,
-                ]}
+                key={playerId}
+                onPress={() => onSelect(playerId)}
+                style={styles.option}
               >
-                <AppText
-                //   style={
-                //     player.team === currentPlayerTeam && styles.disabledText
-                //   }
-                >
-                  {player.username} [Team {player.team}]
+                <AppText>
+                  {players[playerId].username} [Team {players[playerId].team}]
                 </AppText>
               </TouchableOpacity>
-            ))} */}
+            ))}
           </View>
           <TouchableOpacity onPress={onClose} style={styles.option}>
             <AppText style={styles.optionText}>Cancel</AppText>
@@ -76,23 +65,21 @@ const styles = StyleSheet.create({
     fontFamily: "Bungee-Regular",
   },
   optionsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: "column",
     width: "100%",
   },
   option: {
-    flex: 1,
     padding: 25,
-    marginTop: 20,
+    marginTop: 10,
     alignItems: "center",
     backgroundColor: "#faf6ea",
     borderRadius: 5,
   },
   optionText: {
-    color: "#faf6ea",
+    color: "#3a160e",
     fontSize: 16,
     fontFamily: "Bungee-Regular",
   },
 });
 
-export default SelectTargetModal;
+export default PlayerListModal;

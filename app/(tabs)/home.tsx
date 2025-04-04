@@ -136,6 +136,7 @@ export default function HomeScreen() {
         [auth.currentUser.uid]: {
           username: auth.currentUser.displayName,
           ready: false,
+          team: 1,
           laser: laserData.val(),
         },
       },

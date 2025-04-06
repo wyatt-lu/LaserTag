@@ -684,15 +684,15 @@ export default function PlayScreen() {
           playerPowerUps.push(powerUp);
           setUserPowerUps(playerPowerUps);
           //keeps crashing with the below code?? i can't remove the ref once the user gets it??
-          console.log("setUserPowerUps", userPowerUps);
+          //console.log("setUserPowerUps", userPowerUps);
           try {
             const individualPowerRef = ref(
               database,
               `rooms/${roomCode}/powerUps/${powerUp.id}`
             );
-            console.log("individualPowerRef", individualPowerRef);
+            //console.log("individualPowerRef", individualPowerRef);
             await remove(individualPowerRef);
-            console.log("Power-up removed successfully");
+            //console.log("Power-up removed successfully");
           } catch (error) {
             console.error("Error removing power-up:", error);
           }
@@ -765,12 +765,6 @@ export default function PlayScreen() {
     );
   };
 
-
-  //console.log("old urlarray", playerURLArray);
-
-  //console.log("old playerLocationArray", playerLocationArray);
-
-  //console.log("old locationarray", playerLocationArray)
   // INDIVIDUAL POWER UP FUNCTIONS //
 
   //Cowboy boots
@@ -779,6 +773,10 @@ export default function PlayScreen() {
   //make random movements for fake user with math.random and a step counter, 
   // northsouth random amount, east west random amount, add to og lat and long, and then update database
   //set interval? so after a certain amount of time, remove sthis player from storage and realtime?
+
+  console.log("old playerArray", playerArray);
+
+  console.log("old playerURLArray", playerURLArray);
   const cowboyBoots = ( async () => {
 
     //copy realtime database to fake user
@@ -797,9 +795,6 @@ export default function PlayScreen() {
     const playerData = playerInfo.val();
 
     const randomFakeUserId = Math.random().toString(36).substring(7);
-    const fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`)
-    //create fakeUser data in database
-    await set(fakeUserRef, playerData);
 
     //copy image to fake user
 
@@ -812,22 +807,9 @@ export default function PlayScreen() {
 
     await uploadBytes(fakeUserStorageRef, blob);
 
-    //add fakeuser to playerlocationarray and playerurlarray
-/*
-    console.log("playerLocationArray", playerLocationArray);
-    let newPlayerLocationArray = [...playerLocationArray];
-    newPlayerLocationArray.push({"id": randomFakeUserId, "latitude": playerData.latitude, "longitude": playerData.longitude});
-    setPlayersLocation(playerLocationArray);*/
-/*
-
-    console.log("hellO", playerURLArray);
-    let newPlayerURLArray = [...playerURLArray];
-    console.log("newPlayerURLArray", newPlayerURLArray);
-    newPlayerURLArray.push({"id": randomFakeUserId, "profile": playerUrl});
-    setPlayersURL(newPlayerURLArray);
-
-    console.log("playerURLArray", playerURLArray);
-    console.log("playerLocationArray", playerLocationArray);*/
+    const fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`)
+    //create fakeUser data in database
+    await set(fakeUserRef, playerData);
 
     //allow fake user to exist for 5 seconds
     const interval = (async () => {
@@ -843,8 +825,9 @@ export default function PlayScreen() {
         let newLong = fakeUserData.longitude + longDelta;
 
         await update(fakeUserRef, { latitude: newLat, longitude: newLong });
+        console.log("playerArray", playerArray);
       }, 1000);
-      // Stop the interval after 5 seconds
+      // Stop the interval after 20 seconds
       setTimeout(async () => {
         clearInterval(interval);
         console.log("timeout randomFakeUserId", randomFakeUserId);
@@ -853,13 +836,7 @@ export default function PlayScreen() {
         const fakeUserStorageRef = ref_storage(storage, `${randomFakeUserId}/pfp.jpg`);
         await remove(fakeUserRef);
         await deleteObject(fakeUserStorageRef);
-/*
-        const removeById = (array: any[], id: any) => {
-          return array.filter(item => item.id !== id);
-        };*/
-        //setPlayersLocation(removeById(playerLocationArray, randomFakeUserId));
-        //newPlayerURLArray = removeById(playerLocationArray, randomFakeUserId);
-      }, 10000);
+      }, 20000);
     });
     interval();
   });
@@ -891,8 +868,8 @@ export default function PlayScreen() {
       await update(playerRef, {cowboyHat: false});
     }, 5000);
   });
-
-  //CACTUS
+/*
+  //CACTUS commented out just so i can push cowboyhat and cowhoy boots
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
@@ -908,6 +885,44 @@ export default function PlayScreen() {
       }
       setModalVisible(false); // Close modal after confirming
     };
+
+    <ReusableButton label="Pick Location" onPress={() => setModalVisible(true)} />
+          {selectedLocation && (
+            <ReusableButton label={`Selected: ${selectedLocation.latitude}, ${selectedLocation.longitude}`} onPress={() => console.log(selectedLocation)} />
+          )}
+
+          <Modal visible={modalVisible} animationType="slide">
+            {location ? (
+              <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <MapView
+                  style={StyleSheet.absoluteFillObject}
+                  initialRegion={{
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                    latitudeDelta: 0.002222,
+                    longitudeDelta: 0.001521,
+                  }}
+                  showsScale={true}
+                  mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  mapType="hybrid"
+                  rotateEnabled={false}
+                  loadingEnabled={true}
+                  zoomEnabled={false}
+                  onPress={handleMapPress}
+                >
+                  {selectedLocation && <Marker coordinate={selectedLocation} />}
+                </MapView>
+
+                <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
+                  <ReusableButton label="Confirm" onPress={handleConfirm} />
+                  <ReusableButton label="Cancel" onPress={() => setModalVisible(false)} />
+                </View>
+              </View>
+            ) : (
+              <Text>Loading cactus...</Text>
+            )}
+          </Modal> 
+    */
 
   //  General Game Mechanics
 
@@ -1054,10 +1069,10 @@ export default function PlayScreen() {
                 }}
               >
                 <View>
-                  {playerURL ? (
+                  {!player.cowboyHat && playerURL ? (
                     <Image source={{ uri: playerURL }} style={styles.user} />
                   ) : (
-                    <Text>Loading...</Text>
+                    <AppText> </AppText>
                   )}
                 </View>
               </Marker>
@@ -1089,7 +1104,7 @@ export default function PlayScreen() {
               )
             )}
           </AppText>
-          
+
           <AppText>Latitude: {location?.coords.latitude}</AppText>
           <AppText>Longitude: {location?.coords.longitude}</AppText>
 
@@ -1100,43 +1115,8 @@ export default function PlayScreen() {
             style={styles.powerUpList}
           />
 
-
-          <ReusableButton label="Pick Location" onPress={() => setModalVisible(true)} />
-                {selectedLocation && (
-                  <ReusableButton label={`Selected: ${selectedLocation.latitude}, ${selectedLocation.longitude}`} onPress={() => console.log(selectedLocation)} />
-                )}
-
-          <Modal visible={modalVisible} animationType="slide">
-            {location ? (
-              <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <MapView
-                  style={StyleSheet.absoluteFillObject}
-                  initialRegion={{
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                    latitudeDelta: 0.002222,
-                    longitudeDelta: 0.001521,
-                  }}
-                  showsScale={true}
-                  mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                  mapType="hybrid"
-                  rotateEnabled={false}
-                  loadingEnabled={true}
-                  zoomEnabled={false}
-                  onPress={handleMapPress}
-                >
-                  {selectedLocation && <Marker coordinate={selectedLocation} />}
-                </MapView>
-
-                <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
-                  <ReusableButton label="Confirm" onPress={handleConfirm} />
-                  <ReusableButton label="Cancel" onPress={() => setModalVisible(false)} />
-                </View>
-              </View>
-            ) : (
-              <Text>Loading cactus...</Text>
-            )}
-          </Modal> 
+          <ReusableButton label="cowboyboots" onPress={() => cowboyBoots()} />
+          
 
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>

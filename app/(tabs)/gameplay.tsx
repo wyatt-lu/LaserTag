@@ -284,9 +284,32 @@ export default function PlayScreen() {
     }
   };
 
-  // Laser Mechanics
-  const eliminatePlayer = async (username: string) => {
-    const usernameRef = ref(database, `usernames/${username}/uid`);
+  //USER MOVES!!//
+  const eliminatePlayer = (dataArray: PLD[], currentPlayer: string, laserBounds: any) => {
+    //filters through the datarray and locates players and their coordinates
+    //checks if player coordinates during laser fire are within laser bounds
+    //if true, log "player is eliminated"
+    //if false, log "no one eliminated"
+    //array to store eliminated players
+    let elim = []
+    dataArray.forEach(player => {
+      if (player.playerId === currentPlayer) return;
+      const playerLat = player.latitude
+      const playerLon = player.longitude
+      if (
+        playerLat >= laserBounds.south &&
+        playerLat <= laserBounds.north &&
+        playerLon >= laserBounds.west &&
+        playerLon <= laserBounds.east
+      ) {
+        console.log(`player${player.playerId} is eliminated.`);
+        elim.push(player.playerId)
+      }
+    })
+    if (elim.length == 0) {
+      console.log("no players eliminated")
+    }
+    /*const usernameRef = ref(database, `usernames/${username}/uid`);
     get(usernameRef).then((snapshot) => {
       if (snapshot.exists()) {
         const uid = snapshot.val();
@@ -294,7 +317,7 @@ export default function PlayScreen() {
       } else {
         console.log("Username not found!");
       }
-    });
+    });*/
   };
 
   type PLD = {
@@ -408,7 +431,7 @@ export default function PlayScreen() {
     //convert direction to radians
     if (direction == null || latitude == null || longitude == null) return;
     const directionInRadians = degToRad(direction);
-    const laserArea = width * length;
+
     //forward direction (laser length)
     const frontCoordinates = calculateOffset(
       latitude,
@@ -417,21 +440,82 @@ export default function PlayScreen() {
       directionInRadians
     );
     // Sideways direction (laser width, perpendicular to the direction the player is facing)
-    const rightCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      width / 2,
-      directionInRadians + Math.PI / 2
-    );
-    const leftCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      width / 2,
-      directionInRadians - Math.PI / 2
-    );
+    const rightCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians + Math.PI / 2);
+    const leftCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians - Math.PI / 2);
+
+    //define laser area w/ bounds
+    const laserBounds = {
+      north: Math.max(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
+      south: Math.min(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
+      east: Math.max(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon),
+      west: Math.min(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon)
+    }
+    console.log("Laser Bounds:", laserBounds);
+    //pass laser bounds into eliminatePlayer
+    eliminatePlayer(dataArray, playerId, laserBounds);
   };
 
-  // Map and Bottom Sheet
+  //helper function to calculate offset
+  function calculateOffset(lat: number, lon: number, distance: number, angle: number) {
+    const radius = 6371000; // Earth's radius in meters
+    const latOffset = (distance * Math.cos(angle)) / radius;
+    const lonOffset = (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
+    
+    const newLat = lat + latOffset;
+    const newLon = lon + lonOffset;
+    
+    return { lat: newLat, lon: newLon };
+  };
+
+  //helper function for degree to radian conversion
+  function degToRad(deg: number) {
+    return deg * (Math.PI / 180);
+  }
+
+  //URL information getting and setting
+  //get individual user url
+  const fetchUserURL = async (id: any) => {
+    try {
+      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
+      const url = await getDownloadURL(placeholderRef);
+      return url;
+    } catch (error) {
+      console.error("Error fetching image URL:", error);
+    }
+  };
+
+  //get list of player's url once gameplay begins runnings
+  useEffect(() => {
+    const getPlayersURL = async () => {
+      try {
+        if (!auth.currentUser) return;
+
+        const playerId = auth.currentUser.uid;
+        const playerRef = ref(database, `players/${playerId}`);
+        const playerInfo = await get(playerRef);
+
+        if (playerInfo.exists()) {
+          const playerData = playerInfo.val();
+          const roomRef = ref(database, `rooms/${playerData.room}/players`);
+          const roomInfo = await get(roomRef);
+          if (roomInfo.exists()) {
+            const roomData = roomInfo.val();
+            const playersList = await Promise.all(
+              Object.entries(roomData).map(async ([key]) => {
+                let userURL = await fetchUserURL(key);
+                return { id: key, profile: userURL };
+              })
+            );
+            setPlayersURL(playersList);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching player data:", error);
+      }
+    };
+
+    getPlayersURL();
+  }, []);
 
   const mapRef = useRef<MapView | null>(null);
   const sheetRef = useRef<BottomSheet>(null);

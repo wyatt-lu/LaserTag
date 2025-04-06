@@ -5,6 +5,7 @@ import * as Location from "expo-location";
 import {
   get,
   getDatabase,
+  off,
   onValue,
   ref,
   remove,
@@ -30,10 +31,67 @@ import ReusableButton from "@/components/ReusableButton";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFocusEffect, useRouter } from "expo-router";
 import PowerUpMarker from "@/components/PowerUpMarker";
+import PlayerListModal from "@/components/PlayerListModal";
+import {
+  BadgeIcon,
+  BootsIcon,
+  BountyIcon,
+  CactusIcon,
+  HatIcon,
+  HorseshoeIcon,
+  LassoIcon,
+  OxIcon,
+  MoneyIcon,
+} from "@/constants/icons";
+import { FlatList } from "react-native";
 
+// Utility Functions
+const degree = (x: number, y: number): number => {
+  let degree = 0;
+  if (Math.atan2(y, x) >= 0) {
+    degree = Math.atan2(y, x) * (180 / Math.PI);
+  } else {
+    degree = (Math.atan2(y, x) + 2 * Math.PI) * (180 / Math.PI);
+  }
+  degree = Math.round(degree - 90 >= 0 ? degree - 90 : degree + 271);
+  return degree;
+};
+
+const cardinal = (degree: number): string => {
+  if (degree >= 22.5 && degree < 67.5) return "NE";
+  if (degree >= 67.5 && degree < 112.5) return "E";
+  if (degree >= 112.5 && degree < 157.5) return "SE";
+  if (degree >= 157.5 && degree < 202.5) return "S";
+  if (degree >= 202.5 && degree < 247.5) return "SW";
+  if (degree >= 247.5 && degree < 292.5) return "W";
+  if (degree >= 292.5 && degree < 337.5) return "NW";
+  return "N";
+};
+
+const calculateOffset = (
+  lat: number,
+  lon: number,
+  distance: number,
+  angle: number
+) => {
+  const radius = 6371000; // Earth's radius in meters
+  const latOffset = (distance * Math.cos(angle)) / radius;
+  const lonOffset =
+    (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
+
+  const newLat = lat + latOffset;
+  const newLon = lon + lonOffset;
+
+  return { lat: newLat, lon: newLon };
+};
+
+const degToRad = (deg: number) => {
+  return deg * (Math.PI / 180);
+};
+
+// Main Component
 export default function PlayScreen() {
   const [location, setLocation] = useState<Location.LocationObject>();
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [magnetometerData, setMagnetometerData] = useState({
     x: 0,
     y: 0,
@@ -49,25 +107,105 @@ export default function PlayScreen() {
   const [playerURLArray, setPlayersURL] = useState<any[]>([]);
   const [playerLocationArray, setPlayersLocation] = useState<any[]>([]);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
+  const [playerArray, setPlayerArray] = useState<any[]>([]);
   const [roomCode, setRoomCode] = useState<string | null>(null);
 
   const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Fetch Room Code
+  useEffect(() => {
+    const fetchRoomCode = async () => {
+      if (!auth.currentUser) return;
 
-  //Getting correct location, direction, and cardinal directions!//
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `players/${playerId}`);
+      const playerInfo = await get(playerRef);
 
+      if (playerInfo.exists()) {
+        const playerData = playerInfo.val();
+        setRoomCode(playerData.room);
+      }
+    };
+
+    fetchRoomCode();
+  }, []);
+
+  //Fetch Player Data
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const database = getDatabase();
+    const playersRef = ref(database, `rooms/${roomCode}/players`);
+
+    const unsubscribe = onValue(playersRef, (snapshot) => {
+      const playersData = snapshot.val() || {};
+      const playerList = Object.entries(playersData).map(([id, data]) => ({
+        id,
+        ...(data as any),
+      }));
+      setPlayerArray(playerList);
+    });
+
+    return () => {
+      unsubscribe();
+      off(playersRef);
+    };
+  }, [roomCode]);
+
+  //Fetch Player Location
+  useEffect(() => {
+    const getPlayersURL = async () => {
+      try {
+        if (!auth.currentUser) return;
+
+        const playerId = auth.currentUser.uid;
+        const playerRef = ref(database, `players/${playerId}`);
+        const playerInfo = await get(playerRef);
+
+        if (playerInfo.exists()) {
+          const playerData = playerInfo.val();
+          const roomRef = ref(database, `rooms/${playerData.room}/players`);
+          const roomInfo = await get(roomRef);
+          if (roomInfo.exists()) {
+            const roomData = roomInfo.val();
+            const playersList = await Promise.all(
+              Object.entries(roomData).map(async ([key]) => {
+                let userURL = await fetchUserURL(key);
+                return { id: key, profile: userURL };
+              })
+            );
+            setPlayersURL(playersList);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching player data:", error);
+      }
+    };
+
+    getPlayersURL();
+  }, [playerArray.length]);
+
+  const fetchUserURL = async (id: any) => {
+    try {
+      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
+      const url = await getDownloadURL(placeholderRef);
+      return url;
+    } catch (error) {
+      console.error("Error fetching image URL:", error);
+    }
+  };
+
+  // Update User Location
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
 
-  //get user's location and set it in the database
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
     const updateLocation = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied.");
         return;
       }
 
@@ -111,86 +249,7 @@ export default function PlayScreen() {
     };
   }, []);
 
-  //getting all player's locations and putting it in readable data here
-  useEffect(() => {
-    const database = getDatabase();
-
-    interface PlayerData {
-      direction: number;
-      latitude: number;
-      longitude: number;
-      username: string;
-      team: number;
-    }
-
-    const setPlayersLocations = async () => {
-      if (!auth.currentUser) return;
-
-      const playerId = auth.currentUser.uid;
-      const playerRef = ref(database, `players/${playerId}`);
-      const playerInfo = await get(playerRef);
-
-      if (!playerInfo.exists()) return;
-
-      const playerData = playerInfo.val();
-      setRoomCode(playerData.room);
-      const roomRef = ref(database, `rooms/${playerData.room}/players`);
-
-      const unsubscribeRoom = onValue(roomRef, async (snapshotRoom) => {
-        const roomData = snapshotRoom.val();
-
-        if (roomData) {
-          const playersList = await Promise.all(
-            Object.entries(roomData).map(async ([key, userData]) => {
-              const player = userData as PlayerData;
-
-              setPlayerTeams((prevTeams) => ({
-                ...prevTeams,
-                [key]: player.team,
-              }));
-
-              return {
-                id: key,
-                latitude: player.latitude,
-                longitude: player.longitude,
-              };
-            })
-          );
-          console.log("on line 159");
-          setPlayersLocation(playersList);
-        }
-      });
-      return unsubscribeRoom;
-    };
-
-    setPlayersLocations();
-    return () => {
-      setPlayersLocations().then((unsubscribe) => unsubscribe?.());
-    };
-  }, []);
-
-  const degree = (x: number, y: number): number => {
-    let degree = 0;
-    if (Math.atan2(y, x) >= 0) {
-      degree = Math.atan2(y, x) * (180 / Math.PI);
-    } else {
-      degree = (Math.atan2(y, x) + 2 * Math.PI) * (180 / Math.PI);
-    }
-    degree = Math.round(degree - 90 >= 0 ? degree - 90 : degree + 271);
-    return degree;
-  };
-
-  const cardinal = (degree: number): string => {
-    if (degree >= 22.5 && degree < 67.5) return "NE";
-    if (degree >= 67.5 && degree < 112.5) return "E";
-    if (degree >= 112.5 && degree < 157.5) return "SE";
-    if (degree >= 157.5 && degree < 202.5) return "S";
-    if (degree >= 202.5 && degree < 247.5) return "SW";
-    if (degree >= 247.5 && degree < 292.5) return "W";
-    if (degree >= 292.5 && degree < 337.5) return "NW";
-    return "N";
-  };
-
+  // Update Player Location in Database
   const updatePlayerLocation = async (
     latitude: number,
     longitude: number,
@@ -225,8 +284,7 @@ export default function PlayScreen() {
     }
   };
 
-
-  //USER MOVES!!//
+  // Laser Mechanics
   const eliminatePlayer = async (username: string) => {
     const usernameRef = ref(database, `usernames/${username}/uid`);
     get(usernameRef).then((snapshot) => {
@@ -239,80 +297,144 @@ export default function PlayScreen() {
     });
   };
 
+  type PLD = {
+    playerId: string;
+    direction: number;
+    latitude: number;
+    longitude: number;
+  };
+
   const fireLaser = async () => {
+    console.log(`entered firelaser`);
     //when button pressed, via snapshots, get the laser type and code
     //feed this code into generateLaserLine, which returns mock geometry that has a radius of the circle on the map
     //with the mock geometry code, then feed that code into eliminatePlayer method
     //checks whether player coordinates when laser was shot falls into mock geometry
     //if yes, eliminate player, if not, then nothing happens
-    const roomRef = ref(database, `rooms/${roomCode}/players`);
-    const roomInfo = await get(roomRef);
-    const roomsgklj = roomInfo.val();
-    Object.entries(roomsgklj).forEach(([roomId, roomData]) => {
-      console.log(`Room ID: ${roomId}`);
-
-      // Loop through each property of the room
+    const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
+    const roomPlayerInfo = await get(roomPlayerRef);
+    const roomsgklj = roomPlayerInfo.val();
+    if (!roomsgklj) {
+      console.log("No player data found in Firebase");
+      return;
+    }
+    console.log("about to enter first loop");
+    let playerLaserData: PLD[] = [];
+    //const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
+    Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
+      console.log("inside first loop");
+      const fireLaserRef = ref(
+        database,
+        `rooms/${roomCode}/players/${playerId}/fireLaser`
+      );
+      console.log(`Player ID: ${playerId}`);
+      //initialize vars outside
+      let curDir, curLat, curLon;
+      // Loop through each property of the player
       Object.entries(roomData as { [key: string]: any }).forEach(
         ([key, value]) => {
           console.log(`  ${key}: ${value}`);
+          if (key === "direction") {
+            curDir = value;
+          }
+          if (key === "latitude") {
+            curLat = value;
+          }
+          if (key === "longitude") {
+            curLon = value;
+          }
         }
       );
+      console.log(
+        `Direction: ${curDir}, Latitude: ${curLat}, Longitude: ${curLon}`
+      );
+      if (curDir != null && curLat != null && curLon != null) {
+        console.log("condition met: adding data to player-laser state");
+
+        const fireCoords = {
+          playerId: playerId,
+          direction: curDir,
+          latitude: curLat,
+          longitude: curLon,
+        };
+        //update state and add data to array
+        //setPlayerLaserData((prevData) => [...prevData, fireCoords]);
+        playerLaserData.push(fireCoords);
+      }
     });
+    //generateLaserLine(playerLaserData);
+    // Now call generateLaserLine once after all the data is collected
+    if (playerLaserData.length > 0) {
+      console.log("Generated playerLaserData: ", playerLaserData);
+      generateLaserLine(playerLaserData);
+    } else {
+      console.log("No valid player data collected");
+    }
   };
 
-  const generateLaserLine = async () => {
+  const generateLaserLine = async (dataArray: PLD[]) => {
     //via laser code, get laser information stored in the laser code and save into variables
     //do some math that creates the geometry mockup for default and 2x width
     //the length of the rectangle will be the length
     //rectangle will be pointing in the direction that the player is pointing, and it will branch out from the point where the player is
-  };
-
-  //URL information getting and setting
-  //get individual user url
-  const fetchUserURL = async (id: any) => {
-    try {
-      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
-      const url = await getDownloadURL(placeholderRef);
-      return url;
-    } catch (error) {
-      console.error("Error fetching image URL:", error);
+    let direction, latitude, longitude, length, width;
+    if (!auth.currentUser) return;
+    const playerId = auth.currentUser.uid;
+    const playerData = dataArray.find((player) => player.playerId === playerId);
+    if (playerData) {
+      direction = playerData.direction;
+      latitude = playerData.latitude;
+      longitude = playerData.longitude;
+      console.log(`Player ID: ${playerId}`);
+      console.log(
+        `Direction: ${direction}, Latitude: ${latitude}, Longitude: ${longitude}`
+      );
     }
+    //find laser
+    const playerRef = ref(database, `players/${playerId}`);
+    const playerSnapshot = await get(playerRef);
+    if (playerSnapshot.exists()) {
+      const playerData = playerSnapshot.val();
+      const laserType = playerData.laser;
+      console.log(`Player ID: ${playerId}, Laser Type: ${laserType}`);
+      const laserRef = ref(database, `lasers/${laserType}`);
+      const laserSnapshot = await get(laserRef);
+      if (laserSnapshot.exists()) {
+        const laserData = laserSnapshot.val();
+        length = laserData.length;
+        width = laserData.width;
+      }
+    }
+    //convert direction to radians
+    if (direction == null || latitude == null || longitude == null) return;
+    const directionInRadians = degToRad(direction);
+    const laserArea = width * length;
+    //forward direction (laser length)
+    const frontCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      length,
+      directionInRadians
+    );
+    // Sideways direction (laser width, perpendicular to the direction the player is facing)
+    const rightCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      width / 2,
+      directionInRadians + Math.PI / 2
+    );
+    const leftCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      width / 2,
+      directionInRadians - Math.PI / 2
+    );
   };
 
-  //get list of player's url once gameplay begins runnings
-  useEffect(() => {
-    const getPlayersURL = async () => {
-      try {
-        if (!auth.currentUser) return;
-
-        const playerId = auth.currentUser.uid;
-        const playerRef = ref(database, `players/${playerId}`);
-        const playerInfo = await get(playerRef);
-
-        if (playerInfo.exists()) {
-          const playerData = playerInfo.val();
-          const roomRef = ref(database, `rooms/${playerData.room}/players`);
-          const roomInfo = await get(roomRef);
-          if (roomInfo.exists()) {
-            const roomData = roomInfo.val();
-            const playersList = await Promise.all(
-              Object.entries(roomData).map(async ([key]) => {
-                let userURL = await fetchUserURL(key);
-                return { id: key, profile: userURL };
-              })
-            );
-            setPlayersURL(playersList);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching player data:", error);
-      }
-    };
-
-    getPlayersURL();
-  }, [playerLocationArray]);
+  // Map and Bottom Sheet
 
   const mapRef = useRef<MapView | null>(null);
+  const sheetRef = useRef<BottomSheet>(null);
 
   const focusOnUserLocation = () => {
     if (mapRef.current && location) {
@@ -328,8 +450,6 @@ export default function PlayScreen() {
     }
   };
 
-  const sheetRef = useRef<BottomSheet>(null);
-
   const snapPoints = useMemo(() => ["18%", "28%", "75%"], []);
 
   const handleSnapPress = useCallback((index: any) => {
@@ -341,16 +461,29 @@ export default function PlayScreen() {
 
   const router = useRouter();
 
+  const teamColors = [
+    { team: 1, color: "#8baaff" }, // blue
+    { team: 2, color: "#ffe08b" }, // yellow
+    { team: 3, color: "#ffbb8b" }, // orange
+    { team: 4, color: "#bd99e6" }, // purple
+    { team: 5, color: "#99d199" }, // green
+    { team: 6, color: "#68dbcc" }, // teal
+    { team: 7, color: "#e481c8" }, // pink
+    { team: 8, color: "#ff9090" }, // red
+  ];
+
   const getTeamColor = (teamNumber: number): string => {
-    return teamNumber === 1 ? "#FFD700" : "#8BAAFF";
+    const teamColor = teamColors.find((team) => team.team === teamNumber);
+    return teamColor ? teamColor.color : "#8baaff";
   };
+
+  //Circle Boundary Generation
 
   type LatLng = {
     latitude: number;
     longitude: number;
   };
 
-  // CIRCLE/BOUNDARY GENERATION //
   const generateCircleCoordinates = (
     center: LatLng,
     radius: number,
@@ -406,11 +539,10 @@ export default function PlayScreen() {
       initializeGame();
     }, [])
   );
-  //160 was original radius
-  const circleCoordinates = generateCircleCoordinates(center, 20, 20);
 
+  const circleCoordinates = generateCircleCoordinates(center, 20, 20); //160 was original radius
 
-  // GENERAL POWER UPS //
+  // Powerup Generation
 
   type PowerUp = {
     id: string;
@@ -475,7 +607,7 @@ export default function PlayScreen() {
       setTimeout(async () => {
         await remove(powerUpsRef);
       }, despawnTime);
-    //18000 was original time
+      //18000 was original time
     }, Math.random() * (4000 - 3000) + 3000);
 
     return () => {
@@ -516,52 +648,122 @@ export default function PlayScreen() {
     fetchPowerUps();
   }, [roomCode]);
 
-    //all of user's powerups in their inventory
-    const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
+  //all of user's powerups in their inventory
+  const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
 
-    //all of the powerups currently in play in the game
-    const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
-  
-    //see if powerups are close to user's location
-    useEffect(()=>{
-      if (!auth.currentUser) return;
-  
-      const playerId = auth.currentUser.uid;
-      const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`)
-      const getPlayerPowerUps = (async ()=>{
-        const playerInfo = await get(playerRef);
-        if (!playerInfo.exists()) return;
-        const playerData = playerInfo.val();
-        //in case we need to do anything with powerref!
-        /*
+  //all of the powerups currently in play in the game
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  //see if powerups are close to user's location
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    const getPlayerPowerUps = async () => {
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      //in case we need to do anything with powerref!
+      /*
         const powerRef = ref(database, `rooms/${roomCode}/powerUps`)
         const powerInfo = await get(powerRef);
         if (!powerInfo.exists()) return;
         const powerData = powerInfo.val();*/
-  
-        let playerPowerUps = userPowerUps;
-  
-        powerUps.map(async (powerUp) =>{
-        /* change the delta to be whatever value u want*/
-          if ((powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 && powerUp.coordinate.latitude - playerData.latitude >= -0.0001703)
-            && (powerUp.coordinate.longitude - playerData.longitude <= 0.000703 && powerUp.coordinate.longitude - playerData.longitude >= -0.0001703)){
-              playerPowerUps.push(powerUp);
-              setUserPowerUps(playerPowerUps);
-              try {
-                const individualPowerRef = ref(database, `rooms/${roomCode}/powerUps/${powerUp.id}`);
-                //console.log("individualPowerRef", individualPowerRef)
-                await remove(individualPowerRef);
-                //console.log("Power-up removed successfully");
-              } catch (error) {
-                //console.error("Error removing power-up:", error);
-              }
-          }
-        });
-      })
-  
-      getPlayerPowerUps();
-    }, [playerLocationArray]);
 
+      let playerPowerUps = userPowerUps;
+
+      powerUps.map(async (powerUp) => {
+        /* change the delta to be whatever value u want*/
+        if (
+          powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 &&
+          powerUp.coordinate.latitude - playerData.latitude >= -0.0001703 &&
+          powerUp.coordinate.longitude - playerData.longitude <= 0.000703 &&
+          powerUp.coordinate.longitude - playerData.longitude >= -0.0001703
+        ) {
+          playerPowerUps.push(powerUp);
+          setUserPowerUps(playerPowerUps);
+          //keeps crashing with the below code?? i can't remove the ref once the user gets it??
+          console.log("setUserPowerUps", userPowerUps);
+          try {
+            const individualPowerRef = ref(
+              database,
+              `rooms/${roomCode}/powerUps/${powerUp.id}`
+            );
+            console.log("individualPowerRef", individualPowerRef);
+            await remove(individualPowerRef);
+            console.log("Power-up removed successfully");
+          } catch (error) {
+            console.error("Error removing power-up:", error);
+          }
+        }
+      });
+    };
+
+    getPlayerPowerUps();
+  }, [playerArray]);
+
+  // Powerup Usage
+
+  const [isOxStampedeModalVisible, setOxStampedeModalVisible] = useState(false);
+
+  const useOx = () => {
+    console.log("Using Ox Stampede power-up");
+    setOxStampedeModalVisible(true);
+  };
+
+  const handleTargetSelect = (targetId: string) => {
+    setOxStampedeModalVisible(false);
+    // do stuff on target's screen
+    setDustStormActive(true);
+  };
+
+  const [isDustStormActive, setDustStormActive] = useState(false);
+
+  const useHorseshoe = () => {
+    console.log("Using Horseshoe power-up");
+    // horseshoe logic
+  };
+
+  const useBadge = () => {
+    console.log("Using Sheriff's Badge power-up");
+    // sheriff's badge
+  };
+
+  const usePowerUp = (powerUp: {
+    id?: string;
+    type: any;
+    coordinate?: { latitude: number; longitude: number };
+  }) => {
+    console.log(`Using power-up: ${powerUp.type}`);
+    // Add logic to use the power-up
+  };
+
+  const renderPowerUpItem = ({ item }: { item: PowerUp }) => {
+    return (
+      <TouchableOpacity
+        style={styles.powerUpItem}
+        onPress={() => usePowerUp(item)}
+      >
+        <View style={styles.powerUpIconContainer}>
+          {item.type === "Sheriff Badge" && (
+            <BadgeIcon width={30} height={30} />
+          )}
+          {item.type === "Cowboy Boots" && <BootsIcon width={30} height={30} />}
+          {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
+          {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
+          {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
+          {item.type === "Horseshoe" && (
+            <HorseshoeIcon width={30} height={30} />
+          )}
+          {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
+          {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
+          {item.type === "Money" && <MoneyIcon width={30} height={30} />}
+        </View>
+        <AppText style={styles.powerUpName}>{item.type}</AppText>
+      </TouchableOpacity>
+    );
+  };
 
 
   //console.log("old urlarray", playerURLArray);
@@ -707,9 +909,7 @@ export default function PlayScreen() {
       setModalVisible(false); // Close modal after confirming
     };
 
-
-
-  //  GENERAL GAME MECHANICS
+  //  General Game Mechanics
 
   const resetGame = async () => {
     if (!auth.currentUser) return;
@@ -739,7 +939,7 @@ export default function PlayScreen() {
       }
     }
 
-    // Clear the interval that generates power-ups
+    // clear the interval that generates power-ups
     if (generatePowerUpIntervalRef.current) {
       clearInterval(generatePowerUpIntervalRef.current);
     }
@@ -776,13 +976,20 @@ export default function PlayScreen() {
                 styles.buttonText,
                 {
                   color: auth.currentUser
-                    ? getTeamColor(playerTeams[auth.currentUser.uid || ""] || 1)
+                    ? getTeamColor(
+                        playerArray.find(
+                          (player) => player.id === auth.currentUser?.uid
+                        )?.team || 1
+                      )
                     : "#FFFFAA",
                 },
               ]}
             >
               {"  "}
-              [TEAM {playerTeams[auth.currentUser?.uid || ""] || 1}]
+              [TEAM{" "}
+              {playerArray.find((player) => player.id === auth.currentUser?.uid)
+                ?.team || 1}
+              ]
             </Text>
           </View>
         </View>
@@ -834,27 +1041,26 @@ export default function PlayScreen() {
               name={powerUp.type}
             />
           ))}
-          {playerURLArray.map((player) => {
-            const playerLocation = playerLocationArray.find(
-              (location) => location.id === player.id
-            );
-            return playerLocation ? (
+          {playerArray.map((player) => {
+            const playerURL = playerURLArray.find(
+              (urlItem) => urlItem.id === player.id
+            )?.profile;
+            return (
               <Marker
                 key={player.id}
                 coordinate={{
-                  latitude: playerLocation.latitude,
-                  longitude: playerLocation.longitude,
+                  latitude: player.latitude,
+                  longitude: player.longitude,
                 }}
               >
                 <View>
-                  <Image
-                    source={{ uri: player.profile }}
-                    style={styles.user}
-                  ></Image>
+                  {playerURL ? (
+                    <Image source={{ uri: playerURL }} style={styles.user} />
+                  ) : (
+                    <Text>Loading...</Text>
+                  )}
                 </View>
               </Marker>
-            ) : (
-              <Text>Loading...</Text>
             );
           })}
         </MapView>
@@ -883,52 +1089,67 @@ export default function PlayScreen() {
               )
             )}
           </AppText>
-          <AppText>Latitude: {location?.coords.latitude || errorMsg}</AppText>
-          <AppText>Longitude: {location?.coords.longitude || errorMsg}</AppText>
+          
+          <AppText>Latitude: {location?.coords.latitude}</AppText>
+          <AppText>Longitude: {location?.coords.longitude}</AppText>
+
+          <FlatList
+            data={userPowerUps}
+            keyExtractor={(item) => item.id}
+            renderItem={renderPowerUpItem}
+            style={styles.powerUpList}
+          />
+
 
           <ReusableButton label="Pick Location" onPress={() => setModalVisible(true)} />
-      {selectedLocation && (
-        <ReusableButton label={`Selected: ${selectedLocation.latitude}, ${selectedLocation.longitude}`} onPress={() => console.log(selectedLocation)} />
-      )}
+                {selectedLocation && (
+                  <ReusableButton label={`Selected: ${selectedLocation.latitude}, ${selectedLocation.longitude}`} onPress={() => console.log(selectedLocation)} />
+                )}
 
-      <Modal visible={modalVisible} animationType="slide">
-        {location ? (
-          <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-            <MapView
-              style={StyleSheet.absoluteFillObject}
-              initialRegion={{
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                latitudeDelta: 0.002222,
-                longitudeDelta: 0.001521,
-              }}
-              showsScale={true}
-              mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
-              mapType="hybrid"
-              rotateEnabled={false}
-              loadingEnabled={true}
-              zoomEnabled={false}
-              onPress={handleMapPress}
-            >
-              {selectedLocation && <Marker coordinate={selectedLocation} />}
-            </MapView>
+          <Modal visible={modalVisible} animationType="slide">
+            {location ? (
+              <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <MapView
+                  style={StyleSheet.absoluteFillObject}
+                  initialRegion={{
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                    latitudeDelta: 0.002222,
+                    longitudeDelta: 0.001521,
+                  }}
+                  showsScale={true}
+                  mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  mapType="hybrid"
+                  rotateEnabled={false}
+                  loadingEnabled={true}
+                  zoomEnabled={false}
+                  onPress={handleMapPress}
+                >
+                  {selectedLocation && <Marker coordinate={selectedLocation} />}
+                </MapView>
 
-            <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
-              <ReusableButton label="Confirm" onPress={handleConfirm} />
-              <ReusableButton label="Cancel" onPress={() => setModalVisible(false)} />
-            </View>
-          </View>
-        ) : (
-          <Text>Loading cactus...</Text>
-        )}
-      </Modal>
-
+                <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
+                  <ReusableButton label="Confirm" onPress={handleConfirm} />
+                  <ReusableButton label="Cancel" onPress={() => setModalVisible(false)} />
+                </View>
+              </View>
+            ) : (
+              <Text>Loading cactus...</Text>
+            )}
+          </Modal> 
 
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
           </TouchableOpacity>
         </BottomSheetView>
       </BottomSheet>
+
+      <PlayerListModal
+        visible={isOxStampedeModalVisible}
+        onClose={() => setOxStampedeModalVisible(false)}
+        players={playerArray}
+        onSelect={handleTargetSelect}
+      />
     </GestureHandlerRootView>
   );
 }
@@ -1014,6 +1235,24 @@ const styles = StyleSheet.create({
   exit: {
     bottom: 30,
     position: "absolute",
+  },
+  powerUpItem: {
+    padding: 10,
+    marginVertical: 5,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 5,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  powerUpIconContainer: {
+    marginRight: 10,
+  },
+  powerUpName: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  powerUpList: {
+    marginTop: 20,
   },
 });
 function wait(arg0: number) {

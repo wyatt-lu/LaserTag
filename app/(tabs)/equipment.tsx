@@ -9,8 +9,7 @@ import ReusableButton from "@/components/ReusableButton";
 export default function EquipmentScreen() {
   const [userLaserType, setUserLaserType] = useState<any>();
 
-  /*
-  const laserRef = ref(database, `lasers/2xLength`);
+  /*const laserRef = ref(database, `lasers/Default`);
 
   const createLasers = async ()=>{
     if (!auth.currentUser) return;
@@ -20,6 +19,7 @@ export default function EquipmentScreen() {
     });
   }
   createLasers();*/
+
   const getLaser = async () => {
     if (!auth.currentUser) return;
     const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`);
@@ -50,7 +50,7 @@ export default function EquipmentScreen() {
           theme="laser"
           label="Default"
           onPress={() => {
-            changeLaser("default");
+            changeLaser("Default");
           }}
         />
         <ReusableButton

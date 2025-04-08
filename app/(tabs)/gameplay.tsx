@@ -185,16 +185,6 @@ export default function PlayScreen() {
     getPlayersURL();
   }, [playerArray.length]);
 
-  const fetchUserURL = async (id: any) => {
-    try {
-      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
-      const url = await getDownloadURL(placeholderRef);
-      return url;
-    } catch (error) {
-      console.error("Error fetching image URL:", error);
-    }
-  };
-
   // Update User Location
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
@@ -744,17 +734,10 @@ export default function PlayScreen() {
 
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-    const getPlayerPowerUps = async () => {
+    const checkLocationPowerUpAndCactus = async () => {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
-      //in case we need to do anything with powerref!
-      /*
-        const powerRef = ref(database, `rooms/${roomCode}/powerUps`)
-        const powerInfo = await get(powerRef);
-        if (!powerInfo.exists()) return;
-        const powerData = powerInfo.val();*/
-
       let playerPowerUps = userPowerUps;
 
       powerUps.map(async (powerUp) => {
@@ -782,9 +765,34 @@ export default function PlayScreen() {
           }
         }
       });
+      const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
+      const cactusInfo = await get(cactusRef);
+      if (!cactusInfo.exists()) return;
+      const cactusData = cactusInfo.val();
+
+      const cactusArray = Object.keys(cactusData).map((key) => ({
+        id: key,
+        ...cactusData[key],
+      }));
+
+      cactusArray.forEach(async (cactus) => {
+        if (cactus.latitude - playerData.latitude <= 0.0001703 &&
+          cactus.latitude - playerData.latitude >= -0.0001703 &&
+          cactus.longitude - playerData.longitude <= 0.000703 &&
+          cactus.longitude - playerData.longitude >= -0.0001703){
+            await update(playerRef, {eliminated: true});
+            const cactusPlacerRef = ref(database, `rooms/${roomCode}/cactus/${cactus.id}`);
+            const cactusPlacerInfo = await get(cactusPlacerRef);
+            if (!cactusPlacerInfo.exists()) return;
+            const cactusPlacerData = cactusPlacerInfo.val();
+            let newPoints = cactusPlacerData.points+1
+            await update(cactusPlacerRef, {points: newPoints});
+            //await remove()
+          }
+      });
     };
 
-    getPlayerPowerUps();
+    checkLocationPowerUpAndCactus();
   }, [playerArray]);
 
   // Powerup Usage
@@ -820,7 +828,20 @@ export default function PlayScreen() {
     coordinate?: { latitude: number; longitude: number };
   }) => {
     console.log(`Using power-up: ${powerUp.type}`);
-    // Add logic to use the power-up
+    switch (powerUp.type){
+      case "Cowboy Boots":
+        cowboyBoots();
+        break;
+      case "Cowboy Hat":
+        cowboyHat();
+        break;
+      case "Cactus":
+        setCactusModalVisible(true);
+        break;
+      default:
+        setCactusModalVisible(true);
+        break;
+    }
   };
 
   const renderPowerUpItem = ({ item }: { item: PowerUp }) => {
@@ -858,9 +879,9 @@ export default function PlayScreen() {
   // northsouth random amount, east west random amount, add to og lat and long, and then update database
   //set interval? so after a certain amount of time, remove sthis player from storage and realtime?
 
-  console.log("old playerArray", playerArray);
+  //console.log("old playerArray", playerArray);
 
-  console.log("old playerURLArray", playerURLArray);
+  //console.log("old playerURLArray", playerURLArray);
   const cowboyBoots = ( async () => {
 
     //copy realtime database to fake user
@@ -924,20 +945,6 @@ export default function PlayScreen() {
     });
     interval();
   });
-/*
-  const [test1, setTest1] = useState(0);
-  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  const testing = (async ()=>{
-    await wait(5000);
-    cowboyBoots();
-  })
-
-  if (test1==0){
-    console.log("inside test")
-    testing();
-    setTest1(2);
-  }*/
-
 
   //COWBOY HAT
 
@@ -952,61 +959,26 @@ export default function PlayScreen() {
       await update(playerRef, {cowboyHat: false});
     }, 5000);
   });
-/*
+
   //CACTUS commented out just so i can push cowboyhat and cowhoy boots
-    const [modalVisible, setModalVisible] = useState(false);
-    const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [cactusModalVisible, setCactusModalVisible] = useState(false);
+    const [selectedCactusLocation, setSelectedCactusLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
-    const handleMapPress = (event: MapPressEvent) => {
+    const cactusMapPress = (event: MapPressEvent) => {
       const { latitude, longitude } = event.nativeEvent.coordinate;
-      setSelectedLocation({ latitude, longitude });
+      setSelectedCactusLocation({ latitude, longitude });
     };
 
-    const handleConfirm = () => {
-      if (selectedLocation) {
-        console.log("Confirmed location:", selectedLocation);
-        // Proceed with your logic here (e.g., update a state or call an API)
+    const handleConfirm = (async () => {
+      if (selectedCactusLocation) {
+        if (!auth.currentUser) return;
+        //console.log("Confirmed location:", selectedLocation);
+        //HEY THERE see if u can add the cactus button to trigger this function, then add the cactus id in the cactus folder :D
+        const cactusRef = ref(database, `rooms/${roomCode}/cactus/${auth.currentUser.uid}`)
+        await update(cactusRef, {latitude: selectedCactusLocation.latitude, longitude: selectedCactusLocation.longitude, creator: auth.currentUser.uid})
       }
-      setModalVisible(false); // Close modal after confirming
-    };
-
-    <ReusableButton label="Pick Location" onPress={() => setModalVisible(true)} />
-          {selectedLocation && (
-            <ReusableButton label={`Selected: ${selectedLocation.latitude}, ${selectedLocation.longitude}`} onPress={() => console.log(selectedLocation)} />
-          )}
-
-          <Modal visible={modalVisible} animationType="slide">
-            {location ? (
-              <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <MapView
-                  style={StyleSheet.absoluteFillObject}
-                  initialRegion={{
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                    latitudeDelta: 0.002222,
-                    longitudeDelta: 0.001521,
-                  }}
-                  showsScale={true}
-                  mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                  mapType="hybrid"
-                  rotateEnabled={false}
-                  loadingEnabled={true}
-                  zoomEnabled={false}
-                  onPress={handleMapPress}
-                >
-                  {selectedLocation && <Marker coordinate={selectedLocation} />}
-                </MapView>
-
-                <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
-                  <ReusableButton label="Confirm" onPress={handleConfirm} />
-                  <ReusableButton label="Cancel" onPress={() => setModalVisible(false)} />
-                </View>
-              </View>
-            ) : (
-              <Text>Loading cactus...</Text>
-            )}
-          </Modal> 
-    */
+      setCactusModalVisible(false);
+    });
 
   //  General Game Mechanics
 
@@ -1043,11 +1015,14 @@ export default function PlayScreen() {
       clearInterval(generatePowerUpIntervalRef.current);
     }
 
+    setUserPowerUps([]);
     setPowerUps([]);
     setPlayersURL([]);
     setPlayersLocation([]);
     setPlayerTeams({});
     setRoomCode(null);
+    setCactusModalVisible(false);
+    setPlayerArray([]);
 
     router.replace("/(tabs)/home");
   };
@@ -1199,8 +1174,44 @@ export default function PlayScreen() {
             style={styles.powerUpList}
           />
 
-          <ReusableButton label="cowboyboots" onPress={() => cowboyBoots()} />
-          
+
+          <ReusableButton label="cactus" onPress={() => setCactusModalVisible(true)} />
+
+          {selectedCactusLocation && (
+            <ReusableButton label={`Selected: ${selectedCactusLocation.latitude}, ${selectedCactusLocation.longitude}`} onPress={() => console.log(selectedCactusLocation)} />
+          )}
+
+          <Modal visible={cactusModalVisible} animationType="slide">
+            {location ? (
+              <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <MapView
+                  style={StyleSheet.absoluteFillObject}
+                  initialRegion={{
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                    latitudeDelta: 0.002222,
+                    longitudeDelta: 0.001521,
+                  }}
+                  showsScale={true}
+                  mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  mapType="hybrid"
+                  rotateEnabled={false}
+                  loadingEnabled={true}
+                  zoomEnabled={false}
+                  onPress={cactusMapPress}
+                >
+                  {selectedCactusLocation && <Marker coordinate={selectedCactusLocation} />}
+                </MapView>
+
+                <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
+                  <ReusableButton label="Confirm" onPress={handleConfirm} />
+                  <ReusableButton label="Cancel" onPress={() => setCactusModalVisible(false)} />
+                </View>
+              </View>
+            ) : (
+              <Text>Loading cactus...</Text>
+            )}
+          </Modal>
 
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>

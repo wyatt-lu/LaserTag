@@ -1039,7 +1039,6 @@ export default function PlayScreen() {
       case "Cowboy Hat":
         cowboyHat();
         break;
-        /*
       case "Sheriff Badge":
         useBadge();
         break;
@@ -1054,13 +1053,6 @@ export default function PlayScreen() {
         break;
         
       case "Cactus":
-      case "Ox Stampede":
-        useOx();
-        break;
-      case "Money":
-        console.log("Using Money power-up");
-        break;*/
-      default:
         const seeIfUserHasCactus = (async () => {
           const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
           const cactusInfo = await get(cactusRef);
@@ -1107,7 +1099,14 @@ export default function PlayScreen() {
           );
         });
         seeIfUserHasCactus();
-        // console.log("Unknown power-up type");
+      case "Ox Stampede":
+        useOx();
+        break;
+      case "Money":
+        console.log("Using Money power-up");
+        break;
+      default:
+        console.log("Unknown power-up type");
         break;
     }
   };

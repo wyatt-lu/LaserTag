@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { StyleSheet, Text, TouchableOpacity, View, Image, Modal } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import {
@@ -13,8 +13,7 @@ import {
   update,
 } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
-import * as FileSystem from "expo-file-system";
-import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
+import MapView, { Marker, Polygon } from "react-native-maps";
 import React from "react";
 import {
   getStorage,
@@ -23,7 +22,6 @@ import {
   uploadBytes,
   deleteObject,
 } from "firebase/storage";
-
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import AppText from "@/components/AppText";
@@ -285,17 +283,21 @@ export default function PlayScreen() {
   };
 
   //USER MOVES!!//
-  const eliminatePlayer = (dataArray: PLD[], currentPlayer: string, laserBounds: any) => {
+  const eliminatePlayer = (
+    dataArray: PLD[],
+    currentPlayer: string,
+    laserBounds: any
+  ) => {
     //filters through the datarray and locates players and their coordinates
     //checks if player coordinates during laser fire are within laser bounds
     //if true, log "player is eliminated"
     //if false, log "no one eliminated"
     //array to store eliminated players
-    let elim = []
-    dataArray.forEach(player => {
+    let elim = [];
+    dataArray.forEach((player) => {
       if (player.playerId === currentPlayer) return;
-      const playerLat = player.latitude
-      const playerLon = player.longitude
+      const playerLat = player.latitude;
+      const playerLon = player.longitude;
       if (
         playerLat >= laserBounds.south &&
         playerLat <= laserBounds.north &&
@@ -303,11 +305,11 @@ export default function PlayScreen() {
         playerLon <= laserBounds.east
       ) {
         console.log(`player${player.playerId} is eliminated.`);
-        elim.push(player.playerId)
+        elim.push(player.playerId);
       }
-    })
+    });
     if (elim.length == 0) {
-      console.log("no players eliminated")
+      console.log("no players eliminated");
     }
     /*const usernameRef = ref(database, `usernames/${username}/uid`);
     get(usernameRef).then((snapshot) => {
@@ -440,49 +442,64 @@ export default function PlayScreen() {
       directionInRadians
     );
     // Sideways direction (laser width, perpendicular to the direction the player is facing)
-    const rightCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians + Math.PI / 2);
-    const leftCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians - Math.PI / 2);
+    const rightCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      width / 2,
+      directionInRadians + Math.PI / 2
+    );
+    const leftCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      width / 2,
+      directionInRadians - Math.PI / 2
+    );
 
     //define laser area w/ bounds
     const laserBounds = {
-      north: Math.max(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
-      south: Math.min(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
-      east: Math.max(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon),
-      west: Math.min(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon)
-    }
+      north: Math.max(
+        frontCoordinates.lat,
+        rightCoordinates.lat,
+        leftCoordinates.lat
+      ),
+      south: Math.min(
+        frontCoordinates.lat,
+        rightCoordinates.lat,
+        leftCoordinates.lat
+      ),
+      east: Math.max(
+        frontCoordinates.lon,
+        rightCoordinates.lon,
+        leftCoordinates.lon
+      ),
+      west: Math.min(
+        frontCoordinates.lon,
+        rightCoordinates.lon,
+        leftCoordinates.lon
+      ),
+    };
     console.log("Laser Bounds:", laserBounds);
     //pass laser bounds into eliminatePlayer
     eliminatePlayer(dataArray, playerId, laserBounds);
   };
 
   //helper function to calculate offset
-  function calculateOffset(lat: number, lon: number, distance: number, angle: number) {
+  function calculateOffset(
+    lat: number,
+    lon: number,
+    distance: number,
+    angle: number
+  ) {
     const radius = 6371000; // Earth's radius in meters
     const latOffset = (distance * Math.cos(angle)) / radius;
-    const lonOffset = (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
-    
+    const lonOffset =
+      (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
+
     const newLat = lat + latOffset;
     const newLon = lon + lonOffset;
-    
+
     return { lat: newLat, lon: newLon };
-  };
-
-  //helper function for degree to radian conversion
-  function degToRad(deg: number) {
-    return deg * (Math.PI / 180);
   }
-
-  //URL information getting and setting
-  //get individual user url
-  const fetchUserURL = async (id: any) => {
-    try {
-      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
-      const url = await getDownloadURL(placeholderRef);
-      return url;
-    } catch (error) {
-      console.error("Error fetching image URL:", error);
-    }
-  };
 
   //get list of player's url once gameplay begins runnings
   useEffect(() => {
@@ -733,7 +750,9 @@ export default function PlayScreen() {
   }, [roomCode]);
 
   //all of user's powerups in their inventory
-  const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
+  const [userPowerUps, setUserPowerUps] = useState<
+    { type: string; count: number }[]
+  >([]);
 
   //all of the powerups currently in play in the game
   const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
@@ -765,18 +784,22 @@ export default function PlayScreen() {
           powerUp.coordinate.longitude - playerData.longitude <= 0.000703 &&
           powerUp.coordinate.longitude - playerData.longitude >= -0.0001703
         ) {
-          playerPowerUps.push(powerUp);
-          setUserPowerUps(playerPowerUps);
-          //keeps crashing with the below code?? i can't remove the ref once the user gets it??
-          //console.log("setUserPowerUps", userPowerUps);
+          const existingPowerUp = playerPowerUps.find(
+            (p) => p.type === powerUp.type
+          );
+          if (existingPowerUp) {
+            existingPowerUp.count += 1;
+          } else {
+            playerPowerUps.push({ type: powerUp.type, count: 1 });
+          }
+          setUserPowerUps([...playerPowerUps]);
+
           try {
             const individualPowerRef = ref(
               database,
               `rooms/${roomCode}/powerUps/${powerUp.id}`
             );
-            //console.log("individualPowerRef", individualPowerRef);
             await remove(individualPowerRef);
-            //console.log("Power-up removed successfully");
           } catch (error) {
             console.error("Error removing power-up:", error);
           }
@@ -814,16 +837,11 @@ export default function PlayScreen() {
     // sheriff's badge
   };
 
-  const usePowerUp = (powerUp: {
-    id?: string;
-    type: any;
-    coordinate?: { latitude: number; longitude: number };
+  const renderPowerUpItem = ({
+    item,
+  }: {
+    item: { type: string; count: number };
   }) => {
-    console.log(`Using power-up: ${powerUp.type}`);
-    // Add logic to use the power-up
-  };
-
-  const renderPowerUpItem = ({ item }: { item: PowerUp }) => {
     return (
       <TouchableOpacity
         style={styles.powerUpItem}
@@ -845,6 +863,9 @@ export default function PlayScreen() {
           {item.type === "Money" && <MoneyIcon width={30} height={30} />}
         </View>
         <AppText style={styles.powerUpName}>{item.type}</AppText>
+        {item.count > 1 && (
+          <AppText style={styles.powerUpCount}>{item.count}</AppText>
+        )}
       </TouchableOpacity>
     );
   };
@@ -854,15 +875,14 @@ export default function PlayScreen() {
   //Cowboy boots
   //realtime: make a copy of currentuser's info in new random id
   //storage: add currentuser's image into this random id
-  //make random movements for fake user with math.random and a step counter, 
+  //make random movements for fake user with math.random and a step counter,
   // northsouth random amount, east west random amount, add to og lat and long, and then update database
   //set interval? so after a certain amount of time, remove sthis player from storage and realtime?
 
-  console.log("old playerArray", playerArray);
+  // console.log("old playerArray", playerArray);
 
-  console.log("old playerURLArray", playerURLArray);
-  const cowboyBoots = ( async () => {
-
+  // console.log("old playerURLArray", playerURLArray);
+  const cowboyBoots = async () => {
     //copy realtime database to fake user
     if (!auth.currentUser) return;
 
@@ -872,7 +892,10 @@ export default function PlayScreen() {
     const roomData = roomInfo.val();
     let roomNum = roomData.room;
 
-    const playerRef = ref(database, `rooms/${roomNum}/players/${auth.currentUser.uid}`);
+    const playerRef = ref(
+      database,
+      `rooms/${roomNum}/players/${auth.currentUser.uid}`
+    );
     const playerInfo = await get(playerRef);
 
     if (!playerInfo.exists()) return;
@@ -882,8 +905,14 @@ export default function PlayScreen() {
 
     //copy image to fake user
 
-    const playerStorageRef = ref_storage(storage, `${auth.currentUser.uid}/pfp.jpg`);
-    const fakeUserStorageRef = ref_storage(storage, `${randomFakeUserId}/pfp.jpg`);
+    const playerStorageRef = ref_storage(
+      storage,
+      `${auth.currentUser.uid}/pfp.jpg`
+    );
+    const fakeUserStorageRef = ref_storage(
+      storage,
+      `${randomFakeUserId}/pfp.jpg`
+    );
 
     const playerUrl = await getDownloadURL(playerStorageRef);
     const response = await fetch(playerUrl);
@@ -891,16 +920,22 @@ export default function PlayScreen() {
 
     await uploadBytes(fakeUserStorageRef, blob);
 
-    const fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`)
+    const fakeUserRef = ref(
+      database,
+      `rooms/${roomNum}/players/${randomFakeUserId}`
+    );
     //create fakeUser data in database
     await set(fakeUserRef, playerData);
 
     //allow fake user to exist for 5 seconds
-    const interval = (async () => {
+    const interval = async () => {
       const interval = setInterval(async () => {
-        let latDelta = Math.random() * (0.0000503 - (-0.0000503)) + (-0.0000503);
-        let longDelta = Math.random() * (0.0000503 - (-0.0000503)) + (-0.0000503);
-        let fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`);
+        let latDelta = Math.random() * (0.0000503 - -0.0000503) + -0.0000503;
+        let longDelta = Math.random() * (0.0000503 - -0.0000503) + -0.0000503;
+        let fakeUserRef = ref(
+          database,
+          `rooms/${roomNum}/players/${randomFakeUserId}`
+        );
         let fakeUserInfo = await get(fakeUserRef);
         if (!fakeUserInfo.exists()) return;
 
@@ -909,22 +944,28 @@ export default function PlayScreen() {
         let newLong = fakeUserData.longitude + longDelta;
 
         await update(fakeUserRef, { latitude: newLat, longitude: newLong });
-        console.log("playerArray", playerArray);
+        // console.log("playerArray", playerArray);
       }, 1000);
       // Stop the interval after 20 seconds
       setTimeout(async () => {
         clearInterval(interval);
-        console.log("timeout randomFakeUserId", randomFakeUserId);
+        // console.log("timeout randomFakeUserId", randomFakeUserId);
 
-        let fakeUserRef = ref(database, `rooms/${roomNum}/players/${randomFakeUserId}`);
-        const fakeUserStorageRef = ref_storage(storage, `${randomFakeUserId}/pfp.jpg`);
+        let fakeUserRef = ref(
+          database,
+          `rooms/${roomNum}/players/${randomFakeUserId}`
+        );
+        const fakeUserStorageRef = ref_storage(
+          storage,
+          `${randomFakeUserId}/pfp.jpg`
+        );
         await remove(fakeUserRef);
         await deleteObject(fakeUserStorageRef);
       }, 20000);
-    });
+    };
     interval();
-  });
-/*
+  };
+  /*
   const [test1, setTest1] = useState(0);
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   const testing = (async ()=>{
@@ -938,21 +979,20 @@ export default function PlayScreen() {
     setTest1(2);
   }*/
 
-
   //COWBOY HAT
 
-  const cowboyHat = (async () => {
-    
+  const cowboyHat = async () => {
     if (!auth.currentUser) return;
 
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-    await update(playerRef, {cowboyHat: true});
+    await update(playerRef, { cowboyHat: true });
     setTimeout(async () => {
-      await update(playerRef, {cowboyHat: false});
+      await update(playerRef, { cowboyHat: false });
     }, 5000);
-  });
-/*
+  };
+
+  /*
   //CACTUS commented out just so i can push cowboyhat and cowhoy boots
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -1007,6 +1047,45 @@ export default function PlayScreen() {
             )}
           </Modal> 
     */
+
+  const usePowerUp = (powerUp: {
+    id?: string;
+    type: any;
+    coordinate?: { latitude: number; longitude: number };
+  }) => {
+    switch (powerUp.type) {
+      case "Cowboy Boots":
+        cowboyBoots();
+        break;
+      case "Cowboy Hat":
+        cowboyHat();
+        break;
+      case "Sheriff Badge":
+        useBadge();
+        break;
+      case "Horseshoe":
+        useHorseshoe();
+        break;
+      case "Lasso":
+        console.log("Using Lasso power-up");
+        break;
+      case "Bounty":
+        console.log("Using Bounty power-up");
+        break;
+      case "Cactus":
+        console.log("Using Cactus power-up");
+        break;
+      case "Ox Stampede":
+        useOx();
+        break;
+      case "Money":
+        console.log("Using Money power-up");
+        break;
+      default:
+        console.log("Unknown power-up type");
+        break;
+    }
+  };
 
   //  General Game Mechanics
 
@@ -1194,13 +1273,10 @@ export default function PlayScreen() {
 
           <FlatList
             data={userPowerUps}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.type}
             renderItem={renderPowerUpItem}
             style={styles.powerUpList}
           />
-
-          <ReusableButton label="cowboyboots" onPress={() => cowboyBoots()} />
-          
 
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
@@ -1318,8 +1394,15 @@ const styles = StyleSheet.create({
   powerUpList: {
     marginTop: 20,
   },
+  powerUpCount: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#3a160e",
+    position: "absolute",
+    right: 5,
+    bottom: 5,
+  },
 });
 function wait(arg0: number) {
   throw new Error("Function not implemented.");
 }
-

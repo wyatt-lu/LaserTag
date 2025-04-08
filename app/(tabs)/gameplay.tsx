@@ -140,7 +140,7 @@ export default function PlayScreen() {
       const playerList = Object.entries(playersData).map(([id, data]) => ({
         id,
         ...(data as any),
-      }));
+      })).filter(player => !player.eliminated);
       setPlayerArray(playerList);
     });
 
@@ -643,7 +643,7 @@ export default function PlayScreen() {
     }, [])
   );
 
-  const circleCoordinates = generateCircleCoordinates(center, 20, 20); //160 was original radius
+  const circleCoordinates = generateCircleCoordinates(center, 30, 30); //160 was original radius
 
   // Powerup Generation
 
@@ -699,19 +699,19 @@ export default function PlayScreen() {
     generatePowerUpIntervalRef.current = setInterval(async () => {
       if (!roomCode) return;
       //160 was original radius
-      const newPowerUp = getRandomPowerUp(center, 20);
+      const newPowerUp = getRandomPowerUp(center, 30);
       const powerUpsRef = ref(
         database,
         `rooms/${roomCode}/powerUps/${newPowerUp.id}`
       );
       await set(powerUpsRef, newPowerUp);
 
-      const despawnTime = Math.random() * (18000 - 3000) + 3000;
+      const despawnTime = Math.random() * (36000 - 3000) + 3000;
       setTimeout(async () => {
         await remove(powerUpsRef);
       }, despawnTime);
       //18000 was original time
-    }, Math.random() * (4000 - 3000) + 3000);
+    }, Math.random() * (18000 - 10000) + 3000);
 
     return () => {
       if (generatePowerUpIntervalRef.current) {
@@ -753,7 +753,7 @@ export default function PlayScreen() {
 
   //all of user's powerups in their inventory
   const [userPowerUps, setUserPowerUps] = useState<
-    { type: string; count: number }[]
+    {id: string; type: string; count: number }[]
   >([]);
 
   //all of the powerups currently in play in the game
@@ -785,7 +785,7 @@ export default function PlayScreen() {
           if (existingPowerUp) {
             existingPowerUp.count += 1;
           } else {
-            playerPowerUps.push({ type: powerUp.type, count: 1 });
+            playerPowerUps.push({ id: powerUp.id, type: powerUp.type, count: 1 });
           }
           setUserPowerUps([...playerPowerUps]);
 
@@ -815,14 +815,19 @@ export default function PlayScreen() {
           cactus.latitude - playerData.latitude >= -0.0001703 &&
           cactus.longitude - playerData.longitude <= 0.000703 &&
           cactus.longitude - playerData.longitude >= -0.0001703){
+            //remove current player from game if they are on an active cactus
             await update(playerRef, {eliminated: true});
-            const cactusPlacerRef = ref(database, `rooms/${roomCode}/cactus/${cactus.id}`);
+
+            //reward the cactus placer
+            const cactusPlacerRef = ref(database, `rooms/${roomCode}/players/${cactus.creator}`);
             const cactusPlacerInfo = await get(cactusPlacerRef);
             if (!cactusPlacerInfo.exists()) return;
             const cactusPlacerData = cactusPlacerInfo.val();
             let newPoints = cactusPlacerData.points+1
             await update(cactusPlacerRef, {points: newPoints});
-            //await remove()
+            //remove the used cactus from cactus folder
+            const usedCactusRef = ref(database, `rooms/${roomCode}/cactus/${cactus.id}`);
+            await remove(usedCactusRef);
           }
       });
     };
@@ -860,7 +865,7 @@ export default function PlayScreen() {
   const renderPowerUpItem = ({
     item,
   }: {
-    item: { type: string; count: number };
+    item: { id: string; type: string; count: number };
   }) => {
     return (
       <TouchableOpacity
@@ -875,9 +880,7 @@ export default function PlayScreen() {
           {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
           {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
           {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
-          {item.type === "Horseshoe" && (
-            <HorseshoeIcon width={30} height={30} />
-          )}
+          {item.type === "Horseshoe" && <HorseshoeIcon width={30} height={30} />}
           {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
           {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
           {item.type === "Money" && <MoneyIcon width={30} height={30} />}
@@ -1002,6 +1005,7 @@ export default function PlayScreen() {
   };
 
   //CACTUS commented out just so i can push cowboyhat and cowhoy boots
+    const [activeCactusId, setActiveCactusId] = useState<string | null>(null);
     const [cactusModalVisible, setCactusModalVisible] = useState(false);
     const [selectedCactusLocation, setSelectedCactusLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
@@ -1011,18 +1015,20 @@ export default function PlayScreen() {
     };
 
     const handleConfirm = (async () => {
-      if (selectedCactusLocation) {
+      if (selectedCactusLocation && activeCactusId) {
         if (!auth.currentUser) return;
         //console.log("Confirmed location:", selectedLocation);
         //HEY THERE see if u can add the cactus button to trigger this function, then add the cactus id in the cactus folder :D
-        const cactusRef = ref(database, `rooms/${roomCode}/cactus/${auth.currentUser.uid}`)
+        const cactusRef = ref(database, `rooms/${roomCode}/cactus/${activeCactusId}`)
         await update(cactusRef, {latitude: selectedCactusLocation.latitude, longitude: selectedCactusLocation.longitude, creator: auth.currentUser.uid})
       }
+      setSelectedCactusLocation(null);
       setCactusModalVisible(false);
+      setActiveCactusId(null);
     });
 
   const usePowerUp = (powerUp: {
-    id?: string;
+    id: string;
     type: any;
     coordinate?: { latitude: number; longitude: number };
   }) => {
@@ -1033,6 +1039,7 @@ export default function PlayScreen() {
       case "Cowboy Hat":
         cowboyHat();
         break;
+        /*
       case "Sheriff Badge":
         useBadge();
         break;
@@ -1045,17 +1052,62 @@ export default function PlayScreen() {
       case "Bounty":
         console.log("Using Bounty power-up");
         break;
+        
       case "Cactus":
-        setCactusModalVisible(true);
-        break;
       case "Ox Stampede":
         useOx();
         break;
       case "Money":
         console.log("Using Money power-up");
-        break;
+        break;*/
       default:
-        console.log("Unknown power-up type");
+        const seeIfUserHasCactus = (async () => {
+          const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
+          const cactusInfo = await get(cactusRef);
+          if (!cactusInfo.exists()){
+            console.log("hgelo")
+            setActiveCactusId(powerUp.id ?? null);
+            setCactusModalVisible(true);
+            setUserPowerUps((prev) =>
+              prev
+                .map((p) =>
+                  p.id === powerUp.id
+                    ? { ...p, count: p.count - 1 }
+                    : p
+                )
+                .filter((p) => p.count > 0)
+            );
+            return;
+          }
+          const cactusData = cactusInfo.val();
+
+          const cactusArray = Object.keys(cactusData).map((key) => ({
+            id: key,
+            ...cactusData[key],
+          }));
+
+          for (const cactus of cactusArray) {
+            if (!auth.currentUser) return;
+            if (cactus.creator==auth.currentUser.uid){
+              console.log("cactus.creator", cactus.creator);
+              return;
+            }
+          };
+          console.log("made it out!")
+          setActiveCactusId(powerUp.id ?? null);
+          setCactusModalVisible(true);
+          setUserPowerUps((prev) =>
+            prev
+              .map((p) =>
+                p.id === powerUp.id
+                  ? { ...p, count: p.count - 1 }
+                  : p
+              )
+              .filter((p) => p.count > 0)
+          );
+        });
+        seeIfUserHasCactus();
+        // console.log("Unknown power-up type");
         break;
     }
   };
@@ -1254,13 +1306,6 @@ export default function PlayScreen() {
             style={styles.powerUpList}
           />
 
-
-          <ReusableButton label="cactus" onPress={() => setCactusModalVisible(true)} />
-
-          {selectedCactusLocation && (
-            <ReusableButton label={`Selected: ${selectedCactusLocation.latitude}, ${selectedCactusLocation.longitude}`} onPress={() => console.log(selectedCactusLocation)} />
-          )}
-
           <Modal visible={cactusModalVisible} animationType="slide">
             {location ? (
               <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -1280,7 +1325,18 @@ export default function PlayScreen() {
                   zoomEnabled={false}
                   onPress={cactusMapPress}
                 >
-                  {selectedCactusLocation && <Marker coordinate={selectedCactusLocation} />}
+                  <Polygon
+                    coordinates={circleCoordinates}
+                    strokeColor="#FF0000"
+                    strokeWidth={2}
+                    fillColor="#FF000040"
+                  />
+                  {selectedCactusLocation && 
+                  <Marker coordinate={selectedCactusLocation}>
+                    <View>
+                      <CactusIcon width={30} height={30} />
+                    </View>
+                  </Marker>}
                 </MapView>
 
                 <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>

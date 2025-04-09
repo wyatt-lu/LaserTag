@@ -711,7 +711,7 @@ export default function PlayScreen() {
         await remove(powerUpsRef);
       }, despawnTime);
       //18000 was original time
-    }, Math.random() * (18000 - 10000) + 3000);
+    }, Math.random() * (4000 - 3000) + 3000);
 
     return () => {
       if (generatePowerUpIntervalRef.current) {
@@ -1107,8 +1107,17 @@ export default function PlayScreen() {
         break;
       default:
         console.log("Unknown power-up type");
-        break;
+        return;
     }
+    setUserPowerUps((prev) =>
+      prev
+        .map((p) =>
+          p.id === powerUp.id
+            ? { ...p, count: p.count - 1 }
+            : p
+        )
+        .filter((p) => p.count > 0)
+    );
   };
 
   //  General Game Mechanics

@@ -1099,6 +1099,7 @@ export default function PlayScreen() {
           );
         });
         seeIfUserHasCactus();
+        break;
       case "Ox Stampede":
         useOx();
         break;

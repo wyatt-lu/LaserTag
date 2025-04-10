@@ -509,12 +509,7 @@ export default function PlayScreen() {
 
     return { lat: newLat, lon: newLon };
   }
-
-  //helper function for degree to radian conversion
-  function degToRad(deg: number) {
-    return deg * (Math.PI / 180);
-  }
-
+  
   //get list of player's url once gameplay begins runnings
   useEffect(() => {
     const getPlayersURL = async () => {

@@ -1,11 +1,5 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-} from "react";
-import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { StyleSheet, Text, TouchableOpacity, View, Image, Modal } from "react-native";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import {
@@ -19,14 +13,15 @@ import {
   update,
 } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
-import * as FileSystem from "expo-file-system";
-import MapView, { Marker, Polygon } from "react-native-maps";
+import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
+import React from "react";
 import {
   getStorage,
   ref as ref_storage,
   getDownloadURL,
+  uploadBytes,
+  deleteObject,
 } from "firebase/storage";
-
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import AppText from "@/components/AppText";
@@ -145,7 +140,7 @@ export default function PlayScreen() {
       const playerList = Object.entries(playersData).map(([id, data]) => ({
         id,
         ...(data as any),
-      }));
+      })).filter(player => !player.eliminated);
       setPlayerArray(playerList);
     });
 
@@ -188,6 +183,7 @@ export default function PlayScreen() {
     getPlayersURL();
   }, [playerArray.length]);
 
+
   const fetchUserURL = async (id: any) => {
     try {
       const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
@@ -197,6 +193,7 @@ export default function PlayScreen() {
       console.error("Error fetching image URL:", error);
     }
   };
+
 
   // Update User Location
   useEffect(() => {
@@ -288,17 +285,21 @@ export default function PlayScreen() {
   };
 
   //USER MOVES!!//
-  const eliminatePlayer = (dataArray: PLD[], currentPlayer: string, laserBounds: any) => {
+  const eliminatePlayer = (
+    dataArray: PLD[],
+    currentPlayer: string,
+    laserBounds: any
+  ) => {
     //filters through the datarray and locates players and their coordinates
     //checks if player coordinates during laser fire are within laser bounds
     //if true, log "player is eliminated"
     //if false, log "no one eliminated"
     //array to store eliminated players
-    let elim = []
-    dataArray.forEach(player => {
+    let elim = [];
+    dataArray.forEach((player) => {
       if (player.playerId === currentPlayer) return;
-      const playerLat = player.latitude
-      const playerLon = player.longitude
+      const playerLat = player.latitude;
+      const playerLon = player.longitude;
       if (
         playerLat >= laserBounds.south &&
         playerLat <= laserBounds.north &&
@@ -306,11 +307,11 @@ export default function PlayScreen() {
         playerLon <= laserBounds.east
       ) {
         console.log(`player${player.playerId} is eliminated.`);
-        elim.push(player.playerId)
+        elim.push(player.playerId);
       }
-    })
+    });
     if (elim.length == 0) {
-      console.log("no players eliminated")
+      console.log("no players eliminated");
     }
     /*const usernameRef = ref(database, `usernames/${username}/uid`);
     get(usernameRef).then((snapshot) => {
@@ -443,38 +444,69 @@ export default function PlayScreen() {
       directionInRadians
     );
     // Sideways direction (laser width, perpendicular to the direction the player is facing)
-    const rightCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians + Math.PI / 2);
-    const leftCoordinates = calculateOffset(latitude, longitude, width / 2, directionInRadians - Math.PI / 2);
+    const rightCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      width / 2,
+      directionInRadians + Math.PI / 2
+    );
+    const leftCoordinates = calculateOffset(
+      latitude,
+      longitude,
+      width / 2,
+      directionInRadians - Math.PI / 2
+    );
 
     //define laser area w/ bounds
     const laserBounds = {
-      north: Math.max(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
-      south: Math.min(frontCoordinates.lat, rightCoordinates.lat, leftCoordinates.lat),
-      east: Math.max(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon),
-      west: Math.min(frontCoordinates.lon, rightCoordinates.lon, leftCoordinates.lon)
-    }
+      north: Math.max(
+        frontCoordinates.lat,
+        rightCoordinates.lat,
+        leftCoordinates.lat
+      ),
+      south: Math.min(
+        frontCoordinates.lat,
+        rightCoordinates.lat,
+        leftCoordinates.lat
+      ),
+      east: Math.max(
+        frontCoordinates.lon,
+        rightCoordinates.lon,
+        leftCoordinates.lon
+      ),
+      west: Math.min(
+        frontCoordinates.lon,
+        rightCoordinates.lon,
+        leftCoordinates.lon
+      ),
+    };
     console.log("Laser Bounds:", laserBounds);
     //pass laser bounds into eliminatePlayer
     eliminatePlayer(dataArray, playerId, laserBounds);
   };
 
   //helper function to calculate offset
-  function calculateOffset(lat: number, lon: number, distance: number, angle: number) {
+  function calculateOffset(
+    lat: number,
+    lon: number,
+    distance: number,
+    angle: number
+  ) {
     const radius = 6371000; // Earth's radius in meters
     const latOffset = (distance * Math.cos(angle)) / radius;
-    const lonOffset = (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
-    
+    const lonOffset =
+      (distance * Math.sin(angle)) / (radius * Math.cos(degToRad(lat)));
+
     const newLat = lat + latOffset;
     const newLon = lon + lonOffset;
-    
-    return { lat: newLat, lon: newLon };
-  };
 
-  //helper function for degree to radian conversion
-  function degToRad(deg: number) {
-    return deg * (Math.PI / 180);
+    return { lat: newLat, lon: newLon };
   }
+<<<<<<< HEAD
   
+=======
+
+>>>>>>> 8b585d371c9428ec8c9d81559af10d394746441e
   //get list of player's url once gameplay begins runnings
   useEffect(() => {
     const getPlayersURL = async () => {
@@ -615,7 +647,7 @@ export default function PlayScreen() {
     }, [])
   );
 
-  const circleCoordinates = generateCircleCoordinates(center, 20, 20); //160 was original radius
+  const circleCoordinates = generateCircleCoordinates(center, 30, 30); //160 was original radius
 
   // Powerup Generation
 
@@ -671,14 +703,14 @@ export default function PlayScreen() {
     generatePowerUpIntervalRef.current = setInterval(async () => {
       if (!roomCode) return;
       //160 was original radius
-      const newPowerUp = getRandomPowerUp(center, 20);
+      const newPowerUp = getRandomPowerUp(center, 30);
       const powerUpsRef = ref(
         database,
         `rooms/${roomCode}/powerUps/${newPowerUp.id}`
       );
       await set(powerUpsRef, newPowerUp);
 
-      const despawnTime = Math.random() * (18000 - 3000) + 3000;
+      const despawnTime = Math.random() * (36000 - 3000) + 3000;
       setTimeout(async () => {
         await remove(powerUpsRef);
       }, despawnTime);
@@ -724,7 +756,9 @@ export default function PlayScreen() {
   }, [roomCode]);
 
   //all of user's powerups in their inventory
-  const [userPowerUps, setUserPowerUps] = useState<PowerUp[]>([]);
+  const [userPowerUps, setUserPowerUps] = useState<
+    {id: string; type: string; count: number }[]
+  >([]);
 
   //all of the powerups currently in play in the game
   const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
@@ -735,17 +769,10 @@ export default function PlayScreen() {
 
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-    const getPlayerPowerUps = async () => {
+    const checkLocationPowerUpAndCactus = async () => {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
-      //in case we need to do anything with powerref!
-      /*
-        const powerRef = ref(database, `rooms/${roomCode}/powerUps`)
-        const powerInfo = await get(powerRef);
-        if (!powerInfo.exists()) return;
-        const powerData = powerInfo.val();*/
-
       let playerPowerUps = userPowerUps;
 
       powerUps.map(async (powerUp) => {
@@ -756,26 +783,60 @@ export default function PlayScreen() {
           powerUp.coordinate.longitude - playerData.longitude <= 0.000703 &&
           powerUp.coordinate.longitude - playerData.longitude >= -0.0001703
         ) {
-          playerPowerUps.push(powerUp);
-          setUserPowerUps(playerPowerUps);
-          //keeps crashing with the below code?? i can't remove the ref once the user gets it??
-          console.log("setUserPowerUps", userPowerUps);
+          const existingPowerUp = playerPowerUps.find(
+            (p) => p.type === powerUp.type
+          );
+          if (existingPowerUp) {
+            existingPowerUp.count += 1;
+          } else {
+            playerPowerUps.push({ id: powerUp.id, type: powerUp.type, count: 1 });
+          }
+          setUserPowerUps([...playerPowerUps]);
+
           try {
             const individualPowerRef = ref(
               database,
               `rooms/${roomCode}/powerUps/${powerUp.id}`
             );
-            console.log("individualPowerRef", individualPowerRef);
             await remove(individualPowerRef);
-            console.log("Power-up removed successfully");
           } catch (error) {
             console.error("Error removing power-up:", error);
           }
         }
       });
+      const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
+      const cactusInfo = await get(cactusRef);
+      if (!cactusInfo.exists()) return;
+      const cactusData = cactusInfo.val();
+
+      const cactusArray = Object.keys(cactusData).map((key) => ({
+        id: key,
+        ...cactusData[key],
+      }));
+
+      cactusArray.forEach(async (cactus) => {
+        if (cactus.latitude - playerData.latitude <= 0.0001703 &&
+          cactus.latitude - playerData.latitude >= -0.0001703 &&
+          cactus.longitude - playerData.longitude <= 0.000703 &&
+          cactus.longitude - playerData.longitude >= -0.0001703){
+            //remove current player from game if they are on an active cactus
+            await update(playerRef, {eliminated: true});
+
+            //reward the cactus placer
+            const cactusPlacerRef = ref(database, `rooms/${roomCode}/players/${cactus.creator}`);
+            const cactusPlacerInfo = await get(cactusPlacerRef);
+            if (!cactusPlacerInfo.exists()) return;
+            const cactusPlacerData = cactusPlacerInfo.val();
+            let newPoints = cactusPlacerData.points+1
+            await update(cactusPlacerRef, {points: newPoints});
+            //remove the used cactus from cactus folder
+            const usedCactusRef = ref(database, `rooms/${roomCode}/cactus/${cactus.id}`);
+            await remove(usedCactusRef);
+          }
+      });
     };
 
-    getPlayerPowerUps();
+    checkLocationPowerUpAndCactus();
   }, [playerArray]);
 
   // Powerup Usage
@@ -805,16 +866,11 @@ export default function PlayScreen() {
     // sheriff's badge
   };
 
-  const usePowerUp = (powerUp: {
-    id?: string;
-    type: any;
-    coordinate?: { latitude: number; longitude: number };
+  const renderPowerUpItem = ({
+    item,
+  }: {
+    item: { id: string; type: string; count: number };
   }) => {
-    console.log(`Using power-up: ${powerUp.type}`);
-    // Add logic to use the power-up
-  };
-
-  const renderPowerUpItem = ({ item }: { item: PowerUp }) => {
     return (
       <TouchableOpacity
         style={styles.powerUpItem}
@@ -828,15 +884,244 @@ export default function PlayScreen() {
           {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
           {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
           {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
-          {item.type === "Horseshoe" && (
-            <HorseshoeIcon width={30} height={30} />
-          )}
+          {item.type === "Horseshoe" && <HorseshoeIcon width={30} height={30} />}
           {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
           {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
           {item.type === "Money" && <MoneyIcon width={30} height={30} />}
         </View>
         <AppText style={styles.powerUpName}>{item.type}</AppText>
+        {item.count > 1 && (
+          <AppText style={styles.powerUpCount}>{item.count}</AppText>
+        )}
       </TouchableOpacity>
+    );
+  };
+
+  // INDIVIDUAL POWER UP FUNCTIONS //
+
+  //Cowboy boots
+  //realtime: make a copy of currentuser's info in new random id
+  //storage: add currentuser's image into this random id
+  //make random movements for fake user with math.random and a step counter,
+  // northsouth random amount, east west random amount, add to og lat and long, and then update database
+  //set interval? so after a certain amount of time, remove sthis player from storage and realtime?
+
+  //console.log("old playerArray", playerArray);
+
+  //console.log("old playerURLArray", playerURLArray);
+  const cowboyBoots = ( async () => {
+
+    //copy realtime database to fake user
+    if (!auth.currentUser) return;
+
+    const roomRef = ref(database, `players/${auth.currentUser.uid}`);
+    const roomInfo = await get(roomRef);
+    if (!roomInfo.exists()) return;
+    const roomData = roomInfo.val();
+    let roomNum = roomData.room;
+
+    const playerRef = ref(
+      database,
+      `rooms/${roomNum}/players/${auth.currentUser.uid}`
+    );
+    const playerInfo = await get(playerRef);
+
+    if (!playerInfo.exists()) return;
+    const playerData = playerInfo.val();
+
+    const randomFakeUserId = Math.random().toString(36).substring(7);
+
+    //copy image to fake user
+
+    const playerStorageRef = ref_storage(
+      storage,
+      `${auth.currentUser.uid}/pfp.jpg`
+    );
+    const fakeUserStorageRef = ref_storage(
+      storage,
+      `${randomFakeUserId}/pfp.jpg`
+    );
+
+    const playerUrl = await getDownloadURL(playerStorageRef);
+    const response = await fetch(playerUrl);
+    const blob = await response.blob();
+
+    await uploadBytes(fakeUserStorageRef, blob);
+
+    const fakeUserRef = ref(
+      database,
+      `rooms/${roomNum}/players/${randomFakeUserId}`
+    );
+    //create fakeUser data in database
+    await set(fakeUserRef, playerData);
+
+    //allow fake user to exist for 5 seconds
+    const interval = async () => {
+      const interval = setInterval(async () => {
+        let latDelta = Math.random() * (0.0000503 - -0.0000503) + -0.0000503;
+        let longDelta = Math.random() * (0.0000503 - -0.0000503) + -0.0000503;
+        let fakeUserRef = ref(
+          database,
+          `rooms/${roomNum}/players/${randomFakeUserId}`
+        );
+        let fakeUserInfo = await get(fakeUserRef);
+        if (!fakeUserInfo.exists()) return;
+
+        let fakeUserData = fakeUserInfo.val();
+        let newLat = fakeUserData.latitude + latDelta;
+        let newLong = fakeUserData.longitude + longDelta;
+
+        await update(fakeUserRef, { latitude: newLat, longitude: newLong });
+        // console.log("playerArray", playerArray);
+      }, 1000);
+      // Stop the interval after 20 seconds
+      setTimeout(async () => {
+        clearInterval(interval);
+        // console.log("timeout randomFakeUserId", randomFakeUserId);
+
+        let fakeUserRef = ref(
+          database,
+          `rooms/${roomNum}/players/${randomFakeUserId}`
+        );
+        const fakeUserStorageRef = ref_storage(
+          storage,
+          `${randomFakeUserId}/pfp.jpg`
+        );
+        await remove(fakeUserRef);
+        await deleteObject(fakeUserStorageRef);
+      }, 20000);
+    };
+    interval();
+  });
+
+
+  //COWBOY HAT
+
+  const cowboyHat = async () => {
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    await update(playerRef, { cowboyHat: true });
+    setTimeout(async () => {
+      await update(playerRef, { cowboyHat: false });
+    }, 5000);
+  };
+
+  //CACTUS commented out just so i can push cowboyhat and cowhoy boots
+    const [activeCactusId, setActiveCactusId] = useState<string | null>(null);
+    const [cactusModalVisible, setCactusModalVisible] = useState(false);
+    const [selectedCactusLocation, setSelectedCactusLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+    const cactusMapPress = (event: MapPressEvent) => {
+      const { latitude, longitude } = event.nativeEvent.coordinate;
+      setSelectedCactusLocation({ latitude, longitude });
+    };
+
+    const handleConfirm = (async () => {
+      if (selectedCactusLocation && activeCactusId) {
+        if (!auth.currentUser) return;
+        //console.log("Confirmed location:", selectedLocation);
+        //HEY THERE see if u can add the cactus button to trigger this function, then add the cactus id in the cactus folder :D
+        const cactusRef = ref(database, `rooms/${roomCode}/cactus/${activeCactusId}`)
+        await update(cactusRef, {latitude: selectedCactusLocation.latitude, longitude: selectedCactusLocation.longitude, creator: auth.currentUser.uid})
+      }
+      setSelectedCactusLocation(null);
+      setCactusModalVisible(false);
+      setActiveCactusId(null);
+    });
+
+  const usePowerUp = (powerUp: {
+    id: string;
+    type: any;
+    coordinate?: { latitude: number; longitude: number };
+  }) => {
+    switch (powerUp.type) {
+      case "Cowboy Boots":
+        cowboyBoots();
+        break;
+      case "Cowboy Hat":
+        cowboyHat();
+        break;
+      case "Sheriff Badge":
+        useBadge();
+        break;
+      case "Horseshoe":
+        useHorseshoe();
+        break;
+      case "Lasso":
+        console.log("Using Lasso power-up");
+        break;
+      case "Bounty":
+        console.log("Using Bounty power-up");
+        break;
+        
+      case "Cactus":
+        const seeIfUserHasCactus = (async () => {
+          const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
+          const cactusInfo = await get(cactusRef);
+          if (!cactusInfo.exists()){
+            console.log("hgelo")
+            setActiveCactusId(powerUp.id ?? null);
+            setCactusModalVisible(true);
+            setUserPowerUps((prev) =>
+              prev
+                .map((p) =>
+                  p.id === powerUp.id
+                    ? { ...p, count: p.count - 1 }
+                    : p
+                )
+                .filter((p) => p.count > 0)
+            );
+            return;
+          }
+          const cactusData = cactusInfo.val();
+
+          const cactusArray = Object.keys(cactusData).map((key) => ({
+            id: key,
+            ...cactusData[key],
+          }));
+
+          for (const cactus of cactusArray) {
+            if (!auth.currentUser) return;
+            if (cactus.creator==auth.currentUser.uid){
+              console.log("cactus.creator", cactus.creator);
+              return;
+            }
+          };
+          console.log("made it out!")
+          setActiveCactusId(powerUp.id ?? null);
+          setCactusModalVisible(true);
+          setUserPowerUps((prev) =>
+            prev
+              .map((p) =>
+                p.id === powerUp.id
+                  ? { ...p, count: p.count - 1 }
+                  : p
+              )
+              .filter((p) => p.count > 0)
+          );
+        });
+        seeIfUserHasCactus();
+        break;
+      case "Ox Stampede":
+        useOx();
+        break;
+      case "Money":
+        console.log("Using Money power-up");
+        break;
+      default:
+        console.log("Unknown power-up type");
+        return;
+    }
+    setUserPowerUps((prev) =>
+      prev
+        .map((p) =>
+          p.id === powerUp.id
+            ? { ...p, count: p.count - 1 }
+            : p
+        )
+        .filter((p) => p.count > 0)
     );
   };
 
@@ -875,11 +1160,14 @@ export default function PlayScreen() {
       clearInterval(generatePowerUpIntervalRef.current);
     }
 
+    setUserPowerUps([]);
     setPowerUps([]);
     setPlayersURL([]);
     setPlayersLocation([]);
     setPlayerTeams({});
     setRoomCode(null);
+    setCactusModalVisible(false);
+    setPlayerArray([]);
 
     router.replace("/(tabs)/home");
   };
@@ -985,10 +1273,10 @@ export default function PlayScreen() {
                 }}
               >
                 <View>
-                  {playerURL ? (
+                  {!player.cowboyHat && playerURL ? (
                     <Image source={{ uri: playerURL }} style={styles.user} />
                   ) : (
-                    <Text>Loading...</Text>
+                    <AppText> </AppText>
                   )}
                 </View>
               </Marker>
@@ -1020,15 +1308,59 @@ export default function PlayScreen() {
               )
             )}
           </AppText>
+
           <AppText>Latitude: {location?.coords.latitude}</AppText>
           <AppText>Longitude: {location?.coords.longitude}</AppText>
 
           <FlatList
             data={userPowerUps}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.type}
             renderItem={renderPowerUpItem}
             style={styles.powerUpList}
           />
+
+          <Modal visible={cactusModalVisible} animationType="slide">
+            {location ? (
+              <View style = {{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <MapView
+                  style={StyleSheet.absoluteFillObject}
+                  initialRegion={{
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                    latitudeDelta: 0.002222,
+                    longitudeDelta: 0.001521,
+                  }}
+                  showsScale={true}
+                  mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  mapType="hybrid"
+                  rotateEnabled={false}
+                  loadingEnabled={true}
+                  zoomEnabled={false}
+                  onPress={cactusMapPress}
+                >
+                  <Polygon
+                    coordinates={circleCoordinates}
+                    strokeColor="#FF0000"
+                    strokeWidth={2}
+                    fillColor="#FF000040"
+                  />
+                  {selectedCactusLocation && 
+                  <Marker coordinate={selectedCactusLocation}>
+                    <View>
+                      <CactusIcon width={30} height={30} />
+                    </View>
+                  </Marker>}
+                </MapView>
+
+                <View style={{ position: "absolute", bottom: 20, alignSelf: "center" }}>
+                  <ReusableButton label="Confirm" onPress={handleConfirm} />
+                  <ReusableButton label="Cancel" onPress={() => setCactusModalVisible(false)} />
+                </View>
+              </View>
+            ) : (
+              <Text>Loading cactus...</Text>
+            )}
+          </Modal>
 
           <TouchableOpacity onPress={resetGame} style={styles.exit}>
             <AppText>Exit Game</AppText>
@@ -1146,4 +1478,15 @@ const styles = StyleSheet.create({
   powerUpList: {
     marginTop: 20,
   },
+  powerUpCount: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#3a160e",
+    position: "absolute",
+    right: 5,
+    bottom: 5,
+  },
 });
+function wait(arg0: number) {
+  throw new Error("Function not implemented.");
+}

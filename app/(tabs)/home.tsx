@@ -138,6 +138,9 @@ export default function HomeScreen() {
           ready: false,
           team: 1,
           laser: laserData.val(),
+          cowboyHat: false,
+          eliminated: false,
+          points: 0,
         },
       },
     });

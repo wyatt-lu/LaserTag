@@ -474,19 +474,7 @@ export default function PlayScreen() {
   function degToRad(deg: number) {
     return deg * (Math.PI / 180);
   }
-
-  //URL information getting and setting
-  //get individual user url
-  const fetchUserURL = async (id: any) => {
-    try {
-      const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
-      const url = await getDownloadURL(placeholderRef);
-      return url;
-    } catch (error) {
-      console.error("Error fetching image URL:", error);
-    }
-  };
-
+  
   //get list of player's url once gameplay begins runnings
   useEffect(() => {
     const getPlayersURL = async () => {

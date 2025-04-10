@@ -499,14 +499,15 @@ export default function PlayScreen() {
 
     const newLat = lat + latOffset;
     const newLon = lon + lonOffset;
-
+    
     return { lat: newLat, lon: newLon };
-  }
-<<<<<<< HEAD
-  
-=======
+  };
 
->>>>>>> 8b585d371c9428ec8c9d81559af10d394746441e
+  //helper function for degree to radian conversion
+  function degToRad(deg: number) {
+    return deg * (Math.PI / 180);
+  }
+
   //get list of player's url once gameplay begins runnings
   useEffect(() => {
     const getPlayersURL = async () => {

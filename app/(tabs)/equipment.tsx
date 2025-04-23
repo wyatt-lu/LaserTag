@@ -36,7 +36,7 @@ export default function EquipmentScreen() {
     try {
       await update(laserRef, { laser: newLaser });
     } catch (error) {
-      console.error("Error updating score:", error);
+      console.error("Error updating laser:", error);
     }
     setUserLaserType(newLaser);
   };

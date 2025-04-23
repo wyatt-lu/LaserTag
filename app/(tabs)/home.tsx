@@ -249,10 +249,16 @@ export default function HomeScreen() {
 
   const beginReadyGame = async () => {
     if (!roomCode) return;
-
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Permission to access location was denied');
+      return;
+    }
     const roomRef = ref(database, `rooms/${roomCode}`);
-    const hostLocation = await Location.getCurrentPositionAsync({});
-
+    
+    let hostLocation = await Location.getCurrentPositionAsync({});
+    
+    console.log("hostLocation", hostLocation.coords.latitude);
     await update(roomRef, {
       gameStarted: true,
       initialLocation: {
@@ -287,7 +293,10 @@ export default function HomeScreen() {
 
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
-  const openSettings = () => setIsSettingsVisible(true);
+  const openSettings = () => {
+    setIsSettingsVisible(true);
+    console.log("isSettingsVisible", isSettingsVisible);
+  };
   const closeSettings = () => setIsSettingsVisible(false);
 
   const [isNameChangeVisible, setIsNameChangeVisible] = useState(false);

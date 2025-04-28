@@ -455,47 +455,16 @@ export default function PlayScreen() {
     const origin = { lat: latitude, lon: longitude };
     const front = calculateOffset(origin.lat, origin.lon, length, dirRad);
 
-    //Perpendicular offset (left/right)
-    const perpAngle = dirRad + Math.PI / 2;
+    //calculate laser width at the front and back
+    const perpAngle = dirRad + Math.PI / 2; // Perpendicular to direction
+    const originLeft = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle);
+    const originRight = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle + Math.PI);
+    const frontLeft = calculateOffset(front.lat, front.lon, width / 2, perpAngle);
+    const frontRight = calculateOffset(front.lat, front.lon, width / 2, perpAngle + Math.PI);
 
-    const originLeft = calculateOffset(
-      origin.lat,
-      origin.lon,
-      width / 2,
-      perpAngle
-    );
-    const originRight = calculateOffset(
-      origin.lat,
-      origin.lon,
-      width / 2,
-      perpAngle + Math.PI
-    );
-
-    const frontLeft = calculateOffset(
-      front.lat,
-      front.lon,
-      width / 2,
-      perpAngle
-    );
-    const frontRight = calculateOffset(
-      front.lat,
-      front.lon,
-      width / 2,
-      perpAngle + Math.PI
-    );
-
-    const allLatitudes = [
-      originLeft.lat,
-      originRight.lat,
-      frontLeft.lat,
-      frontRight.lat,
-    ];
-    const allLongitudes = [
-      originLeft.lon,
-      originRight.lon,
-      frontLeft.lon,
-      frontRight.lon,
-    ];
+    //4 corners of laser's bounding box
+    const allLatitudes = [originLeft.lat, originRight.lat, frontLeft.lat, frontRight.lat];
+    const allLongitudes = [originLeft.lon, originRight.lon, frontLeft.lon, frontRight.lon];
 
     const laserBounds = {
       north: Math.max(...allLatitudes),

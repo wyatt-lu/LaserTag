@@ -110,8 +110,6 @@ export default function PlayScreen() {
   const storage = getStorage();
 
   const [playerURLArray, setPlayersURL] = useState<any[]>([]);
-  const [playerLocationArray, setPlayersLocation] = useState<any[]>([]);
-  const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
   const [playerArray, setPlayerArray] = useState<any[]>([]);
   const [roomCode, setRoomCode] = useState<string | null>(null);
 
@@ -138,7 +136,7 @@ export default function PlayScreen() {
   //Fetch Player Data
   useEffect(() => {
     if (!roomCode) return;
-  
+
     const database = getDatabase();
     const playersRef = ref(database, `rooms/${roomCode}/players`);
   
@@ -170,7 +168,7 @@ export default function PlayScreen() {
   
       setPlayerArray(updatedPlayerList);
     });
-  
+
     return () => {
       unsubscribe();
       off(playersRef);
@@ -448,54 +446,42 @@ export default function PlayScreen() {
     }
     //convert direction to radians
     if (direction == null || latitude == null || longitude == null) return;
-    const directionInRadians = degToRad(direction);
+    const dirRad = degToRad(direction);
 
-    //forward direction (laser length)
-    const frontCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      length,
-      directionInRadians
-    );
-    // Sideways direction (laser width, perpendicular to the direction the player is facing)
-    const rightCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      width / 2,
-      directionInRadians + Math.PI / 2
-    );
-    const leftCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      width / 2,
-      directionInRadians - Math.PI / 2
-    );
+    //base position
+    const origin = { lat: latitude, lon: longitude };
+    const front = calculateOffset(origin.lat, origin.lon, length, dirRad);
 
-    //define laser area w/ bounds
+    //Perpendicular offset (left/right)
+    const perpAngle = dirRad + Math.PI / 2;
+
+    const originLeft = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle);
+    const originRight = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle + Math.PI);
+
+    const frontLeft = calculateOffset(front.lat, front.lon, width / 2, perpAngle);
+    const frontRight = calculateOffset(front.lat, front.lon, width / 2, perpAngle + Math.PI);
+
+    const allLatitudes = [
+      originLeft.lat,
+      originRight.lat,
+      frontLeft.lat,
+      frontRight.lat,
+    ];
+    const allLongitudes = [
+      originLeft.lon,
+      originRight.lon,
+      frontLeft.lon,
+      frontRight.lon,
+    ];
+
     const laserBounds = {
-      north: Math.max(
-        frontCoordinates.lat,
-        rightCoordinates.lat,
-        leftCoordinates.lat
-      ),
-      south: Math.min(
-        frontCoordinates.lat,
-        rightCoordinates.lat,
-        leftCoordinates.lat
-      ),
-      east: Math.max(
-        frontCoordinates.lon,
-        rightCoordinates.lon,
-        leftCoordinates.lon
-      ),
-      west: Math.min(
-        frontCoordinates.lon,
-        rightCoordinates.lon,
-        leftCoordinates.lon
-      ),
+      north: Math.max(...allLatitudes),
+      south: Math.min(...allLatitudes),
+      east: Math.max(...allLongitudes),
+      west: Math.min(...allLongitudes),
     };
+
     console.log("Laser Bounds:", laserBounds);
-    //pass laser bounds into eliminatePlayer
     eliminatePlayer(dataArray, playerId, laserBounds);
   };
 
@@ -515,11 +501,6 @@ export default function PlayScreen() {
     const newLon = lon + lonOffset;
 
     return { lat: newLat, lon: newLon };
-  }
-
-  //helper function for degree to radian conversion
-  function degToRad(deg: number) {
-    return deg * (Math.PI / 180);
   }
 
   //get list of player's url once gameplay begins runnings
@@ -564,8 +545,8 @@ export default function PlayScreen() {
         {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-          latitudeDelta: 0.003022,
-          longitudeDelta: 0.002521,
+          latitudeDelta: 0.002222,
+          longitudeDelta: 0.001521,
         },
         1000
       );
@@ -601,6 +582,30 @@ export default function PlayScreen() {
   const getTeamColor = (teamNumber: number): string => {
     const teamColor = teamColors.find((team) => team.team === teamNumber);
     return teamColor ? teamColor.color : "#8baaff";
+  };
+
+  const playerColors = [
+    { id: 1, color: "#3fb4ed" }, // blue
+    { id: 2, color: "#aebf20" }, // yellow
+    { id: 3, color: "#cb4533" }, // orange
+    { id: 4, color: "#a032b6" }, // purple
+    { id: 5, color: "#88cb54" }, // green
+    { id: 6, color: "#1d5aab" }, // teal
+    { id: 7, color: "#b81157" }, // pink
+    { id: 8, color: "#896246" }, // red
+    { id: 9, color: "#3f6ded" }, // dark blue
+    { id: 10, color: "#bf9520" }, // dark yellow
+    { id: 11, color: "#cb7233" }, // dark orange
+    { id: 12, color: "#7032b6" }, // dark purple
+    { id: 13, color: "#2f942f" }, // dark green
+    { id: 14, color: "#229687" }, // dark teal
+    { id: 15, color: "#b6218c" }, // dark pink
+    { id: 16, color: "#894646" }, // dark red
+  ];
+
+  const getPlayerColor = (colorId: number): string => {
+    const playerColor = playerColors.find((player) => player.id === colorId);
+    return playerColor ? playerColor.color : "#8baaff";
   };
 
   //Circle Boundary Generation
@@ -892,20 +897,10 @@ export default function PlayScreen() {
 
   // Powerup Usage
 
-  const [isOxStampedeModalVisible, setOxStampedeModalVisible] = useState(false);
-
   const useOx = () => {
     console.log("Using Ox Stampede power-up");
-    setOxStampedeModalVisible(true);
+    // ox stampede logic
   };
-
-  const handleTargetSelect = (targetId: string) => {
-    setOxStampedeModalVisible(false);
-    // do stuff on target's screen
-    setDustStormActive(true);
-  };
-
-  const [isDustStormActive, setDustStormActive] = useState(false);
 
   const useHorseshoe = () => {
     console.log("Using Horseshoe power-up");
@@ -942,7 +937,7 @@ export default function PlayScreen() {
           {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
           {item.type === "Money" && <MoneyIcon width={30} height={30} />}
         </View>
-        <AppText style={styles.powerUpName}>{item.type}</AppText>
+        {/* <AppText style={styles.powerUpName}>{item.type}</AppText> */}
         {item.count > 1 && (
           <AppText style={styles.powerUpCount}>{item.count}</AppText>
         )}
@@ -1216,14 +1211,14 @@ export default function PlayScreen() {
     setUserPowerUps([]);
     setPowerUps([]);
     setPlayersURL([]);
-    setPlayersLocation([]);
-    setPlayerTeams({});
     setRoomCode(null);
     setCactusModalVisible(false);
     setPlayerArray([]);
 
     router.replace("/(tabs)/home");
   };
+
+  const [isPlayerListModal, setPlayerListModal] = useState(false);
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -1283,7 +1278,7 @@ export default function PlayScreen() {
           </View>
         </View>
       </View>
-      {location ? (
+      {location?.coords?.latitude && location?.coords?.longitude ? (
         <MapView
           ref={mapRef}
           style={styles.map}
@@ -1313,10 +1308,14 @@ export default function PlayScreen() {
               name={powerUp.type}
             />
           ))}
-          {playerArray.map((player) => {
+          {/* {playerArray.map((player) => {
             const playerURL = playerURLArray.find(
               (urlItem) => urlItem.id === player.id
             )?.profile;
+            const lat = player.latitude;
+            const lon = player.longitude;
+            const isValidCoordinate = typeof lat === 'number' && typeof lon === 'number';
+            if (!isValidCoordinate) return null;
             return (
               <Marker
                 key={player.id}
@@ -1334,6 +1333,22 @@ export default function PlayScreen() {
                 </View>
               </Marker>
             );
+          })} */}
+          {playerArray.map((player) => {
+            const playerColor = getPlayerColor(player.colorId); // Get color based on player's colorId
+            return (
+              <Marker
+                key={player.id}
+                coordinate={{
+                  latitude: player.latitude,
+                  longitude: player.longitude,
+                }}
+              >
+                <View
+                  style={[styles.marker, { backgroundColor: playerColor }]}
+                />
+              </Marker>
+            );
           })}
         </MapView>
       ) : (
@@ -1347,7 +1362,11 @@ export default function PlayScreen() {
       >
         <BottomSheetView style={styles.contentContainer}>
           <ReusableButton label="Fire" onPress={fireLaser} />
-          <AppText>
+          <ReusableButton
+            label="Player List"
+            onPress={() => setPlayerListModal(true)}
+          />
+          {/* <AppText>
             Direction:{" "}
             {degree(
               magnetometerDataRef.current.x,
@@ -1363,12 +1382,15 @@ export default function PlayScreen() {
           </AppText>
 
           <AppText>Latitude: {location?.coords.latitude}</AppText>
-          <AppText>Longitude: {location?.coords.longitude}</AppText>
+          <AppText>Longitude: {location?.coords.longitude}</AppText> */}
+
+          <AppText>Inventory</AppText>
 
           <FlatList
             data={userPowerUps}
             keyExtractor={(item) => item.type}
             renderItem={renderPowerUpItem}
+            numColumns={3}
             style={styles.powerUpList}
           />
 
@@ -1438,10 +1460,11 @@ export default function PlayScreen() {
       </BottomSheet>
 
       <PlayerListModal
-        visible={isOxStampedeModalVisible}
-        onClose={() => setOxStampedeModalVisible(false)}
+        visible={isPlayerListModal}
+        onClose={() => setPlayerListModal(false)}
         players={playerArray}
-        onSelect={handleTargetSelect}
+        playerURLArray={playerURLArray}
+        disabled={true}
       />
     </GestureHandlerRootView>
   );
@@ -1503,6 +1526,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     zIndex: 1,
   },
+  marker: {
+    width: 25,
+    height: 25,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
   button: {
     width: "auto",
     backgroundColor: "#3a160e",
@@ -1532,13 +1565,16 @@ const styles = StyleSheet.create({
   powerUpItem: {
     padding: 10,
     marginVertical: 5,
+    marginHorizontal: 10,
     backgroundColor: "#f0f0f0",
+    borderColor: "#ccc",
+    borderWidth: 1,
     borderRadius: 5,
     flexDirection: "row",
     alignItems: "center",
   },
   powerUpIconContainer: {
-    marginRight: 10,
+    marginRight: 5,
   },
   powerUpName: {
     fontSize: 16,
@@ -1556,6 +1592,3 @@ const styles = StyleSheet.create({
     bottom: 5,
   },
 });
-function wait(arg0: number) {
-  throw new Error("Function not implemented.");
-}

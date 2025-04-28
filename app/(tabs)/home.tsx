@@ -107,7 +107,7 @@ export default function HomeScreen() {
       }
     }*/
 
-  const createRoom = async (roomType: string) => {
+  const createRoom = async () => {
     if (!auth.currentUser) return;
     closeRoomSettings();
 
@@ -131,7 +131,6 @@ export default function HomeScreen() {
       host: auth.currentUser.uid,
       gameStarted: false,
       gameReady: false,
-      roomType,
       players: {
         [auth.currentUser.uid]: {
           username: auth.currentUser.displayName,
@@ -141,6 +140,7 @@ export default function HomeScreen() {
           cowboyHat: false,
           eliminated: false,
           points: 0,
+          colorId: 1,
         },
       },
     });
@@ -209,11 +209,17 @@ export default function HomeScreen() {
     const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`);
     const laserData = await get(laserRef);
 
+    const playersRef = ref(database, `rooms/${roomCode}/players`);
+    const playersSnapshot = await get(playersRef);
+    const playersData = playersSnapshot.val() || {};
+    const newColorId = Object.keys(playersData).length + 1; // Assign the next available colorId
+
     await update(ref(database, `rooms/${roomCode}/players`), {
       [auth.currentUser.uid]: {
         username: auth.currentUser.displayName,
         ready: false,
         laser: laserData.val(),
+        colorId: newColorId, // Assign the new colorId
       },
     });
 
@@ -249,9 +255,14 @@ export default function HomeScreen() {
 
   const beginReadyGame = async () => {
     if (!roomCode) return;
-
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.log("Permission to access location was denied");
+      return;
+    }
     const roomRef = ref(database, `rooms/${roomCode}`);
-    const hostLocation = await Location.getCurrentPositionAsync({});
+
+    let hostLocation = await Location.getCurrentPositionAsync({});
 
     await update(roomRef, {
       gameStarted: true,
@@ -287,7 +298,10 @@ export default function HomeScreen() {
 
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
 
-  const openSettings = () => setIsSettingsVisible(true);
+  const openSettings = () => {
+    setIsSettingsVisible(true);
+    console.log("isSettingsVisible", isSettingsVisible);
+  };
   const closeSettings = () => setIsSettingsVisible(false);
 
   const [isNameChangeVisible, setIsNameChangeVisible] = useState(false);
@@ -514,7 +528,7 @@ export default function HomeScreen() {
 
         <SignIcon />
 
-        <ReusableButton label="Create a Room" onPress={openRoomSettings} />
+        <ReusableButton label="Create a Room" onPress={createRoom} />
         <ReusableButton
           label="Join a Room"
           onPress={openInput}
@@ -531,12 +545,6 @@ export default function HomeScreen() {
           confirmText="Enter"
           closeText="Cancel"
           inputType="numeric"
-        />
-
-        <RoomSettingsModal
-          visible={isRoomSettingsVisible}
-          solo={() => createRoom("solo")}
-          team={() => createRoom("team")}
         />
       </View>
     </SafeAreaView>

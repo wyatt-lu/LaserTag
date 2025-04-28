@@ -441,54 +441,42 @@ export default function PlayScreen() {
     }
     //convert direction to radians
     if (direction == null || latitude == null || longitude == null) return;
-    const directionInRadians = degToRad(direction);
+    const dirRad = degToRad(direction);
 
-    //forward direction (laser length)
-    const frontCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      length,
-      directionInRadians
-    );
-    // Sideways direction (laser width, perpendicular to the direction the player is facing)
-    const rightCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      width / 2,
-      directionInRadians + Math.PI / 2
-    );
-    const leftCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      width / 2,
-      directionInRadians - Math.PI / 2
-    );
+    //base position
+    const origin = { lat: latitude, lon: longitude };
+    const front = calculateOffset(origin.lat, origin.lon, length, dirRad);
 
-    //define laser area w/ bounds
+    //Perpendicular offset (left/right)
+    const perpAngle = dirRad + Math.PI / 2;
+
+    const originLeft = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle);
+    const originRight = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle + Math.PI);
+
+    const frontLeft = calculateOffset(front.lat, front.lon, width / 2, perpAngle);
+    const frontRight = calculateOffset(front.lat, front.lon, width / 2, perpAngle + Math.PI);
+
+    const allLatitudes = [
+      originLeft.lat,
+      originRight.lat,
+      frontLeft.lat,
+      frontRight.lat,
+    ];
+    const allLongitudes = [
+      originLeft.lon,
+      originRight.lon,
+      frontLeft.lon,
+      frontRight.lon,
+    ];
+
     const laserBounds = {
-      north: Math.max(
-        frontCoordinates.lat,
-        rightCoordinates.lat,
-        leftCoordinates.lat
-      ),
-      south: Math.min(
-        frontCoordinates.lat,
-        rightCoordinates.lat,
-        leftCoordinates.lat
-      ),
-      east: Math.max(
-        frontCoordinates.lon,
-        rightCoordinates.lon,
-        leftCoordinates.lon
-      ),
-      west: Math.min(
-        frontCoordinates.lon,
-        rightCoordinates.lon,
-        leftCoordinates.lon
-      ),
+      north: Math.max(...allLatitudes),
+      south: Math.min(...allLatitudes),
+      east: Math.max(...allLongitudes),
+      west: Math.min(...allLongitudes),
     };
+
     console.log("Laser Bounds:", laserBounds);
-    //pass laser bounds into eliminatePlayer
     eliminatePlayer(dataArray, playerId, laserBounds);
   };
 
@@ -1285,6 +1273,10 @@ export default function PlayScreen() {
             const playerURL = playerURLArray.find(
               (urlItem) => urlItem.id === player.id
             )?.profile;
+            const lat = player.latitude;
+            const lon = player.longitude;
+            const isValidCoordinate = typeof lat === 'number' && typeof lon === 'number';
+            if (!isValidCoordinate) return null;
             return (
               <Marker
                 key={player.id}

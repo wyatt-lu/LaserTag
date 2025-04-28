@@ -151,7 +151,7 @@ export default function PlayScreen() {
         const insideCircle = isInsideCircle(
           { latitude: player.latitude, longitude: player.longitude },
           center,
-          5
+          30
         );
   
         if (!insideCircle) {
@@ -689,7 +689,7 @@ export default function PlayScreen() {
   };
   
 
-  const circleCoordinates = generateCircleCoordinates(center, 10, 30); //160 was original radius
+  const circleCoordinates = generateCircleCoordinates(center, 30, 30); //160 was original radius
 
   // Powerup Generation
 
@@ -1019,7 +1019,6 @@ export default function PlayScreen() {
         let newLong = fakeUserData.longitude + longDelta;
 
         await update(fakeUserRef, { latitude: newLat, longitude: newLong });
-        // console.log("playerArray", playerArray);
       }, 1000);
       // Stop the interval after 20 seconds
       setTimeout(async () => {

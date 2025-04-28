@@ -139,13 +139,13 @@ export default function PlayScreen() {
 
     const database = getDatabase();
     const playersRef = ref(database, `rooms/${roomCode}/players`);
-  
+
     const unsubscribe = onValue(playersRef, async (snapshot) => {
       const playersData = snapshot.val() || {};
       const entries = Object.entries(playersData);
-  
+
       const updatedPlayerList = [];
-  
+
       for (const [id, data] of entries) {
         const player = { id, ...(data as any) };
         const insideCircle = isInsideCircle(
@@ -153,19 +153,22 @@ export default function PlayScreen() {
           center,
           30
         );
-  
+
         if (!insideCircle) {
-          const currentPlayerRef = ref(database, `rooms/${roomCode}/players/${id}`);
+          const currentPlayerRef = ref(
+            database,
+            `rooms/${roomCode}/players/${id}`
+          );
           await update(currentPlayerRef, { eliminated: true });
-          console.log("GONE")
+          console.log("GONE");
           continue; // skip adding to list
         }
-  
+
         if (!player.eliminated) {
           updatedPlayerList.push(player);
         }
       }
-  
+
       setPlayerArray(updatedPlayerList);
     });
 
@@ -455,11 +458,31 @@ export default function PlayScreen() {
     //Perpendicular offset (left/right)
     const perpAngle = dirRad + Math.PI / 2;
 
-    const originLeft = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle);
-    const originRight = calculateOffset(origin.lat, origin.lon, width / 2, perpAngle + Math.PI);
+    const originLeft = calculateOffset(
+      origin.lat,
+      origin.lon,
+      width / 2,
+      perpAngle
+    );
+    const originRight = calculateOffset(
+      origin.lat,
+      origin.lon,
+      width / 2,
+      perpAngle + Math.PI
+    );
 
-    const frontLeft = calculateOffset(front.lat, front.lon, width / 2, perpAngle);
-    const frontRight = calculateOffset(front.lat, front.lon, width / 2, perpAngle + Math.PI);
+    const frontLeft = calculateOffset(
+      front.lat,
+      front.lon,
+      width / 2,
+      perpAngle
+    );
+    const frontRight = calculateOffset(
+      front.lat,
+      front.lon,
+      width / 2,
+      perpAngle + Math.PI
+    );
 
     const allLatitudes = [
       originLeft.lat,
@@ -672,22 +695,25 @@ export default function PlayScreen() {
   );
   //console.log(playerArray)
   //console.log(playerURLArray);
-  const isInsideCircle = (point: LatLng, center: LatLng, radius: number): boolean => {
+  const isInsideCircle = (
+    point: LatLng,
+    center: LatLng,
+    radius: number
+  ): boolean => {
     const earthRadius = 6378137; // in meters
     const toRad = (value: number) => (value * Math.PI) / 180;
-  
+
     const latDiff = toRad(point.latitude - center.latitude);
     const lngDiff = toRad(point.longitude - center.longitude);
     const avgLat = toRad((point.latitude + center.latitude) / 2);
-  
+
     const deltaX = lngDiff * earthRadius * Math.cos(avgLat);
     const deltaY = latDiff * earthRadius;
-  
+
     const distance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
-  
+
     return distance <= radius;
   };
-  
 
   const circleCoordinates = generateCircleCoordinates(center, 30, 30); //160 was original radius
 
@@ -1217,6 +1243,8 @@ export default function PlayScreen() {
     router.replace("/(tabs)/home");
   };
 
+  console.log("playerArray", playerArray);
+
   const [isPlayerListModal, setPlayerListModal] = useState(false);
 
   return (
@@ -1334,7 +1362,7 @@ export default function PlayScreen() {
             );
           })} */}
           {playerArray.map((player) => {
-            const playerColor = getPlayerColor(player.colorId); // Get color based on player's colorId
+            const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
             return (
               <Marker
                 key={player.id}

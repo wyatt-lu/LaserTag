@@ -148,29 +148,24 @@ export default function PlayScreen() {
 
       for (const [id, data] of entries) {
         const player = { id, ...(data as any) };
-        console.log("center", center);
-        console.log("player.latitude", player.latitude)
-        console.log("player.longitude", player.longitude);
         const insideCircle = isInsideCircle(
           { latitude: player.latitude, longitude: player.longitude },
           center,
           160
         );
-
-        console.log("insideCircle", insideCircle);
         if (!insideCircle) {
           const currentPlayerRef = ref(
             database,
             `rooms/${roomCode}/players/${id}`
           );
           await update(currentPlayerRef, { eliminated: true });
-          console.log("GONE");
-          continue; // skip adding to list
+          continue;
         }
-
+        updatedPlayerList.push(player);
+/*
         if (!player.eliminated) {
           updatedPlayerList.push(player);
-        }
+        }*/
       }
 
       setPlayerArray(updatedPlayerList);
@@ -705,6 +700,7 @@ export default function PlayScreen() {
     radius: number
   ): boolean => {
     if (!point.latitude || !point.longitude) return true;
+
     const earthRadius = 6378137; // in meters
     const toRad = (value: number) => (value * Math.PI) / 180;
 

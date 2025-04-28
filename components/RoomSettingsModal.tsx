@@ -18,15 +18,13 @@ export default function ReusableButton({ visible, solo, team }: Props) {
               style={[styles.button, { backgroundColor: "#3a160e", right: 5 }]}
               onPress={solo}
             >
-              <Text style={styles.buttonText}>Solo</Text>
+              <Text style={styles.buttonText}>Yes</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, { left: 5 }]}
               onPress={team}
             >
-              <Text style={[styles.buttonText, { color: "#3a160e" }]}>
-                Team
-              </Text>
+              <Text style={[styles.buttonText, { color: "#3a160e" }]}>No</Text>
             </TouchableOpacity>
           </View>
         </View>

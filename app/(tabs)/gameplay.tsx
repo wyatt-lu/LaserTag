@@ -148,12 +148,16 @@ export default function PlayScreen() {
 
       for (const [id, data] of entries) {
         const player = { id, ...(data as any) };
+        console.log("center", center);
+        console.log("player.latitude", player.latitude)
+        console.log("player.longitude", player.longitude);
         const insideCircle = isInsideCircle(
           { latitude: player.latitude, longitude: player.longitude },
           center,
-          30
+          160
         );
 
+        console.log("insideCircle", insideCircle);
         if (!insideCircle) {
           const currentPlayerRef = ref(
             database,
@@ -700,6 +704,7 @@ export default function PlayScreen() {
     center: LatLng,
     radius: number
   ): boolean => {
+    if (!point.latitude || !point.longitude) return true;
     const earthRadius = 6378137; // in meters
     const toRad = (value: number) => (value * Math.PI) / 180;
 
@@ -715,7 +720,7 @@ export default function PlayScreen() {
     return distance <= radius;
   };
 
-  const circleCoordinates = generateCircleCoordinates(center, 30, 30); //160 was original radius
+  const circleCoordinates = generateCircleCoordinates(center, 160, 30); //160 was original radius
 
   // Powerup Generation
 
@@ -771,7 +776,7 @@ export default function PlayScreen() {
     generatePowerUpIntervalRef.current = setInterval(async () => {
       if (!roomCode) return;
       //160 was original radius
-      const newPowerUp = getRandomPowerUp(center, 30);
+      const newPowerUp = getRandomPowerUp(center, 160);
       const powerUpsRef = ref(
         database,
         `rooms/${roomCode}/powerUps/${newPowerUp.id}`

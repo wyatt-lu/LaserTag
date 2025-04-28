@@ -155,6 +155,7 @@ export default function PlayScreen() {
   }, [roomCode]);
 
   //Fetch Player Location
+  /*
   useEffect(() => {
     const getPlayersURL = async () => {
       try {
@@ -185,7 +186,7 @@ export default function PlayScreen() {
     };
 
     getPlayersURL();
-  }, [playerArray.length]);
+  }, [playerArray.length]);*/
 
   const fetchUserURL = async (id: any) => {
     try {
@@ -1200,6 +1201,8 @@ export default function PlayScreen() {
     router.replace("/(tabs)/home");
   };
 
+  console.log("playerArray", playerArray);
+
   const [isPlayerListModal, setPlayerListModal] = useState(false);
 
   return (
@@ -1313,7 +1316,7 @@ export default function PlayScreen() {
             );
           })} */}
           {playerArray.map((player) => {
-            const playerColor = getPlayerColor(player.colorId); // Get color based on player's colorId
+            const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
             return (
               <Marker
                 key={player.id}

@@ -136,18 +136,42 @@ export default function PlayScreen() {
   //Fetch Player Data
   useEffect(() => {
     if (!roomCode) return;
+
     const database = getDatabase();
     const playersRef = ref(database, `rooms/${roomCode}/players`);
-    const unsubscribe = onValue(playersRef, (snapshot) => {
+
+    const unsubscribe = onValue(playersRef, async (snapshot) => {
       const playersData = snapshot.val() || {};
-      const playerList = Object.entries(playersData)
-        .map(([id, data]) => ({
-          id,
-          ...(data as any),
-        }))
-        .filter((player) => !player.eliminated);
-      setPlayerArray(playerList);
+      const entries = Object.entries(playersData);
+
+      const updatedPlayerList = [];
+
+      for (const [id, data] of entries) {
+        const player = { id, ...(data as any) };
+        const insideCircle = isInsideCircle(
+          { latitude: player.latitude, longitude: player.longitude },
+          center,
+          5
+        );
+
+        if (!insideCircle) {
+          const currentPlayerRef = ref(
+            database,
+            `rooms/${roomCode}/players/${id}`
+          );
+          await update(currentPlayerRef, { eliminated: true });
+          console.log("GONE");
+          continue; // skip adding to list
+        }
+
+        if (!player.eliminated) {
+          updatedPlayerList.push(player);
+        }
+      }
+
+      setPlayerArray(updatedPlayerList);
     });
+
     return () => {
       unsubscribe();
       off(playersRef);
@@ -155,38 +179,26 @@ export default function PlayScreen() {
   }, [roomCode]);
 
   //Fetch Player Location
-  /*
+
   useEffect(() => {
     const getPlayersURL = async () => {
       try {
-        if (!auth.currentUser) return;
-
-        const playerId = auth.currentUser.uid;
-        const playerRef = ref(database, `players/${playerId}`);
-        const playerInfo = await get(playerRef);
-
-        if (playerInfo.exists()) {
-          const playerData = playerInfo.val();
-          const roomRef = ref(database, `rooms/${playerData.room}/players`);
-          const roomInfo = await get(roomRef);
-          if (roomInfo.exists()) {
-            const roomData = roomInfo.val();
-            const playersList = await Promise.all(
-              Object.entries(roomData).map(async ([key]) => {
-                let userURL = await fetchUserURL(key);
-                return { id: key, profile: userURL };
-              })
-            );
-            setPlayersURL(playersList);
-          }
-        }
+        const playersList = await Promise.all(
+          playerArray.map(async (player) => {
+            const userURL = await fetchUserURL(player.id);
+            return { id: player.id, profile: userURL };
+          })
+        );
+        setPlayersURL(playersList);
       } catch (error) {
-        console.error("Error fetching player data:", error);
+        console.error("Error fetching player URLs:", error);
       }
     };
 
-    getPlayersURL();
-  }, [playerArray.length]);*/
+    if (playerArray.length > 0) {
+      getPlayersURL();
+    }
+  }, [playerArray.length]);
 
   const fetchUserURL = async (id: any) => {
     try {
@@ -437,54 +449,62 @@ export default function PlayScreen() {
     }
     //convert direction to radians
     if (direction == null || latitude == null || longitude == null) return;
-    const directionInRadians = degToRad(direction);
+    const dirRad = degToRad(direction);
 
-    //forward direction (laser length)
-    const frontCoordinates = calculateOffset(
-      latitude,
-      longitude,
-      length,
-      directionInRadians
-    );
-    // Sideways direction (laser width, perpendicular to the direction the player is facing)
-    const rightCoordinates = calculateOffset(
-      latitude,
-      longitude,
+    //base position
+    const origin = { lat: latitude, lon: longitude };
+    const front = calculateOffset(origin.lat, origin.lon, length, dirRad);
+
+    //Perpendicular offset (left/right)
+    const perpAngle = dirRad + Math.PI / 2;
+
+    const originLeft = calculateOffset(
+      origin.lat,
+      origin.lon,
       width / 2,
-      directionInRadians + Math.PI / 2
+      perpAngle
     );
-    const leftCoordinates = calculateOffset(
-      latitude,
-      longitude,
+    const originRight = calculateOffset(
+      origin.lat,
+      origin.lon,
       width / 2,
-      directionInRadians - Math.PI / 2
+      perpAngle + Math.PI
     );
 
-    //define laser area w/ bounds
+    const frontLeft = calculateOffset(
+      front.lat,
+      front.lon,
+      width / 2,
+      perpAngle
+    );
+    const frontRight = calculateOffset(
+      front.lat,
+      front.lon,
+      width / 2,
+      perpAngle + Math.PI
+    );
+
+    const allLatitudes = [
+      originLeft.lat,
+      originRight.lat,
+      frontLeft.lat,
+      frontRight.lat,
+    ];
+    const allLongitudes = [
+      originLeft.lon,
+      originRight.lon,
+      frontLeft.lon,
+      frontRight.lon,
+    ];
+
     const laserBounds = {
-      north: Math.max(
-        frontCoordinates.lat,
-        rightCoordinates.lat,
-        leftCoordinates.lat
-      ),
-      south: Math.min(
-        frontCoordinates.lat,
-        rightCoordinates.lat,
-        leftCoordinates.lat
-      ),
-      east: Math.max(
-        frontCoordinates.lon,
-        rightCoordinates.lon,
-        leftCoordinates.lon
-      ),
-      west: Math.min(
-        frontCoordinates.lon,
-        rightCoordinates.lon,
-        leftCoordinates.lon
-      ),
+      north: Math.max(...allLatitudes),
+      south: Math.min(...allLatitudes),
+      east: Math.max(...allLongitudes),
+      west: Math.min(...allLongitudes),
     };
+
     console.log("Laser Bounds:", laserBounds);
-    //pass laser bounds into eliminatePlayer
     eliminatePlayer(dataArray, playerId, laserBounds);
   };
 
@@ -673,8 +693,29 @@ export default function PlayScreen() {
       initializeGame();
     }, [])
   );
+  //console.log(playerArray)
+  //console.log(playerURLArray);
+  const isInsideCircle = (
+    point: LatLng,
+    center: LatLng,
+    radius: number
+  ): boolean => {
+    const earthRadius = 6378137; // in meters
+    const toRad = (value: number) => (value * Math.PI) / 180;
 
-  const circleCoordinates = generateCircleCoordinates(center, 30, 30); //160 was original radius
+    const latDiff = toRad(point.latitude - center.latitude);
+    const lngDiff = toRad(point.longitude - center.longitude);
+    const avgLat = toRad((point.latitude + center.latitude) / 2);
+
+    const deltaX = lngDiff * earthRadius * Math.cos(avgLat);
+    const deltaY = latDiff * earthRadius;
+
+    const distance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+
+    return distance <= radius;
+  };
+
+  const circleCoordinates = generateCircleCoordinates(center, 10, 30); //160 was original radius
 
   // Powerup Generation
 
@@ -800,6 +841,8 @@ export default function PlayScreen() {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
+      if (!playerData.eliminated) return;
+
       let playerPowerUps = userPowerUps;
 
       powerUps.map(async (powerUp) => {
@@ -1263,7 +1306,7 @@ export default function PlayScreen() {
           </View>
         </View>
       </View>
-      {location ? (
+      {location?.coords?.latitude && location?.coords?.longitude ? (
         <MapView
           ref={mapRef}
           style={styles.map}
@@ -1297,6 +1340,10 @@ export default function PlayScreen() {
             const playerURL = playerURLArray.find(
               (urlItem) => urlItem.id === player.id
             )?.profile;
+            const lat = player.latitude;
+            const lon = player.longitude;
+            const isValidCoordinate = typeof lat === 'number' && typeof lon === 'number';
+            if (!isValidCoordinate) return null;
             return (
               <Marker
                 key={player.id}
@@ -1306,7 +1353,7 @@ export default function PlayScreen() {
                 }}
               >
                 <View>
-                  {!player.cowboyHat && playerURL ? (
+                  {(!player.cowboyHat) &&  playerURL ? (
                     <Image source={{ uri: playerURL }} style={styles.user} />
                   ) : (
                     <AppText> </AppText>

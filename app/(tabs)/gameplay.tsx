@@ -1248,7 +1248,7 @@ export default function PlayScreen() {
           </View>
         </View>
       </View>
-      {location ? (
+      {location?.coords?.latitude && location?.coords?.longitude ? (
         <MapView
           ref={mapRef}
           style={styles.map}

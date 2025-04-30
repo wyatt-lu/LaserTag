@@ -150,6 +150,7 @@ export default function PlayScreen() {
   };
 
   const cartesianToLatLng = (xy: XY, centerLatLng: LatLng): LatLng => {
+    if (!xy) return {latitude: 0, longitude: 0};
     const earthRadius = 6378137; // meters (WGS-84)
 
     const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -326,15 +327,19 @@ export default function PlayScreen() {
   useEffect(() => {
     const playersRef = ref(database, `rooms/${roomCode}/players`);
     const unsubscribe = onValue(playersRef, (snapshot) => {
-      const playersData = snapshot.val();
-      const entries = Object.entries(playersData);
-      const updatedPlayersList = [];
-
-      for (const [id, data] of entries) {
-        const player = { id, ...(data as any) };
-        updatedPlayersList.push(player);
+      try{
+        const playersData = snapshot.val();
+        const entries = Object.entries(playersData);
+        const updatedPlayersList = [];
+      
+        for (const [id, data] of entries) {
+          const player = { id, ...(data as any) };
+          updatedPlayersList.push(player);
+        }
+        setPlayerArray(updatedPlayersList);
+      } catch(error){
+        console.log(error);
       }
-      setPlayerArray(updatedPlayersList);
     });
     return () => {
       unsubscribe();
@@ -349,10 +354,10 @@ export default function PlayScreen() {
   const getHitBox = (player: any) => {
     const { x, y } = player.cartesian;
     const hitBox = {
-      x: x - 5,
-      y: y - 5,
-      width: 10,
-      height: 10,
+      x: x-1,
+      y: y+1,
+      width: 2,
+      height: 2,
     };
     return hitBox;
   };
@@ -410,8 +415,9 @@ export default function PlayScreen() {
     return teamColor ? teamColor.color : "#8baaff";
   };
 
-  console.log("playerArray", playerArray);
-
+  // console.log("lat", cartesianToLatLng(playerArray[0].cartesian, center).latitude);
+  // console.log("long", cartesianToLatLng(playerArray[0].cartesian, center).longitude);
+  console.log(playerArray)
   const [isPlayerListModal, setPlayerListModal] = useState(false);
 
   return (
@@ -495,8 +501,8 @@ export default function PlayScreen() {
               <Marker
                 key={player.id}
                 coordinate={{
-                  latitude: player.latitude,
-                  longitude: player.longitude,
+                  latitude: cartesianToLatLng(player.cartesian, center).latitude,
+                  longitude: cartesianToLatLng(player.cartesian, center).longitude,
                 }}
               >
                 <View

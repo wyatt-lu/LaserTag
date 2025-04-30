@@ -238,7 +238,7 @@ export default function HomeScreen() {
           cowboyHat: false,
           eliminated: false,
           points: 0,
-          colorId: 1,
+          colorId: newColorId,
       },
     });
 
@@ -519,16 +519,19 @@ export default function HomeScreen() {
 
       {/* // GAME LOBBY // */}
 
-      <GameLobbyModal
-        visible={isLobbyVisible}
-        roomCode={roomCode}
-        beginReadyGame={beginReadyGame}
-        enterGame={enterGame}
-        closeLobby={() => {
-          closeLobby();
-          handleLeave();
-        }}
-      />
+      <>
+        {isLobbyVisible && (
+          <GameLobbyModal
+            visible={isLobbyVisible}
+            roomCode={roomCode}
+            beginReadyGame={beginReadyGame}
+          enterGame={enterGame}
+          closeLobby={() => {
+            closeLobby();
+            handleLeave();
+          }}/>
+        )}
+      </>
 
       {/* // HOME SCREEN // */}
       <View style={styles.joinContainer}>

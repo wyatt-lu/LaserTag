@@ -410,6 +410,8 @@ export default function PlayScreen() {
     return teamColor ? teamColor.color : "#8baaff";
   };
 
+  console.log("playerArray", playerArray);
+
   const [isPlayerListModal, setPlayerListModal] = useState(false);
 
   return (
@@ -470,7 +472,7 @@ export default function PlayScreen() {
           </View>
         </View>
       </View>
-      {location ? (
+      {location?.coords?.latitude && location?.coords?.longitude ? (
         <MapView
           ref={mapRef}
           style={styles.map}
@@ -488,7 +490,7 @@ export default function PlayScreen() {
           zoomEnabled={false}
         >
           {playerArray.map((player) => {
-            const playerColor = getPlayerColor(player.colorId); // Get color based on player's colorId
+            const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
             return (
               <Marker
                 key={player.id}

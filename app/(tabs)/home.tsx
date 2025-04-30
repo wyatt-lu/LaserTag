@@ -76,8 +76,13 @@ export default function HomeScreen() {
 
     const unsubscribeReady = onValue(readyRef, (readySnapshot) => {
       if (readySnapshot.exists() && readySnapshot.val()) {
-        router.replace("/(tabs)/gameplay");
         closeLobby();
+        router.replace({
+          pathname: "/(tabs)/gameplay",
+          params: { roomCode: roomCode },
+        });
+        // router.replace("/(tabs)/gameplay",{roomCode: roomCode});
+        // closeLobby();
       }
     });
 
@@ -144,13 +149,11 @@ export default function HomeScreen() {
         },
       },
     });
-
     await update(playerRef, { room: newRoomCode });
 
     onDisconnect(roomRef).remove();
     onDisconnect(playerRef).update({ room: null });
     onDisconnect(playerRef).update({ laser: null });
-
     openLobby();
   };
 

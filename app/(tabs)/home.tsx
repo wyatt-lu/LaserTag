@@ -127,10 +127,22 @@ export default function HomeScreen() {
     const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`);
     const laserData = await get(laserRef);
 
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") {
+        console.log("Permission to access location was denied");
+        return;
+      }
+  
+      let hostLocation = await Location.getCurrentPositionAsync({});
+
     await set(roomRef, {
       host: auth.currentUser.uid,
       gameStarted: false,
       gameReady: false,
+      initialLocation: {
+        latitude: hostLocation.coords.latitude,
+        longitude: hostLocation.coords.longitude,
+      },
       players: {
         [auth.currentUser.uid]: {
           username: auth.currentUser.displayName,
@@ -216,10 +228,14 @@ export default function HomeScreen() {
 
     await update(ref(database, `rooms/${roomCode}/players`), {
       [auth.currentUser.uid]: {
-        username: auth.currentUser.displayName,
-        ready: false,
-        laser: laserData.val(),
-        colorId: newColorId, // Assign the new colorId
+          username: auth.currentUser.displayName,
+          ready: false,
+          team: 1,
+          laser: laserData.val(),
+          cowboyHat: false,
+          eliminated: false,
+          points: 0,
+          colorId: 1,
       },
     });
 
@@ -255,21 +271,10 @@ export default function HomeScreen() {
 
   const beginReadyGame = async () => {
     if (!roomCode) return;
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status !== "granted") {
-      console.log("Permission to access location was denied");
-      return;
-    }
     const roomRef = ref(database, `rooms/${roomCode}`);
 
-    let hostLocation = await Location.getCurrentPositionAsync({});
-
     await update(roomRef, {
-      gameStarted: true,
-      initialLocation: {
-        latitude: hostLocation.coords.latitude,
-        longitude: hostLocation.coords.longitude,
-      },
+      gameStarted: true
     });
   };
 

@@ -9,7 +9,7 @@ import {
   Pressable,
 } from "react-native";
 import ReusableButton from "./ReusableButton";
-import { get, onValue, ref, update } from "firebase/database";
+import { get, off, onValue, ref, update } from "firebase/database";
 import { globalStyles } from "@/constants/styles";
 import { IconSymbol } from "./ui/IconSymbol";
 import AppText from "./AppText";
@@ -80,7 +80,9 @@ export default function GameLobbyModal({
         }
       );
 
-      return () => unsubscribe();
+      return () => {
+        unsubscribe();
+      };
     }
   }, [roomCode]);
 

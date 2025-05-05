@@ -884,8 +884,6 @@ export default function PlayScreen() {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
-
-      console.log("hello?")
       if (!playerData.eliminated) return;
       console.log("hello?")
 

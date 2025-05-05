@@ -105,12 +105,11 @@ export default function PlayScreen() {
 
   //Set boundary
   const [boundary, setBoundary] = useState<any[]>([
-    {latitude: 0, longitude: 0},
-    {latitude: 0, longitude: 0},
-    {latitude: 0, longitude: 0},
-    {latitude: 0, longitude: 0},
+    { latitude: 0, longitude: 0 },
+    { latitude: 0, longitude: 0 },
+    { latitude: 0, longitude: 0 },
+    { latitude: 0, longitude: 0 },
   ]);
-
 
   // Set State Variable to Game (used state based on Firebase)
   // State Variable: Lobby, Game
@@ -134,15 +133,47 @@ export default function PlayScreen() {
       setCenter(roomData.initialLocation);
       setGameState(roomData.gameReady);
       setBoundary([
-        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, center).longitude},
-        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, center).longitude},
-        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, center).longitude},
-        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, center).longitude},
-      ])
+        {
+          latitude: cartesianToLatLng(
+            { x: boundarySize.width / 2, y: boundarySize.length / 2 },
+            center
+          ).latitude,
+          longitude: cartesianToLatLng(
+            { x: boundarySize.width / 2, y: boundarySize.length / 2 },
+            center
+          ).longitude,
+        },
+        {
+          latitude: cartesianToLatLng(
+            { x: -boundarySize.width / 2, y: boundarySize.length / 2 },
+            center
+          ).latitude,
+          longitude: cartesianToLatLng(
+            { x: -boundarySize.width / 2, y: boundarySize.length / 2 },
+            center
+          ).longitude,
+        },
+        {
+          latitude: cartesianToLatLng(
+            { x: -boundarySize.width / 2, y: -boundarySize.length / 2 },
+            center
+          ).latitude,
+          longitude: cartesianToLatLng(
+            { x: -boundarySize.width / 2, y: -boundarySize.length / 2 },
+            center
+          ).longitude,
+        },
+        {
+          latitude: cartesianToLatLng(
+            { x: boundarySize.width / 2, y: -boundarySize.length / 2 },
+            center
+          ).latitude,
+          longitude: cartesianToLatLng(
+            { x: boundarySize.width / 2, y: -boundarySize.length / 2 },
+            center
+          ).longitude,
+        },
+      ]);
     };
     getGameState();
   }, [roomCode]);
@@ -155,20 +186,20 @@ export default function PlayScreen() {
   const latLngToCartesian = (point: LatLng, center: LatLng): XY => {
     const earthRadius = 6378137; // meters
     const toRad = (deg: number) => (deg * Math.PI) / 180;
-  
+
     const deltaLat = toRad(point.latitude - center.latitude);
     const deltaLon = toRad(point.longitude - center.longitude);
-  
+
     const meanLat = toRad((point.latitude + center.latitude) / 2);
-  
+
     const x = earthRadius * deltaLon * Math.cos(meanLat);
     const y = earthRadius * deltaLat;
-  
+
     return { x, y };
   };
 
   const cartesianToLatLng = (xy: XY, centerLatLng: LatLng): LatLng => {
-    if (!xy) return {latitude: 0, longitude: 0};
+    if (!xy) return { latitude: 0, longitude: 0 };
     const earthRadius = 6378137; // meters (WGS-84)
 
     const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -345,17 +376,17 @@ export default function PlayScreen() {
   useEffect(() => {
     const playersRef = ref(database, `rooms/${roomCode}/players`);
     const unsubscribe = onValue(playersRef, (snapshot) => {
-      try{
+      try {
         const playersData = snapshot.val();
         const entries = Object.entries(playersData);
         const updatedPlayersList = [];
-      
+
         for (const [id, data] of entries) {
           const player = { id, ...(data as any) };
           updatedPlayersList.push(player);
         }
         setPlayerArray(updatedPlayersList);
-      } catch(error){
+      } catch (error) {
         console.log(error);
       }
     });
@@ -372,8 +403,8 @@ export default function PlayScreen() {
   const getHitBox = (player: any) => {
     const { x, y } = player.cartesian;
     const hitBox = {
-      x: x-1,
-      y: y+1,
+      x: x - 1,
+      y: y + 1,
       width: 2,
       height: 2,
     };
@@ -418,17 +449,16 @@ export default function PlayScreen() {
     const minLng = boundary[3].longitude;
     const maxLng = boundary[1].longitude;
 
-    console.log("minLat", minLat)
-    console.log("maxLat", maxLat)
-    console.log("minLng", minLng)
-    console.log("maxLng", maxLng)
+    console.log("minLat", minLat);
+    console.log("maxLat", maxLat);
+    console.log("minLng", minLng);
+    console.log("maxLng", maxLng);
 
-  
     return {
       latitude: Math.random() * (maxLat - minLat) + minLat,
       longitude: Math.random() * (maxLng - minLng) + minLng,
     };
-  }
+  };
 
   //make random powerups
   const getRandomPowerUp = (center: LatLng, radius: number): PowerUp => {
@@ -468,74 +498,71 @@ export default function PlayScreen() {
   }, [gameState, center]);
 
   //set powerups up in a usestate
-    useEffect(() => {
-      const fetchPowerUps = async () => {
-        if (!roomCode) return;
-  
-        const powerUpsRef = ref(database, `rooms/${roomCode}/powerUps`);
-        const unsubscribe = onValue(powerUpsRef, (snapshot) => {
-          const powerUpsData = snapshot.val();
-          if (powerUpsData) {
-            const powerUpsList = Object.values(powerUpsData).map(
-              (powerUp: any) => ({
-                id: powerUp.id,
-                type: powerUp.type,
-                coordinate: {
-                  latitude: powerUp.coordinate.latitude,
-                  longitude: powerUp.coordinate.longitude,
-                },
-              })
-            );
-            setPowerUps(powerUpsList);
-          } else {
-            setPowerUps([]);
-          }
-        });
-  
-        return () => unsubscribe();
-      };
-  
-      fetchPowerUps();
-    }, [gameState]);
+  useEffect(() => {
+    const fetchPowerUps = async () => {
+      if (!roomCode) return;
 
-    console.log("boundary", boundary);
-  const renderPowerUpItem = ({
-      item,
-    }: {
-      item: { id: string; type: string; count: number };
-    }) => {
-      return (
-        <TouchableOpacity
-          style={styles.powerUpItem}
-          onPress={() => {}}//usePowerUp(item)}
-        >
-          <View style={styles.powerUpIconContainer}>
-            {item.type === "Sheriff Badge" && (
-              <BadgeIcon width={30} height={30} />
-            )}
-            {item.type === "Cowboy Boots" && <BootsIcon width={30} height={30} />}
-            {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
-            {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
-            {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
-            {item.type === "Horseshoe" && (
-              <HorseshoeIcon width={30} height={30} />
-            )}
-            {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
-            {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
-            {item.type === "Money" && <MoneyIcon width={30} height={30} />}
-          </View>
-          {/* <AppText style={styles.powerUpName}>{item.type}</AppText> */}
-          {item.count > 1 && (
-            <AppText style={styles.powerUpCount}>{item.count}</AppText>
-          )}
-        </TouchableOpacity>
-      );
+      const powerUpsRef = ref(database, `rooms/${roomCode}/powerUps`);
+      const unsubscribe = onValue(powerUpsRef, (snapshot) => {
+        const powerUpsData = snapshot.val();
+        if (powerUpsData) {
+          const powerUpsList = Object.values(powerUpsData).map(
+            (powerUp: any) => ({
+              id: powerUp.id,
+              type: powerUp.type,
+              coordinate: {
+                latitude: powerUp.coordinate.latitude,
+                longitude: powerUp.coordinate.longitude,
+              },
+            })
+          );
+          setPowerUps(powerUpsList);
+        } else {
+          setPowerUps([]);
+        }
+      });
+
+      return () => unsubscribe();
     };
-    
+
+    fetchPowerUps();
+  }, [gameState]);
+
+  console.log("boundary", boundary);
+  const renderPowerUpItem = ({
+    item,
+  }: {
+    item: { id: string; type: string; count: number };
+  }) => {
+    return (
+      <TouchableOpacity
+        style={styles.powerUpItem}
+        onPress={() => {}} //usePowerUp(item)}
+      >
+        <View style={styles.powerUpIconContainer}>
+          {item.type === "Sheriff Badge" && (
+            <BadgeIcon width={30} height={30} />
+          )}
+          {item.type === "Cowboy Boots" && <BootsIcon width={30} height={30} />}
+          {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
+          {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
+          {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
+          {item.type === "Horseshoe" && (
+            <HorseshoeIcon width={30} height={30} />
+          )}
+          {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
+          {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
+          {item.type === "Money" && <MoneyIcon width={30} height={30} />}
+        </View>
+        {/* <AppText style={styles.powerUpName}>{item.type}</AppText> */}
+        {item.count > 1 && (
+          <AppText style={styles.powerUpCount}>{item.count}</AppText>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
-
-
 
   // Powerup Function Calls (functions in seperate files)
 
@@ -663,13 +690,13 @@ export default function PlayScreen() {
           loadingEnabled={true}
           zoomEnabled={true}
         >
-
           <Polygon
             coordinates={boundary}
             strokeColor="#FF0000"
             strokeWidth={2}
-            fillColor="#FF000040"/>
-            
+            fillColor="#FF000040"
+          />
+
           {powerUps.map((powerUp) => (
             <PowerUpMarker
               key={powerUp.id}
@@ -684,8 +711,10 @@ export default function PlayScreen() {
               <Marker
                 key={player.id}
                 coordinate={{
-                  latitude: cartesianToLatLng(player.cartesian, center).latitude,
-                  longitude: cartesianToLatLng(player.cartesian, center).longitude,
+                  latitude: cartesianToLatLng(player.cartesian, center)
+                    .latitude,
+                  longitude: cartesianToLatLng(player.cartesian, center)
+                    .longitude,
                 }}
               >
                 <View

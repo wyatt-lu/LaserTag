@@ -104,12 +104,13 @@ export default function PlayScreen() {
   };
 
   //Set boundary
-  const [boundary, setBoundary] = useState<any>([
-    {latitude: null, longitude: null},
-    {latitude: null, longitude: null},
-    {latitude: null, longitude: null},
-    {latitude: null, longitude: null},
+  const [boundary, setBoundary] = useState<any[]>([
+    {latitude: 0, longitude: 0},
+    {latitude: 0, longitude: 0},
+    {latitude: 0, longitude: 0},
+    {latitude: 0, longitude: 0},
   ]);
+
 
   // Set State Variable to Game (used state based on Firebase)
   // State Variable: Lobby, Game
@@ -130,17 +131,17 @@ export default function PlayScreen() {
       const roomInfo = await get(roomRef);
       if (!roomInfo.exists()) return;
       const roomData = roomInfo.val();
-      setGameState(roomData.gameReady);
       setCenter(roomData.initialLocation);
+      setGameState(roomData.gameReady);
       setBoundary([
-        {latitude: roomData.initialLocation.latitude+cartesianToLatLng({x: boundarySize.width, y: boundarySize.length}, center).latitude,
-        longitude: roomData.initialLocation.longitude+cartesianToLatLng({x: boundarySize.width, y: boundarySize.length}, center).longitude},
-        {latitude: roomData.initialLocation.latitude+cartesianToLatLng({x: -boundarySize.width, y: boundarySize.length}, center).latitude,
-        longitude: roomData.initialLocation.longitude+cartesianToLatLng({x: -boundarySize.width, y: boundarySize.length}, center).longitude},
-        {latitude: roomData.initialLocation.latitude+cartesianToLatLng({x: -boundarySize.width, y: -boundarySize.length}, center).latitude,
-        longitude: roomData.initialLocation.longitude+cartesianToLatLng({x: -boundarySize.width, y: -boundarySize.length}, center).longitude},
-        {latitude: roomData.initialLocation.latitude+cartesianToLatLng({x: boundarySize.width, y: -boundarySize.length}, center).latitude,
-        longitude: roomData.initialLocation.longitude+cartesianToLatLng({x: boundarySize.width, y: -boundarySize.length}, center).longitude},
+        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, center).latitude,
+        longitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, center).longitude},
+        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, center).latitude,
+        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, center).longitude},
+        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, center).latitude,
+        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, center).longitude},
+        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, center).latitude,
+        longitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, center).longitude},
       ])
     };
     getGameState();
@@ -412,10 +413,16 @@ export default function PlayScreen() {
 
   //generate random powerup coordinate
   const generateRandomCoordinateInBounds = () => {
-    const minLat = boundary[1].latitude;
+    const minLat = boundary[2].latitude;
     const maxLat = boundary[0].latitude;
-    const minLng = boundary[2].longitude;
+    const minLng = boundary[3].longitude;
     const maxLng = boundary[1].longitude;
+
+    console.log("minLat", minLat)
+    console.log("maxLat", maxLat)
+    console.log("minLng", minLng)
+    console.log("maxLng", maxLng)
+
   
     return {
       latitude: Math.random() * (maxLat - minLat) + minLat,
@@ -491,7 +498,7 @@ export default function PlayScreen() {
       fetchPowerUps();
     }, [gameState]);
 
-
+    console.log("boundary", boundary);
   const renderPowerUpItem = ({
       item,
     }: {
@@ -555,7 +562,6 @@ export default function PlayScreen() {
       );
     }
   };
-
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 
   const handleSnapPress = useCallback(() => {
@@ -579,7 +585,7 @@ export default function PlayScreen() {
 
   // console.log("lat", cartesianToLatLng(playerArray[0].cartesian, center).latitude);
   // console.log("long", cartesianToLatLng(playerArray[0].cartesian, center).longitude);
-  console.log(playerArray)
+  //console.log(playerArray)
   const [isPlayerListModal, setPlayerListModal] = useState(false);
 
   return (
@@ -655,14 +661,23 @@ export default function PlayScreen() {
           mapType="hybrid"
           rotateEnabled={false}
           loadingEnabled={true}
-          zoomEnabled={false}
+          zoomEnabled={true}
         >
+
           <Polygon
-            coordinates={boundary}>
+            coordinates={boundary}
             strokeColor="#FF0000"
             strokeWidth={2}
-            fillColor="#FF000040"
-          </Polygon>
+            fillColor="#FF000040"/>
+            
+          {powerUps.map((powerUp) => (
+            <PowerUpMarker
+              key={powerUp.id}
+              coordinate={powerUp.coordinate}
+              name={powerUp.type}
+            />
+          ))}
+
           {playerArray.map((player) => {
             const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
             return (
@@ -696,6 +711,14 @@ export default function PlayScreen() {
             onPress={() => setPlayerListModal(true)}
           />
           <AppText>Inventory</AppText>
+
+          <FlatList
+            data={userPowerUps}
+            keyExtractor={(item) => item.type}
+            renderItem={renderPowerUpItem}
+            numColumns={3}
+            style={styles.powerUpList}
+          />
         </BottomSheetView>
       </BottomSheet>
 

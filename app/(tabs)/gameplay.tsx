@@ -131,17 +131,18 @@ export default function PlayScreen() {
       const roomInfo = await get(roomRef);
       if (!roomInfo.exists()) return;
       const roomData = roomInfo.val();
-      setCenter(roomData.initialLocation);
+      let tempCenter = roomData.initialLocation;
+      setCenter(tempCenter);
       setGameState(roomData.gameReady);
       setBoundary([
-        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, center).longitude},
-        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, center).longitude},
-        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, center).longitude},
-        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, center).latitude,
-        longitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, center).longitude},
+        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, tempCenter).latitude,
+        longitude: cartesianToLatLng({x: boundarySize.width/2, y: boundarySize.length/2}, tempCenter).longitude},
+        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, tempCenter).latitude,
+        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: boundarySize.length/2}, tempCenter).longitude},
+        {latitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, tempCenter).latitude,
+        longitude: cartesianToLatLng({x: -boundarySize.width/2, y: -boundarySize.length/2}, tempCenter).longitude},
+        {latitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, tempCenter).latitude,
+        longitude: cartesianToLatLng({x: boundarySize.width/2, y: -boundarySize.length/2}, tempCenter).longitude},
       ])
     };
     getGameState();

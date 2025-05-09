@@ -65,6 +65,15 @@ export default function HomeScreen() {
     const readyRef = ref(database, `rooms/${roomCode}/gameReady`);
     const startRef = ref(database, `rooms/${roomCode}/gameStart`);
 
+    const waitForRoom = onValue(roomRef, (snapshot) => {
+      console.log("testing");
+      if (!snapshot.exists()) {
+        return;
+      }
+    });
+
+    waitForRoom();
+
     const unsubscribeRoom = onValue(roomRef, (roomSnapshot) => {
       if (!roomSnapshot.exists()) {
         Alert.alert("Room Deleted", "Please join again.");
@@ -238,7 +247,7 @@ export default function HomeScreen() {
           cowboyHat: false,
           eliminated: false,
           points: 0,
-          colorId: 1,
+          colorId: newColorId,
       },
     });
 
@@ -519,16 +528,19 @@ export default function HomeScreen() {
 
       {/* // GAME LOBBY // */}
 
-      <GameLobbyModal
-        visible={isLobbyVisible}
-        roomCode={roomCode}
-        beginReadyGame={beginReadyGame}
-        enterGame={enterGame}
-        closeLobby={() => {
-          closeLobby();
-          handleLeave();
-        }}
-      />
+      <>
+        {isLobbyVisible && (
+          <GameLobbyModal
+            visible={isLobbyVisible}
+            roomCode={roomCode}
+            beginReadyGame={beginReadyGame}
+          enterGame={enterGame}
+          closeLobby={() => {
+            closeLobby();
+            handleLeave();
+          }}/>
+        )}
+      </>
 
       {/* // HOME SCREEN // */}
       <View style={styles.joinContainer}>

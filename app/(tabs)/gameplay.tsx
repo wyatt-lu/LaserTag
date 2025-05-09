@@ -387,7 +387,7 @@ export default function PlayScreen() {
         }
         setPlayerArray(updatedPlayersList);
       } catch (error) {
-        console.log(error);
+        //console.log(error);
       }
     });
     return () => {
@@ -586,10 +586,10 @@ export default function PlayScreen() {
     const minLng = boundary[3].longitude;
     const maxLng = boundary[1].longitude;
 
-    console.log("minLat", minLat);
-    console.log("maxLat", maxLat);
-    console.log("minLng", minLng);
-    console.log("maxLng", maxLng);
+    //console.log("minLat", minLat);
+    //console.log("maxLat", maxLat);
+    //console.log("minLng", minLng);
+    //console.log("maxLng", maxLng);
 
     return {
       latitude: Math.random() * (maxLat - minLat) + minLat,
@@ -665,7 +665,7 @@ export default function PlayScreen() {
     fetchPowerUps();
   }, [gameState]);
 
-  console.log("boundary", boundary);
+  //console.log("boundary", boundary);
   const renderPowerUpItem = ({
     item,
   }: {
@@ -871,7 +871,7 @@ export default function PlayScreen() {
         enableDynamicSizing={false}
       >
         <BottomSheetView style={styles.contentContainer}>
-          <ReusableButton label="Fire" onPress={() => {}} />
+          <ReusableButton label="Fire" onPress={fireLaser} />
           <ReusableButton
             label="Player List"
             onPress={() => setPlayerListModal(true)}

@@ -414,8 +414,8 @@ export default function PlayScreen() {
       longitude: Math.random() * (maxLng - minLng) + minLng
     }
     return {
-      x: latLngToCartesian(randLatLng).x,
-      y: latLngToCartesian(randLatLng).y,
+      x: latLngToCartesian(randLatLng, center).x,
+      y: latLngToCartesian(randLatLng, center).y,
     };
   };
 

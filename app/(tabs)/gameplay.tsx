@@ -56,7 +56,7 @@ export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
-  const BOUNDARY_SIZE = { length: 30, width: 30 }; // meters
+  const BOUNDARY_SIZE = { length: 10, width: 10 }; // meters
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
@@ -98,21 +98,11 @@ export default function PlayScreen() {
       setBoundary([
         {
           latitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
-            tempCenter
-          ).longitude,
-        },
-        {
-          latitude: cartesianToLatLng(
-            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
-            tempCenter
-          ).latitude,
-          longitude: cartesianToLatLng(
-            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).longitude,
         },
@@ -128,11 +118,21 @@ export default function PlayScreen() {
         },
         {
           latitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
+            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
+            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            tempCenter
+          ).longitude,
+        },
+        {
+          latitude: cartesianToLatLng(
+            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            tempCenter
+          ).latitude,
+          longitude: cartesianToLatLng(
+            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).longitude,
         },
@@ -224,7 +224,6 @@ export default function PlayScreen() {
     height: number;
   }
 
-  const [playerHitBox, setPlayerHitBox] = useState<Box>();
 
   const updatePlayerLocation = async (
     latitude: number,
@@ -251,8 +250,8 @@ export default function PlayScreen() {
       player: auth.currentUser.uid,
       x: cartesian.x,
       y: cartesian.y,
-      width: 2,
-      height: 2,
+      width: 5,
+      height: 5,
     });
     await update(playerRef, {
       cartesian,
@@ -347,6 +346,9 @@ export default function PlayScreen() {
     height: number;
   }
 
+
+  const [playerHitBox, setPlayerHitBox] = useState<Box>();
+
   const getHitBox = (dataArray: PLD[]) => {
     const boxList: Box[] = [];
     let x, y
@@ -356,14 +358,26 @@ export default function PlayScreen() {
       const hitBox = {
         player: player.playerId,
         x: x - 1,
-        y: y - 1,
-        width: 2,
-        height: 2,
+        y: y + 1,
+        width: 5,
+        height: 5,
       };
       boxList.push(hitBox)
     })
     return boxList
   };
+
+  const inHitBox = (powerup: PowerUp, player: Box ) =>{
+    if (Math.abs(player.x - powerup.cartesian.x) <= player.width / 2 &&
+      Math.abs(player.y - powerup.cartesian.y) <= player.height / 2
+      ){
+        console.log("hello! true!")
+        return true;
+    } else{
+      console.log("hello! false!")
+      return false;
+    }
+  }
 
   // Determine if Player is Hit (straight line laser, big hit box)
 
@@ -413,9 +427,10 @@ export default function PlayScreen() {
       latitude: Math.random() * (maxLat - minLat) + minLat,
       longitude: Math.random() * (maxLng - minLng) + minLng
     }
+    const cartesian = latLngToCartesian(randLatLng, center);
     return {
-      x: latLngToCartesian(randLatLng, center).x,
-      y: latLngToCartesian(randLatLng, center).y,
+      x: cartesian.x,
+      y: cartesian.y,
     };
   };
 
@@ -486,11 +501,9 @@ export default function PlayScreen() {
     fetchPowerUps();
   }, [gameState]);
 
-  //console.log("boundary", boundary);
-
   // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
-  /*
-useEffect(() => {
+  
+  useEffect(() => {
     if (!auth.currentUser) return;
 
     const playerId = auth.currentUser.uid;
@@ -499,17 +512,11 @@ useEffect(() => {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
-      if (!playerData.eliminated) return;
+      if (playerData.eliminated || !playerHitBox ) return;
       let playerPowerUps = userPowerUps;
-
       powerUps.map(async (powerUp) => {
-        /* change the delta to be whatever value u want
-        if (
-          powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 &&
-          powerUp.coordinate.latitude - playerData.latitude >= -0.0001703 &&
-          powerUp.coordinate.longitude - playerData.longitude <= 0.000703 &&
-          powerUp.coordinate.longitude - playerData.longitude >= -0.0001703
-        ) {
+        /* change the delta to be whatever value u want*/
+        if (inHitBox(powerUp, playerHitBox)) {
           const existingPowerUp = playerPowerUps.find(
             (p) => p.type === powerUp.type
           );
@@ -546,12 +553,7 @@ useEffect(() => {
       }));
 
       cactusArray.forEach(async (cactus) => {
-        if (
-          cactus.latitude - playerData.latitude <= 0.0001703 &&
-          cactus.latitude - playerData.latitude >= -0.0001703 &&
-          cactus.longitude - playerData.longitude <= 0.000703 &&
-          cactus.longitude - playerData.longitude >= -0.0001703
-        ) {
+        if (inHitBox(cactus, playerHitBox)){
           //remove current player from game if they are on an active cactus
           await update(playerRef, { eliminated: true });
 
@@ -577,7 +579,6 @@ useEffect(() => {
 
     checkLocationPowerUpAndCactus();
   }, [playerArray]);
-*/
 
   // Powerup Function Calls (functions in seperate files)
 

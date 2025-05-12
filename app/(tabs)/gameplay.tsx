@@ -57,6 +57,7 @@ export default function PlayScreen() {
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
   const BOUNDARY_SIZE = { length: 10, width: 10 }; // meters
+  const PLAYER_HIT_BOX_SIZE = {height: 5, width: 5};
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
@@ -250,8 +251,8 @@ export default function PlayScreen() {
       player: auth.currentUser.uid,
       x: cartesian.x,
       y: cartesian.y,
-      width: 5,
-      height: 5,
+      width: PLAYER_HIT_BOX_SIZE.width,
+      height: PLAYER_HIT_BOX_SIZE.height,
     });
     await update(playerRef, {
       cartesian,
@@ -358,9 +359,9 @@ export default function PlayScreen() {
       const hitBox = {
         player: player.playerId,
         x: x - 1,
-        y: y + 1,
-        width: 5,
-        height: 5,
+        y: y - 1,
+        width: PLAYER_HIT_BOX_SIZE.width,
+        height: PLAYER_HIT_BOX_SIZE.height,
       };
       boxList.push(hitBox)
     })

@@ -99,8 +99,8 @@ export default function PlayScreen() {
 
   // Size of Boundary (length, width)
   const boundarySize = {
-    length: 300, // in meters
-    width: 300, // in meters
+    length: 10, // in meters
+    width: 10, // in meters
   };
 
   //Set boundary
@@ -132,6 +132,8 @@ export default function PlayScreen() {
       const roomData = roomInfo.val();
       let tempCenter = roomData.initialLocation;
       setCenter(tempCenter);
+      //console.log("hello", center);
+
       setGameState(roomData.gameReady);
       setBoundary([
         {
@@ -185,41 +187,48 @@ export default function PlayScreen() {
   type XY = { x: number; y: number };
 
   const latLngToCartesian = (point: LatLng, center: LatLng): XY => {
-    const earthRadius = 6378137; // meters
+    // console.log("rawPoint", point);
+    // console.log("center", center);
+  
+    const earthRadius = 6378137;
     const toRad = (deg: number) => (deg * Math.PI) / 180;
-
+  
     const deltaLat = toRad(point.latitude - center.latitude);
     const deltaLon = toRad(point.longitude - center.longitude);
-
-    const meanLat = toRad((point.latitude + center.latitude) / 2);
-
-    const x = earthRadius * deltaLon * Math.cos(meanLat);
-    const y = earthRadius * deltaLat;
-
+    const centerLatRad = toRad(center.latitude);
+  
+    // console.log("deltaLat", deltaLat)
+    // console.log("deltaLon", deltaLon)
+    // console.log("centerLatRad",centerLatRad)
+    const x = earthRadius * deltaLat * Math.cos(centerLatRad);
+    const y = earthRadius * deltaLon;
+  
+    // console.log("x", x)
+    // console.log("y",y)
     return { x, y };
   };
-
-  const cartesianToLatLng = (xy: XY, centerLatLng: LatLng): LatLng => {
-    if (!xy) return { latitude: 0, longitude: 0 };
-    const earthRadius = 6378137; // meters (WGS-84)
-
+  
+  const cartesianToLatLng = (xy: XY, center: LatLng): LatLng => {
+    const earthRadius = 6378137;
     const toRad = (deg: number) => (deg * Math.PI) / 180;
     const toDeg = (rad: number) => (rad * 180) / Math.PI;
-
-    const lat0 = toRad(centerLatLng.latitude);
-    const lon0 = toRad(centerLatLng.longitude);
-
-    // Calculate latitude
-    const lat = lat0 + xy.y / earthRadius;
-
-    // Calculate longitude (note the cos(mean latitude) factor)
-    const lon = lon0 + xy.x / (earthRadius * Math.cos((lat0 + lat) / 2));
-
-    return {
+  
+    const centerLatRad = toRad(center.latitude);
+    const deltaLat = xy.y / earthRadius;
+    const deltaLon = xy.x / (earthRadius * Math.cos(centerLatRad));
+  
+    // Adjust the latitude and longitude calculations
+    const lat = centerLatRad - deltaLat; // Subtract for moving north to south
+    const lon = toRad(center.longitude) + deltaLon; // Add for moving east, subtract for west
+  
+    const result = {
       latitude: toDeg(lat),
       longitude: toDeg(lon),
     };
+  
+    return result;
   };
+
 
   // Change Player Location to Cartesian Coordinate
   // Send Player Location (cartesian) to Firebase
@@ -311,16 +320,22 @@ export default function PlayScreen() {
     longitude: number,
     direction: number
   ) => {
-    if (!auth.currentUser) return;
-
+    /*THIS IS A PATCH ISSUE IS THAT CENTER (VALUE NOT THE ACTUAL USESTATE) IS BEING
+    PASSED TO LATLNGTOCARTESIAN INCORRECTLY (WITH THE DEFAULT LAKESIDE VALUE), DON'T
+    KNOW WHY MAYBE HAS SOMETHING TO DO WITH HOOKS + SET INTERVAL NOT MESHING*/
+    if (!auth.currentUser || (center.latitude == 47.732473984376654 && center.longitude == -122.32739349311144)) return;
     const cartesian = latLngToCartesian({ latitude, longitude }, center);
-
+    //console.log("centerUpdate", center)
+    // console.log("latitude", latitude)
+    // console.log("longitude", longitude)
+    // console.log("cartesian1", cartesian);
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
     await update(playerRef, {
       cartesian,
       direction,
     });
+    //console.log("cartesian2", cartesian);
   };
 
   // Get PlayerURL from Firebase (storage as URL)
@@ -450,11 +465,6 @@ export default function PlayScreen() {
     const minLng = boundary[3].longitude;
     const maxLng = boundary[1].longitude;
 
-    console.log("minLat", minLat);
-    console.log("maxLat", maxLat);
-    console.log("minLng", minLng);
-    console.log("maxLng", maxLng);
-
     return {
       latitude: Math.random() * (maxLat - minLat) + minLat,
       longitude: Math.random() * (maxLng - minLng) + minLng,
@@ -529,7 +539,6 @@ export default function PlayScreen() {
     fetchPowerUps();
   }, [gameState]);
 
-  console.log("boundary", boundary);
   const renderPowerUpItem = ({
     item,
   }: {
@@ -613,9 +622,10 @@ export default function PlayScreen() {
 
   // console.log("lat", cartesianToLatLng(playerArray[0].cartesian, center).latitude);
   // console.log("long", cartesianToLatLng(playerArray[0].cartesian, center).longitude);
-  //console.log(playerArray)
+ //console.log(playerArray)
+ //console.log(playersURL)
   const [isPlayerListModal, setPlayerListModal] = useState(false);
-
+  
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -707,6 +717,7 @@ export default function PlayScreen() {
           ))}
 
           {playerArray.map((player) => {
+            if (!player.cartesian) return null;
             const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
             return (
               <Marker

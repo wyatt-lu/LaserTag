@@ -64,16 +64,14 @@ export default function HomeScreen() {
     const roomRef = ref(database, `rooms/${roomCode}`);
     const readyRef = ref(database, `rooms/${roomCode}/gameReady`);
     const startRef = ref(database, `rooms/${roomCode}/gameStart`);
-
+    //kinda fixed?
     const waitForRoom = onValue(roomRef, (snapshot) => {
-      console.log("testing");
       if (!snapshot.exists()) {
         return;
       }
     });
 
     waitForRoom();
-
     const unsubscribeRoom = onValue(roomRef, (roomSnapshot) => {
       if (!roomSnapshot.exists()) {
         Alert.alert("Room Deleted", "Please join again.");

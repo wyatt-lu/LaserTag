@@ -185,7 +185,7 @@ export default function PlayScreen() {
   type LatLng = { latitude: number; longitude: number };
   type XY = { x: number; y: number };
 
-  const latLngToCartesian = (point: LatLng, center: LatLng): XY => {
+  const latLngToCartesian = (point: LatLng): XY => {
     // console.log("rawPoint", point);
     // console.log("center", center);
   
@@ -314,6 +314,16 @@ export default function PlayScreen() {
     return deg * (Math.PI / 180);
   };
 
+  interface Box {
+    player: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+
+  const [playerHitBox, setPlayerHitBox] = useState<Box>();
+
   const updatePlayerLocation = async (
     latitude: number,
     longitude: number,
@@ -323,13 +333,20 @@ export default function PlayScreen() {
     PASSED TO LATLNGTOCARTESIAN INCORRECTLY (WITH THE DEFAULT LAKESIDE VALUE), DON'T
     KNOW WHY MAYBE HAS SOMETHING TO DO WITH HOOKS + SET INTERVAL NOT MESHING*/
     if (!auth.currentUser || (center.latitude == 47.732473984376654 && center.longitude == -122.32739349311144)) return;
-    const cartesian = latLngToCartesian({ latitude, longitude }, center);
+    const cartesian = latLngToCartesian({ latitude, longitude });
     //console.log("centerUpdate", center)
     // console.log("latitude", latitude)
     // console.log("longitude", longitude)
     // console.log("cartesian1", cartesian);
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    setPlayerHitBox({
+      player: auth.currentUser.uid,
+      x: cartesian.x,
+      y: cartesian.y,
+      width: 2,
+      height: 2,
+    });
     await update(playerRef, {
       cartesian,
       direction,
@@ -415,14 +432,6 @@ export default function PlayScreen() {
 
   // Set Hit Box for each player (delta x, delta y)
 
-  interface Box {
-    player: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }
-
   const getHitBox = (dataArray: PLD[]) => {
     const boxList: Box[] = [];
     let x, y
@@ -432,7 +441,7 @@ export default function PlayScreen() {
       const hitBox = {
         player: player.playerId,
         x: x - 1,
-        y: y - 1,
+        y: y + 1,
         width: 2,
         height: 2,
       };
@@ -440,6 +449,10 @@ export default function PlayScreen() {
     })
     return boxList
   };
+
+  const inHitBox = () =>{
+
+  }
 
   // Determine if Player is Hit (straight line laser, big hit box)
   type PLD = {
@@ -565,11 +578,13 @@ export default function PlayScreen() {
   const eliminatePlayer = async(playerId: string) => {
     console.log("Eliminating player: ${playerId}")
   }
+
+  
   // Generate Powerups
   type PowerUp = {
     id: string;
     type: string;
-    coordinate: LatLng;
+    cartesian: XY;
   };
 
   const powerUpTypes = [
@@ -595,26 +610,29 @@ export default function PlayScreen() {
   const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
 
   //generate random powerup coordinate
-  const generateRandomCoordinateInBounds = () => {
+  const generateRandomCartesianInBounds = () => {
     const minLat = boundary[2].latitude;
     const maxLat = boundary[0].latitude;
     const minLng = boundary[3].longitude;
     const maxLng = boundary[1].longitude;
-
-    return {
+    const randLatLng = {
       latitude: Math.random() * (maxLat - minLat) + minLat,
-      longitude: Math.random() * (maxLng - minLng) + minLng,
+      longitude: Math.random() * (maxLng - minLng) + minLng
+    }
+    return {
+      x: latLngToCartesian(randLatLng).x,
+      y: latLngToCartesian(randLatLng).y,
     };
   };
 
   //make random powerups
-  const getRandomPowerUp = (center: LatLng, radius: number): PowerUp => {
+  const getRandomPowerUp = (): PowerUp => {
     const randomType =
       powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
     return {
       id: Math.random().toString(36).substring(7), // Random ID
       type: randomType.type,
-      coordinate: generateRandomCoordinateInBounds(),
+      cartesian: generateRandomCartesianInBounds(),
     };
   };
 
@@ -622,8 +640,7 @@ export default function PlayScreen() {
   useEffect(() => {
     generatePowerUpIntervalRef.current = setInterval(async () => {
       if (!roomCode) return;
-      //160 was original radius
-      const newPowerUp = getRandomPowerUp(center, 10);
+      const newPowerUp = getRandomPowerUp();
       const powerUpsRef = ref(
         database,
         `rooms/${roomCode}/powerUps/${newPowerUp.id}`
@@ -657,9 +674,9 @@ export default function PlayScreen() {
             (powerUp: any) => ({
               id: powerUp.id,
               type: powerUp.type,
-              coordinate: {
-                latitude: powerUp.coordinate.latitude,
-                longitude: powerUp.coordinate.longitude,
+              cartesian: {
+                x: powerUp.cartesian.x,
+                y: powerUp.cartesian.y,
               },
             })
           );
@@ -709,6 +726,95 @@ export default function PlayScreen() {
   };
 
   // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
+  /*
+useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    const checkLocationPowerUpAndCactus = async () => {
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      if (!playerData.eliminated) return;
+      let playerPowerUps = userPowerUps;
+
+      powerUps.map(async (powerUp) => {
+        /* change the delta to be whatever value u want
+        if (
+          powerUp.coordinate.latitude - playerData.latitude <= 0.0001703 &&
+          powerUp.coordinate.latitude - playerData.latitude >= -0.0001703 &&
+          powerUp.coordinate.longitude - playerData.longitude <= 0.000703 &&
+          powerUp.coordinate.longitude - playerData.longitude >= -0.0001703
+        ) {
+          const existingPowerUp = playerPowerUps.find(
+            (p) => p.type === powerUp.type
+          );
+          if (existingPowerUp) {
+            existingPowerUp.count += 1;
+          } else {
+            playerPowerUps.push({
+              id: powerUp.id,
+              type: powerUp.type,
+              count: 1,
+            });
+          }
+          setUserPowerUps([...playerPowerUps]);
+
+          try {
+            const individualPowerRef = ref(
+              database,
+              `rooms/${roomCode}/powerUps/${powerUp.id}`
+            );
+            await remove(individualPowerRef);
+          } catch (error) {
+            console.error("Error removing power-up:", error);
+          }
+        }
+      });
+      const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
+      const cactusInfo = await get(cactusRef);
+      if (!cactusInfo.exists()) return;
+      const cactusData = cactusInfo.val();
+
+      const cactusArray = Object.keys(cactusData).map((key) => ({
+        id: key,
+        ...cactusData[key],
+      }));
+
+      cactusArray.forEach(async (cactus) => {
+        if (
+          cactus.latitude - playerData.latitude <= 0.0001703 &&
+          cactus.latitude - playerData.latitude >= -0.0001703 &&
+          cactus.longitude - playerData.longitude <= 0.000703 &&
+          cactus.longitude - playerData.longitude >= -0.0001703
+        ) {
+          //remove current player from game if they are on an active cactus
+          await update(playerRef, { eliminated: true });
+
+          //reward the cactus placer
+          const cactusPlacerRef = ref(
+            database,
+            `rooms/${roomCode}/players/${cactus.creator}`
+          );
+          const cactusPlacerInfo = await get(cactusPlacerRef);
+          if (!cactusPlacerInfo.exists()) return;
+          const cactusPlacerData = cactusPlacerInfo.val();
+          let newPoints = cactusPlacerData.points + 1;
+          await update(cactusPlacerRef, { points: newPoints });
+          //remove the used cactus from cactus folder
+          const usedCactusRef = ref(
+            database,
+            `rooms/${roomCode}/cactus/${cactus.id}`
+          );
+          await remove(usedCactusRef);
+        }
+      });
+    };
+
+    checkLocationPowerUpAndCactus();
+  }, [playerArray]);
+*/
 
   // Powerup Function Calls (functions in seperate files)
 
@@ -847,7 +953,8 @@ export default function PlayScreen() {
           {powerUps.map((powerUp) => (
             <PowerUpMarker
               key={powerUp.id}
-              coordinate={powerUp.coordinate}
+              cartesian={powerUp.cartesian}
+              center={center}
               name={powerUp.type}
             />
           ))}

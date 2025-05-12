@@ -13,19 +13,47 @@ import {
   OxIcon,
 } from "@/constants/icons";
 
-type LatLng = {
-  latitude: number;
-  longitude: number;
+type XY = {
+  x: number;
+  y: number;
 };
 
 type Props = {
-  coordinate: LatLng;
+  cartesian: XY;
   name: string;
+  center: LatLng;
 };
 
-export default function PowerUpMarker({ coordinate, name }: Props) {
+
+type LatLng = { latitude: number; longitude: number };
+
+const cartesianToLatLng = (xy: XY, center: LatLng): LatLng => {
+  const earthRadius = 6378137;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+
+  const centerLatRad = toRad(center.latitude);
+  const deltaLat = xy.y / earthRadius;
+  const deltaLon = xy.x / (earthRadius * Math.cos(centerLatRad));
+
+  // Adjust the latitude and longitude calculations
+  const lat = centerLatRad - deltaLat; // Subtract for moving north to south
+  const lon = toRad(center.longitude) + deltaLon; // Add for moving east, subtract for west
+
+  const result = {
+    latitude: toDeg(lat),
+    longitude: toDeg(lon),
+  };
+
+  return result;
+};
+
+export default function PowerUpMarker({ cartesian, name, center }: Props) {
   return (
-    <Marker coordinate={coordinate}>
+    <Marker coordinate={{
+      latitude: cartesianToLatLng(cartesian, center).latitude,
+      longitude: cartesianToLatLng(cartesian, center).longitude,
+    }}>
       <View>
         {name === "Sheriff Badge" && <BadgeIcon width={30} height={30} />}
         {name === "Cowboy Boots" && <BootsIcon width={30} height={30} />}

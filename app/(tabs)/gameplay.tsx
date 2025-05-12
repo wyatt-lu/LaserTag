@@ -1,108 +1,69 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Image,
-  Modal,
-} from "react-native";
+// React/Expo Imports
+
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import { Text, TouchableOpacity, View, FlatList } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import MapView, { Marker, Polygon } from "react-native-maps";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
-import {
-  get,
-  getDatabase,
-  off,
-  onValue,
-  ref,
-  remove,
-  set,
-  update,
-} from "firebase/database";
+import { useLocalSearchParams } from "expo-router";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+
+// Firebase Imports
+import { get, off, onValue, ref, remove, set, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
-import MapView, {
-  LatLng,
-  MapPressEvent,
-  Marker,
-  Polygon,
-} from "react-native-maps";
-import React from "react";
 import {
   getStorage,
   ref as ref_storage,
   getDownloadURL,
-  uploadBytes,
-  deleteObject,
 } from "firebase/storage";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+
+// Component Imports
 import AppText from "@/components/AppText";
 import ReusableButton from "@/components/ReusableButton";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import PowerUpMarker from "@/components/PowerUpMarker";
 import PlayerListModal from "@/components/PlayerListModal";
+import { fireLaser } from "@/functions/fireLaser";
+import { styles } from "@/constants/styles";
 import {
-  BadgeIcon,
-  BootsIcon,
-  BountyIcon,
-  CactusIcon,
-  HatIcon,
-  HorseshoeIcon,
-  LassoIcon,
-  OxIcon,
-  MoneyIcon,
-} from "@/constants/icons";
-import { FlatList } from "react-native";
-import { ScreenStackHeaderCenterView } from "react-native-screens";
-//import * as PowerupFunctions from '../components/PowerUpFunctions';
+  teamColors,
+  playerColors,
+  powerUpTypes,
+} from "@/constants/gameplayConstants";
+import { renderPowerUpItem } from "@/functions/powerupUtilityFunctions";
+import {
+  latLngToCartesian,
+  cartesianToLatLng,
+  degree,
+} from "@/functions/locationUtilityFunctions";
+
+// Type Definitions
+type LatLng = { latitude: number; longitude: number };
+type PowerUp = {
+  id: string;
+  type: string;
+  coordinate: LatLng;
+};
 
 export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
-  const laser = {
-    length: 7, // in meters
-  };
+  const LASER_LENGTH = 7; // in meters
+  const BOUNDARY_SIZE = { length: 30, width: 30 }; // meters
+  const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
-  const teamColors = [
-    { team: 1, color: "#8baaff" }, // blue
-    { team: 2, color: "#ffe08b" }, // yellow
-    { team: 3, color: "#ffbb8b" }, // orange
-    { team: 4, color: "#bd99e6" }, // purple
-    { team: 5, color: "#99d199" }, // green
-    { team: 6, color: "#68dbcc" }, // teal
-    { team: 7, color: "#e481c8" }, // pink
-    { team: 8, color: "#ff9090" }, // red
-  ];
 
   // Player Colors (player number, color)
-  const playerColors = [
-    { id: 1, color: "#3fb4ed" }, // blue
-    { id: 2, color: "#aebf20" }, // yellow
-    { id: 3, color: "#cb4533" }, // orange
-    { id: 4, color: "#a032b6" }, // purple
-    { id: 5, color: "#88cb54" }, // green
-    { id: 6, color: "#1d5aab" }, // teal
-    { id: 7, color: "#b81157" }, // pink
-    { id: 8, color: "#896246" }, // red
-    { id: 9, color: "#3f6ded" }, // dark blue
-    { id: 10, color: "#bf9520" }, // dark yellow
-    { id: 11, color: "#cb7233" }, // dark orange
-    { id: 12, color: "#7032b6" }, // dark purple
-    { id: 13, color: "#2f942f" }, // dark green
-    { id: 14, color: "#229687" }, // dark teal
-    { id: 15, color: "#b6218c" }, // dark pink
-    { id: 16, color: "#894646" }, // dark red
-  ];
 
-  // Size of Boundary (length, width)
-  const boundarySize = {
-    length: 10, // in meters
-    width: 10, // in meters
-  };
-
-  //Set boundary
+  //Set Boundary
   const [boundary, setBoundary] = useState<any[]>([
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
@@ -137,41 +98,41 @@ export default function PlayScreen() {
       setBoundary([
         {
           latitude: cartesianToLatLng(
-            { x: boundarySize.width / 2, y: boundarySize.length / 2 },
+            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: boundarySize.width / 2, y: boundarySize.length / 2 },
+            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).longitude,
         },
         {
           latitude: cartesianToLatLng(
-            { x: -boundarySize.width / 2, y: boundarySize.length / 2 },
+            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: -boundarySize.width / 2, y: boundarySize.length / 2 },
+            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).longitude,
         },
         {
           latitude: cartesianToLatLng(
-            { x: -boundarySize.width / 2, y: -boundarySize.length / 2 },
+            { x: -BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: -boundarySize.width / 2, y: -boundarySize.length / 2 },
+            { x: -BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).longitude,
         },
         {
           latitude: cartesianToLatLng(
-            { x: boundarySize.width / 2, y: -boundarySize.length / 2 },
+            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: boundarySize.width / 2, y: -boundarySize.length / 2 },
+            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
             tempCenter
           ).longitude,
         },
@@ -185,50 +146,6 @@ export default function PlayScreen() {
   type LatLng = { latitude: number; longitude: number };
   type XY = { x: number; y: number };
 
-  const latLngToCartesian = (point: LatLng): XY => {
-    // console.log("rawPoint", point);
-    // console.log("center", center);
-  
-    const earthRadius = 6378137;
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-  
-    const deltaLat = toRad(point.latitude - center.latitude);
-    const deltaLon = toRad(point.longitude - center.longitude);
-    const centerLatRad = toRad(center.latitude);
-  
-    // console.log("deltaLat", deltaLat)
-    // console.log("deltaLon", deltaLon)
-    // console.log("centerLatRad",centerLatRad)
-    const x = earthRadius * deltaLat * Math.cos(centerLatRad);
-    const y = earthRadius * deltaLon;
-  
-    // console.log("x", x)
-    // console.log("y",y)
-    return { x, y };
-  };
-  
-  const cartesianToLatLng = (xy: XY, center: LatLng): LatLng => {
-    const earthRadius = 6378137;
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const toDeg = (rad: number) => (rad * 180) / Math.PI;
-  
-    const centerLatRad = toRad(center.latitude);
-    const deltaLat = xy.y / earthRadius;
-    const deltaLon = xy.x / (earthRadius * Math.cos(centerLatRad));
-  
-    // Adjust the latitude and longitude calculations
-    const lat = centerLatRad - deltaLat; // Subtract for moving north to south
-    const lon = toRad(center.longitude) + deltaLon; // Add for moving east, subtract for west
-  
-    const result = {
-      latitude: toDeg(lat),
-      longitude: toDeg(lon),
-    };
-  
-    return result;
-  };
-
-
   // Change Player Location to Cartesian Coordinate
   // Send Player Location (cartesian) to Firebase
 
@@ -240,7 +157,7 @@ export default function PlayScreen() {
     y: 0,
     z: 0,
   });
-  Magnetometer.setUpdateInterval(1000);
+  Magnetometer.setUpdateInterval(LOCATION_UPDATE_INTERVAL);
 
   const magnetometerDataRef = useRef(magnetometerData);
   const magnetometerSubscriptionRef = useRef<any>(null);
@@ -298,22 +215,7 @@ export default function PlayScreen() {
       magnetometerSubscriptionRef.current?.remove();
     };
   }, [gameState]);
-
-  const degree = (x: number, y: number): number => {
-    let degree = 0;
-    if (Math.atan2(y, x) >= 0) {
-      degree = Math.atan2(y, x) * (180 / Math.PI);
-    } else {
-      degree = (Math.atan2(y, x) + 2 * Math.PI) * (180 / Math.PI);
-    }
-    degree = Math.round(degree - 90 >= 0 ? degree - 90 : degree + 271);
-    return degree;
-  };
-
-  const degToRad = (deg: number) => {
-    return deg * (Math.PI / 180);
-  };
-
+  
   interface Box {
     player: string;
     x: number;
@@ -332,8 +234,13 @@ export default function PlayScreen() {
     /*THIS IS A PATCH ISSUE IS THAT CENTER (VALUE NOT THE ACTUAL USESTATE) IS BEING
     PASSED TO LATLNGTOCARTESIAN INCORRECTLY (WITH THE DEFAULT LAKESIDE VALUE), DON'T
     KNOW WHY MAYBE HAS SOMETHING TO DO WITH HOOKS + SET INTERVAL NOT MESHING*/
-    if (!auth.currentUser || (center.latitude == 47.732473984376654 && center.longitude == -122.32739349311144)) return;
-    const cartesian = latLngToCartesian({ latitude, longitude });
+    if (
+      !auth.currentUser ||
+      (center.latitude == 47.732473984376654 &&
+        center.longitude == -122.32739349311144)
+    )
+      return;
+    const cartesian = latLngToCartesian({ latitude, longitude }, center);
     //console.log("centerUpdate", center)
     // console.log("latitude", latitude)
     // console.log("longitude", longitude)
@@ -432,6 +339,14 @@ export default function PlayScreen() {
 
   // Set Hit Box for each player (delta x, delta y)
 
+  interface Box {
+    player: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+
   const getHitBox = (dataArray: PLD[]) => {
     const boxList: Box[] = [];
     let x, y
@@ -441,7 +356,7 @@ export default function PlayScreen() {
       const hitBox = {
         player: player.playerId,
         x: x - 1,
-        y: y + 1,
+        y: y - 1,
         width: 2,
         height: 2,
       };
@@ -450,11 +365,9 @@ export default function PlayScreen() {
     return boxList
   };
 
-  const inHitBox = () =>{
-
-  }
-
   // Determine if Player is Hit (straight line laser, big hit box)
+
+  // Generate Powerups
   type PLD = {
     playerId: string;
     direction: number;
@@ -462,125 +375,6 @@ export default function PlayScreen() {
     y: number;
   };
 
-  const fireLaser = async () => {
-    console.log('entered fireLaser');
-    const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
-    const roomPlayerInfo = await get(roomPlayerRef);
-    const roomsgklj = roomPlayerInfo.val();
-    if (!roomsgklj) {
-      console.log("No player data found in Firebase");
-          return;
-    }
-    let playerLaserData: PLD[] = [];
-    //const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
-    Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
-      console.log("inside first loop");
-      console.log(`Player ID: ${playerId}`);
-      //initialize vars outside
-      let curDir, curX, curY;
-      // Loop through each property of the player
-      Object.entries(roomData as { [key: string]: any }).forEach(
-        ([key, value]) => {
-          console.log(`  ${key}: ${value}`);
-          if (key === "direction") {
-            curDir = value;
-          }
-          if (key === "cartesian") {
-            Object.entries(roomData as { [key: string]: any }).forEach(
-              ([key, value]) => {
-              if (key === "x") {
-                curX = value;
-              }
-              if (key === "y") {
-                curY = value;
-              }
-            }
-          );
-        }
-      }
-    );
-      console.log(
-        `Direction: ${curDir}, X: ${curX}, Y: ${curY}`
-      );
-      if (curDir != null && curX != null && curY != null) {
-        console.log("condition met: adding data to player-laser state");
-        const fireCoords = {
-          playerId: playerId,
-          direction: curDir,
-          x: curX,
-          y: curY,
-        };
-        //update state and add data to array
-        //setPlayerLaserData((prevData) => [...prevData, fireCoords]);
-        playerLaserData.push(fireCoords);
-      }
-    });
-    //generateLaserLine(playerLaserData);
-    //Now call generateLaserLine once after all the data is collected
-    if (playerLaserData.length > 0) {
-      console.log("Generated playerLaserData: ", playerLaserData);
-      generateLaserLine(playerLaserData, laser.length);
-    } else {
-      console.log("No valid player data collected");
-    }
-  };
-
-  interface LL {
-    playerId: string;
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-  }
-
-  const checkIntersection = (x1: number, y1: number, x2: number, y2: number, bx: number, by: number, bw: number, bh: number): boolean => {
-    // Horizontal line intersection
-    const checkHorizontal = (y: number, startX: number, endX: number): boolean => {
-      return y >= by && y <= by + bh && (startX <= bx + bw && endX >= bx);
-    };
-    // Vertical line intersection
-    const checkVertical = (x: number, startY: number, endY: number): boolean => {
-      return x >= bx && x <= bx + bw && (startY <= by + bh && endY >= by);
-    };
-    // Check if line intersects any of the four sides of the box
-    if (checkHorizontal(y1, x1, x2) || checkHorizontal(y2, x1, x2) || checkVertical(x1, y1, y2) || checkVertical(x2, y1, y2)) {
-      return true;
-    }
-    return false;
-  };  
-
-  const generateLaserLine = async (dataArray: PLD[], laserLength: number) => {
-    const laserData: LL[] = [];
-    const boxList = getHitBox(dataArray); 
-
-    dataArray.forEach(player => {
-      const angleRad = degToRad(player.direction);
-      const endX = player.x + laserLength * Math.cos(angleRad);
-      const endY = player.y + laserLength * Math.sin(angleRad);
-
-      laserData.push({
-        playerId: player.playerId,
-        startX: player.x,
-        startY: player.y,
-        endX: endX,
-        endY: endY
-      });
-      boxList.forEach(hitBox => {
-        if (checkIntersection(player.x, player.y, endX, endY, hitBox.x, hitBox.y, hitBox.width, hitBox.height)) {
-          console.log(`Player ${hitBox.player} is hit by laser from ${player.playerId}!`);
-          eliminatePlayer(hitBox.player); // Use hitBox.player as the target player ID
-        }
-      });
-    });
-    return laserData;
-  }
-
-  const eliminatePlayer = async(playerId: string) => {
-    console.log("Eliminating player: ${playerId}")
-  }
-
-  
-  // Generate Powerups
   type PowerUp = {
     id: string;
     type: string;
@@ -692,38 +486,7 @@ export default function PlayScreen() {
     fetchPowerUps();
   }, [gameState]);
 
-  const renderPowerUpItem = ({
-    item,
-  }: {
-    item: { id: string; type: string; count: number };
-  }) => {
-    return (
-      <TouchableOpacity
-        style={styles.powerUpItem}
-        onPress={() => {}} //usePowerUp(item)}
-      >
-        <View style={styles.powerUpIconContainer}>
-          {item.type === "Sheriff Badge" && (
-            <BadgeIcon width={30} height={30} />
-          )}
-          {item.type === "Cowboy Boots" && <BootsIcon width={30} height={30} />}
-          {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
-          {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
-          {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
-          {item.type === "Horseshoe" && (
-            <HorseshoeIcon width={30} height={30} />
-          )}
-          {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
-          {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
-          {item.type === "Money" && <MoneyIcon width={30} height={30} />}
-        </View>
-        {/* <AppText style={styles.powerUpName}>{item.type}</AppText> */}
-        {item.count > 1 && (
-          <AppText style={styles.powerUpCount}>{item.count}</AppText>
-        )}
-      </TouchableOpacity>
-    );
-  };
+  //console.log("boundary", boundary);
 
   // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
   /*
@@ -864,10 +627,10 @@ useEffect(() => {
 
   // console.log("lat", cartesianToLatLng(playerArray[0].cartesian, center).latitude);
   // console.log("long", cartesianToLatLng(playerArray[0].cartesian, center).longitude);
- //console.log(playerArray)
- //console.log(playersURL)
+  //console.log(playerArray)
+  //console.log(playersURL)
   const [isPlayerListModal, setPlayerListModal] = useState(false);
-  
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -989,7 +752,10 @@ useEffect(() => {
         enableDynamicSizing={false}
       >
         <BottomSheetView style={styles.contentContainer}>
-          <ReusableButton label="Fire" onPress={fireLaser} />
+          <ReusableButton
+            label="Fire"
+            onPress={() => fireLaser(database, roomCode, LASER_LENGTH)}
+          />
           <ReusableButton
             label="Player List"
             onPress={() => setPlayerListModal(true)}
@@ -1016,126 +782,3 @@ useEffect(() => {
     </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    flex: 1,
-    padding: 25,
-    alignItems: "center",
-    backgroundColor: "#faf6ea",
-  },
-  topButtonsContainer: {
-    position: "absolute",
-    top: 50,
-    zIndex: 1,
-    width: "100%",
-    paddingHorizontal: 20,
-  },
-  topButtonsContainerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-  },
-  map: {
-    flex: 1,
-  },
-  fireButton: {
-    alignSelf: "center",
-    backgroundColor: "#FF3B30",
-    width: "50%",
-    height: "8%",
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    marginBottom: 25,
-  },
-  fireButtonText: {
-    color: "white",
-    marginTop: 4,
-    fontWeight: "bold",
-  },
-  user: {
-    width: 60,
-    height: 60,
-    borderColor: "#000",
-    borderWidth: 2,
-    borderRadius: 20,
-    zIndex: 1,
-  },
-  marker: {
-    width: 25,
-    height: 25,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "#000",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  button: {
-    width: "auto",
-    backgroundColor: "#3a160e",
-    padding: 20,
-    borderRadius: 20,
-    alignItems: "center",
-    shadowColor: "#3a160e",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  buttonText: {
-    fontSize: 18,
-    color: "#faf6ea",
-    fontFamily: "Bungee-Regular",
-  },
-  buttonIcon: {
-    color: "#faf6ea",
-  },
-  exit: {
-    bottom: 30,
-    position: "absolute",
-  },
-  powerUpItem: {
-    padding: 10,
-    marginVertical: 5,
-    marginHorizontal: 10,
-    backgroundColor: "#f0f0f0",
-    borderColor: "#ccc",
-    borderWidth: 1,
-    borderRadius: 5,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  powerUpIconContainer: {
-    marginRight: 5,
-  },
-  powerUpName: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  powerUpList: {
-    marginTop: 20,
-  },
-  powerUpCount: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#3a160e",
-    position: "absolute",
-    right: 5,
-    bottom: 5,
-  },
-});

@@ -145,7 +145,6 @@ export default function PlayScreen() {
       if (snapshot.exists()) {
         const newGameState = snapshot.val();
         setGameState(newGameState);
-        console.log("Game state changed:", newGameState);
 
         if (newGameState === "end-game") {
           if (generatePowerUpIntervalRef.current) {
@@ -361,7 +360,6 @@ export default function PlayScreen() {
         direction,
       });
     }
-    //console.log("cartesian2", cartesian);
   };
 
   // Get PlayerURL from Firebase (storage as URL)
@@ -928,8 +926,6 @@ export default function PlayScreen() {
     return teamColor ? teamColor.color : "#8baaff";
   };
 
-  //console.log(playerArray)
-  //console.log(playersURL)
   const [isPlayerListModal, setPlayerListModal] = useState(false);
 
   const [gameTime, setGameTime] = useState<number>(0); // Total game time in seconds
@@ -1055,8 +1051,6 @@ export default function PlayScreen() {
     setGameTime(durationInSeconds);
     setIsTimerRunning(true);
   };
-
-  console.log("gameState", gameState);
 
   return (
     <GestureHandlerRootView style={styles.container}>

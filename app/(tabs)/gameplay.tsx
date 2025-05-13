@@ -98,7 +98,6 @@ export default function PlayScreen() {
       const roomData = roomInfo.val();
       let tempCenter = roomData.initialLocation;
       setCenter(tempCenter);
-      //console.log("hello", center);
 
       setGameState(roomData.gameReady);
       setBoundary([
@@ -246,10 +245,6 @@ export default function PlayScreen() {
     )
       return;
     const cartesian = latLngToCartesian({ latitude, longitude }, center);
-    //console.log("centerUpdate", center)
-    // console.log("latitude", latitude)
-    // console.log("longitude", longitude)
-    // console.log("cartesian1", cartesian);
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
     setPlayerHitBox({
@@ -263,7 +258,6 @@ export default function PlayScreen() {
       cartesian,
       direction,
     });
-    //console.log("cartesian2", cartesian);
   };
 
   // Get PlayerURL from Firebase (storage as URL)
@@ -340,7 +334,7 @@ export default function PlayScreen() {
         }
         setPlayerArray(updatedPlayersList);
       } catch (error) {
-        //console.log(error);
+        console.log(error);
       }
     });
     return () => {
@@ -618,8 +612,6 @@ export default function PlayScreen() {
     const handleConfirm = async () => {
       if (selectedCactusLocation && activeCactusId) {
         if (!auth.currentUser) return;
-        //console.log("Confirmed location:", selectedLocation);
-        //HEY THERE see if u can add the cactus button to trigger this function, then add the cactus id in the cactus folder :D
         const cactusRef = ref(
           database,
           `rooms/${roomCode}/cactus/${activeCactusId}`
@@ -647,12 +639,14 @@ export default function PlayScreen() {
     type: any;
     coordinate?: { latitude: number; longitude: number };
   }) => {
+    //return if user is eliminated: don't let them continue to use their powerups in their inventory
     if (!auth.currentUser) return;
     const playerRef = ref(database, `/rooms/${roomCode}/players/${auth.currentUser.uid}`);
     const playerInfo = await get(playerRef);
     if (!playerInfo.exists()) return;
     const playerData = playerInfo.val();
     if (playerData.eliminated) return;
+
     switch (powerUp.type) {
       case "Cowboy Boots":
         cowboyBoots();
@@ -704,7 +698,7 @@ export default function PlayScreen() {
           }
           setActiveCactusId(powerUp.id ?? null);
           setCactusModalVisible(true);
-          //only use if cactus hasn't been made
+          //only remove a powerup if cactus hasn't been made
           if (cactusAlreadyMade==false){
             setUserPowerUps((prev) =>
               prev
@@ -808,8 +802,6 @@ export default function PlayScreen() {
     return teamColor ? teamColor.color : "#8baaff";
   };
 
-  // console.log("lat", cartesianToLatLng(playerArray[0].cartesian, center).latitude);
-  // console.log("long", cartesianToLatLng(playerArray[0].cartesian, center).longitude);
   //console.log(playerArray)
   //console.log(playersURL)
   const [isPlayerListModal, setPlayerListModal] = useState(false);

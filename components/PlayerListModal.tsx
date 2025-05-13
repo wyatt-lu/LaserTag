@@ -74,6 +74,7 @@ const PlayerListModal: React.FC<PlayerListModalProps> = ({
           <AppText style={styles.title}>Player List</AppText>
           <View style={styles.optionsContainer}>
             {Object.keys(players).map((playerId) => {
+              if (playerId.length<=7) return;
               const player = players[playerId];
               const playerURL = playerURLArray.find(
                 (urlItem) => urlItem.id === player.id

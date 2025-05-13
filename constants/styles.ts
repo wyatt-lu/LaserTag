@@ -130,4 +130,26 @@ export const styles = StyleSheet.create({
     right: 5,
     bottom: 5,
   },
+  timerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 8,
+    width: "100%",
+  },
+  timerText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    marginBottom: 4,
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  timerProgressBackground: {
+    width: "80%",
+    height: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    borderRadius: 5,
+    overflow: "hidden",
+  },
 });

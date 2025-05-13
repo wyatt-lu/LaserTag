@@ -12,9 +12,16 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import MapView, { Marker, Polygon } from "react-native-maps";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+  runOnJS,
+} from "react-native-reanimated";
 
 // Firebase Imports
 import { get, off, onValue, ref, remove, set, update } from "firebase/database";
@@ -30,6 +37,7 @@ import AppText from "@/components/AppText";
 import ReusableButton from "@/components/ReusableButton";
 import PowerUpMarker from "@/components/PowerUpMarker";
 import PlayerListModal from "@/components/PlayerListModal";
+import GameEndModal from "@/components/GameEndModal";
 import { fireLaser } from "@/functions/fireLaser";
 import { styles } from "@/constants/styles";
 import {
@@ -57,7 +65,7 @@ export default function PlayScreen() {
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
   const BOUNDARY_SIZE = { length: 10, width: 10 }; // meters
-  const PLAYER_HIT_BOX_SIZE = {height: 5, width: 5};
+  const PLAYER_HIT_BOX_SIZE = { height: 5, width: 5 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
@@ -74,7 +82,11 @@ export default function PlayScreen() {
 
   // Set State Variable to Game (used state based on Firebase)
   // State Variable: Lobby, Game
-  const [gameState, setGameState] = useState<"lobby" | "game" | null>(null);
+  // const [gameState, setGameState] = useState<"lobby" | "game" | null>(null);
+  // type GameStateType = "in-game" | "end-game" | "return" | null;
+  const [gameState, setGameState] = useState<
+    "in-game" | "end-game" | "return" | null
+  >(null);
   const [center, setCenter] = useState<LatLng>({
     latitude: 47.732473984376654,
     longitude: -122.32739349311144,
@@ -83,7 +95,69 @@ export default function PlayScreen() {
   //Set Boundary
 
   const params = useLocalSearchParams();
+  const router = useRouter();
   const { roomCode } = params;
+
+  useEffect(() => {
+    if (!roomCode || !auth.currentUser) return;
+
+    const initializeGameState = async () => {
+      try {
+        const roomRef = ref(database, `rooms/${roomCode}`);
+        const roomSnapshot = await get(roomRef);
+
+        if (!roomSnapshot.exists()) {
+          console.error("Room does not exist");
+          return;
+        }
+
+        const roomData = roomSnapshot.val();
+
+        // If game state doesn't exist yet, initialize it to "in-game"
+        if (!roomData.gameState) {
+          await update(roomRef, { gameState: "in-game" });
+        }
+      } catch (error) {
+        console.error("Error initializing game state:", error);
+      }
+    };
+
+    initializeGameState();
+
+    // Set up real-time listener for game state changes
+    const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+    const unsubscribe = onValue(gameStateRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const newGameState = snapshot.val();
+        setGameState(newGameState);
+        console.log("Game state changed:", newGameState);
+
+        if (newGameState === "end-game") {
+          if (generatePowerUpIntervalRef.current) {
+            clearInterval(generatePowerUpIntervalRef.current);
+            generatePowerUpIntervalRef.current = null;
+          }
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+
+          // Clean up Firebase listeners for powerups
+          if (roomCode) {
+            const powerUpsRef = ref(database, `rooms/${roomCode}/powerUps`);
+            off(powerUpsRef);
+          }
+        }
+        if (newGameState === "return") {
+          router.replace("/(tabs)/home");
+          const roomRef = ref(database, `rooms/${roomCode}`);
+          remove(roomRef);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode, router]);
 
   useEffect(() => {
     const getGameState = async () => {
@@ -95,7 +169,25 @@ export default function PlayScreen() {
       setCenter(tempCenter);
       //console.log("hello", center);
 
-      setGameState(roomData.gameReady);
+      setPowerUps([]);
+      setUserPowerUps([]);
+
+      if (roomData.gameReady) {
+        startGameTimer(20);
+        if (mapRef.current) {
+          setTimeout(() => {
+            mapRef.current?.animateToRegion(
+              {
+                latitude: tempCenter.latitude,
+                longitude: tempCenter.longitude,
+                latitudeDelta: 0.002222,
+                longitudeDelta: 0.001521,
+              },
+              1000
+            );
+          }, 500);
+        }
+      }
       setBoundary([
         {
           latitude: cartesianToLatLng(
@@ -216,7 +308,7 @@ export default function PlayScreen() {
       magnetometerSubscriptionRef.current?.remove();
     };
   }, [gameState]);
-  
+
   interface Box {
     player: string;
     x: number;
@@ -224,7 +316,6 @@ export default function PlayScreen() {
     width: number;
     height: number;
   }
-
 
   const updatePlayerLocation = async (
     latitude: number,
@@ -254,10 +345,12 @@ export default function PlayScreen() {
       width: PLAYER_HIT_BOX_SIZE.width,
       height: PLAYER_HIT_BOX_SIZE.height,
     });
-    await update(playerRef, {
-      cartesian,
-      direction,
-    });
+    if (gameState === "in-game") {
+      await update(playerRef, {
+        cartesian,
+        direction,
+      });
+    }
     //console.log("cartesian2", cartesian);
   };
 
@@ -347,15 +440,14 @@ export default function PlayScreen() {
     height: number;
   }
 
-
   const [playerHitBox, setPlayerHitBox] = useState<Box>();
 
   const getHitBox = (dataArray: PLD[]) => {
     const boxList: Box[] = [];
-    let x, y
-    dataArray.forEach(player => {
-      x = player.x
-      y = player.y
+    let x, y;
+    dataArray.forEach((player) => {
+      x = player.x;
+      y = player.y;
       const hitBox = {
         player: player.playerId,
         x: x - 1,
@@ -363,22 +455,23 @@ export default function PlayScreen() {
         width: PLAYER_HIT_BOX_SIZE.width,
         height: PLAYER_HIT_BOX_SIZE.height,
       };
-      boxList.push(hitBox)
-    })
-    return boxList
+      boxList.push(hitBox);
+    });
+    return boxList;
   };
 
-  const inHitBox = (powerup: PowerUp, player: Box ) =>{
-    if (Math.abs(player.x - powerup.cartesian.x) <= player.width / 2 &&
+  const inHitBox = (powerup: PowerUp, player: Box) => {
+    if (
+      Math.abs(player.x - powerup.cartesian.x) <= player.width / 2 &&
       Math.abs(player.y - powerup.cartesian.y) <= player.height / 2
-      ){
-        console.log("hello! true!")
-        return true;
-    } else{
-      console.log("hello! false!")
+    ) {
+      // console.log("hello! true!");
+      return true;
+    } else {
+      // console.log("hello! false!");
       return false;
     }
-  }
+  };
 
   // Determine if Player is Hit (straight line laser, big hit box)
 
@@ -426,8 +519,8 @@ export default function PlayScreen() {
     const maxLng = boundary[1].longitude;
     const randLatLng = {
       latitude: Math.random() * (maxLat - minLat) + minLat,
-      longitude: Math.random() * (maxLng - minLng) + minLng
-    }
+      longitude: Math.random() * (maxLng - minLng) + minLng,
+    };
     const cartesian = latLngToCartesian(randLatLng, center);
     return {
       x: cartesian.x,
@@ -448,25 +541,34 @@ export default function PlayScreen() {
 
   //despawn powerups
   useEffect(() => {
-    generatePowerUpIntervalRef.current = setInterval(async () => {
-      if (!roomCode) return;
-      const newPowerUp = getRandomPowerUp();
-      const powerUpsRef = ref(
-        database,
-        `rooms/${roomCode}/powerUps/${newPowerUp.id}`
-      );
-      await set(powerUpsRef, newPowerUp);
+    if (generatePowerUpIntervalRef.current) {
+      clearInterval(generatePowerUpIntervalRef.current);
+      generatePowerUpIntervalRef.current = null;
+    }
 
-      const despawnTime = Math.random() * (36000 - 3000) + 3000;
-      setTimeout(async () => {
-        await remove(powerUpsRef);
-      }, despawnTime);
-      //18000 was original time
-    }, Math.random() * (4000 - 3000) + 3000);
+    if (gameState === "in-game" && roomCode) {
+      generatePowerUpIntervalRef.current = setInterval(async () => {
+        const newPowerUp = getRandomPowerUp();
+        const powerUpsRef = ref(
+          database,
+          `rooms/${roomCode}/powerUps/${newPowerUp.id}`
+        );
+        await set(powerUpsRef, newPowerUp);
+
+        const despawnTime = Math.random() * (36000 - 3000) + 3000;
+        setTimeout(async () => {
+          // Only remove if still in-game state
+          if (gameState === "in-game") {
+            await remove(powerUpsRef);
+          }
+        }, despawnTime);
+      }, Math.random() * (4000 - 3000) + 3000);
+    }
 
     return () => {
       if (generatePowerUpIntervalRef.current) {
         clearInterval(generatePowerUpIntervalRef.current);
+        generatePowerUpIntervalRef.current = null;
       }
     };
   }, [gameState, center]);
@@ -503,7 +605,7 @@ export default function PlayScreen() {
   }, [gameState]);
 
   // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
-  
+
   useEffect(() => {
     if (!auth.currentUser) return;
 
@@ -513,7 +615,7 @@ export default function PlayScreen() {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
-      if (playerData.eliminated || !playerHitBox ) return;
+      if (playerData.eliminated || !playerHitBox) return;
       let playerPowerUps = userPowerUps;
       powerUps.map(async (powerUp) => {
         /* change the delta to be whatever value u want*/
@@ -554,7 +656,7 @@ export default function PlayScreen() {
       }));
 
       cactusArray.forEach(async (cactus) => {
-        if (inHitBox(cactus, playerHitBox)){
+        if (inHitBox(cactus, playerHitBox)) {
           //remove current player from game if they are on an active cactus
           await update(playerRef, { eliminated: true });
 
@@ -633,6 +735,132 @@ export default function PlayScreen() {
   //console.log(playersURL)
   const [isPlayerListModal, setPlayerListModal] = useState(false);
 
+  const [gameTime, setGameTime] = useState<number>(0); // Total game time in seconds
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const timerProgress = useSharedValue(1); // 1 = full, 0 = empty
+
+  const progressBarStyle = useAnimatedStyle(() => {
+    return {
+      width: `${timerProgress.value * 100}%`,
+      height: "100%",
+      backgroundColor:
+        timerProgress.value > 0.2
+          ? timerProgress.value > 0.5
+            ? "#4CAF50"
+            : "#FFC107"
+          : "#F44336",
+      borderRadius: 5,
+    };
+  });
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  useEffect(() => {
+    const gameTimerRef = ref(database, `rooms/${roomCode}/gameTimer`);
+
+    const unsubscribe = onValue(gameTimerRef, (snapshot) => {
+      const timerData = snapshot.val();
+      if (timerData) {
+        setGameTime(timerData.totalTime || 0);
+        setTimeRemaining(timerData.timeRemaining || 0);
+        setIsTimerRunning(timerData.isRunning || false);
+
+        // Animate the progress bar
+        if (timerData.totalTime > 0) {
+          timerProgress.value = withTiming(
+            timerData.timeRemaining / timerData.totalTime,
+            { duration: 1000, easing: Easing.linear }
+          );
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [gameState]);
+
+  useEffect(() => {
+    // Clear any existing timer
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    // Start a new timer if it should be running and we're in-game
+    if (gameState === "in-game" && timeRemaining > 0) {
+      timerIntervalRef.current = setInterval(async () => {
+        setTimeRemaining((prev) => {
+          const newTime = prev - 1;
+
+          // Update Firebase with the new time
+          if (roomCode) {
+            const gameTimerRef = ref(database, `rooms/${roomCode}/gameTimer`);
+            update(gameTimerRef, { timeRemaining: newTime });
+
+            // If time is up, transition to end-game state
+            if (newTime <= 0) {
+              clearInterval(timerIntervalRef.current!);
+              timerIntervalRef.current = null;
+
+              // Update game state to end-game in Firebase
+              const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+              set(gameStateRef, "end-game");
+            }
+          }
+
+          return newTime;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, [isTimerRunning, timeRemaining, roomCode]);
+
+  const startGameTimer = async (durationInSeconds: number) => {
+    if (!roomCode) return;
+
+    // Clear existing timer if it exists
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    // Set new timer
+    const gameTimerRef = ref(database, `rooms/${roomCode}/gameTimer`);
+    await set(gameTimerRef, {
+      totalTime: durationInSeconds,
+      timeRemaining: durationInSeconds,
+      isRunning: true,
+      startedAt: Date.now(),
+    });
+
+    // Update game state to in-game
+    const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+    await set(gameStateRef, "in-game");
+
+    // Reset powerups
+    const powerUpsRef = ref(database, `rooms/${roomCode}/powerUps`);
+    await remove(powerUpsRef);
+
+    // Update local state
+    setTimeRemaining(durationInSeconds);
+    setGameTime(durationInSeconds);
+    setIsTimerRunning(true);
+  };
+
+  console.log("gameState", gameState);
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -671,6 +899,12 @@ export default function PlayScreen() {
                 ?.team || 1}
               ]
             </Text>
+          </View>
+        </View>
+        <View style={styles.timerContainer}>
+          <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
+          <View style={styles.timerProgressBackground}>
+            <Animated.View style={progressBarStyle} />
           </View>
         </View>
         <View
@@ -780,6 +1014,15 @@ export default function PlayScreen() {
         players={playerArray}
         playerURLArray={playersURL}
         disabled={true}
+      />
+      <GameEndModal
+        visible={gameState === "end-game"}
+        onClose={() => {
+          const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+          set(gameStateRef, "return");
+        }}
+        players={playerArray}
+        playerURLArray={playersURL}
       />
     </GestureHandlerRootView>
   );

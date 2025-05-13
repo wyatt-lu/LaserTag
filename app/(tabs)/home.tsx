@@ -162,6 +162,7 @@ export default function HomeScreen() {
           team: 1,
           laser: laserData.val(),
           cowboyHat: false,
+          fake: false,
           eliminated: false,
           points: 0,
           colorId: 1,

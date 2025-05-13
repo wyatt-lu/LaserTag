@@ -7,9 +7,9 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Text, TouchableOpacity, View, FlatList } from "react-native";
+import { Text, TouchableOpacity, View, FlatList, Modal } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import MapView, { Marker, Polygon } from "react-native-maps";
+import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import { useLocalSearchParams } from "expo-router";
@@ -37,12 +37,18 @@ import {
   playerColors,
   powerUpTypes,
 } from "@/constants/gameplayConstants";
-import { renderPowerUpItem } from "@/functions/powerupUtilityFunctions";
 import {
   latLngToCartesian,
   cartesianToLatLng,
   degree,
 } from "@/functions/locationUtilityFunctions";
+import {
+  cowboyBoots,
+  useOx,
+  useLasso,
+  cowboyHat,
+} from "@/functions/powerupFunctions"
+import { BadgeIcon, BootsIcon, BountyIcon, CactusIcon, HatIcon, HorseshoeIcon, LassoIcon, MoneyIcon, OxIcon } from "@/constants/icons";
 
 // Type Definitions
 type LatLng = { latitude: number; longitude: number };
@@ -57,7 +63,7 @@ export default function PlayScreen() {
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
   const BOUNDARY_SIZE = { length: 10, width: 10 }; // meters
-  const PLAYER_HIT_BOX_SIZE = {height: 5, width: 5};
+  const PLAYER_HIT_BOX_SIZE = {height: 15, width: 15};
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
@@ -71,7 +77,6 @@ export default function PlayScreen() {
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
   ]);
-
   // Set State Variable to Game (used state based on Firebase)
   // State Variable: Lobby, Game
   const [gameState, setGameState] = useState<"lobby" | "game" | null>(null);
@@ -285,6 +290,9 @@ export default function PlayScreen() {
             const roomData = roomInfo.val();
             const playersList = await Promise.all(
               Object.entries(roomData).map(async ([key]) => {
+                if (key.length<=7){
+                  return;
+                }
                 let userURL = await fetchUserURL(key);
                 return { id: key, profile: userURL };
               })
@@ -302,6 +310,12 @@ export default function PlayScreen() {
 
   const fetchUserURL = async (id: any) => {
     try {
+      if (!id) return;
+      const playerRef = ref(database, `/rooms/${roomCode}/players/${id}`)
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      if (playerData.fake) return;
       const placeholderRef = ref_storage(storage, `${id}/pfp.jpg`);
       const url = await getDownloadURL(placeholderRef);
       return url;
@@ -368,14 +382,19 @@ export default function PlayScreen() {
     return boxList
   };
 
-  const inHitBox = (powerup: PowerUp, player: Box ) =>{
+  const inHitBox = async (powerup: PowerUp, player: Box ) =>{
+    if (!auth.currentUser) return;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${auth.currentUser.uid}`);
+    const playerInfo = await get(playerRef);
+    if (!playerInfo.exists()) return;
+    const playerData = playerInfo.val();
+    if (playerData.cowboyHat) return false;
+
     if (Math.abs(player.x - powerup.cartesian.x) <= player.width / 2 &&
       Math.abs(player.y - powerup.cartesian.y) <= player.height / 2
       ){
-        console.log("hello! true!")
         return true;
     } else{
-      console.log("hello! false!")
       return false;
     }
   }
@@ -517,7 +536,7 @@ export default function PlayScreen() {
       let playerPowerUps = userPowerUps;
       powerUps.map(async (powerUp) => {
         /* change the delta to be whatever value u want*/
-        if (inHitBox(powerUp, playerHitBox)) {
+        if (await inHitBox(powerUp, playerHitBox)) {
           const existingPowerUp = playerPowerUps.find(
             (p) => p.type === powerUp.type
           );
@@ -554,7 +573,7 @@ export default function PlayScreen() {
       }));
 
       cactusArray.forEach(async (cactus) => {
-        if (inHitBox(cactus, playerHitBox)){
+        if (await inHitBox(cactus, playerHitBox)){
           //remove current player from game if they are on an active cactus
           await update(playerRef, { eliminated: true });
 
@@ -581,8 +600,170 @@ export default function PlayScreen() {
     checkLocationPowerUpAndCactus();
   }, [playerArray]);
 
+  //Cactus Power up (here because of all the vars it needs here and would need in powerupfunctions)
+
+    const [activeCactusId, setActiveCactusId] = useState<string | null>(null);
+    const [cactusModalVisible, setCactusModalVisible] = useState(false);
+    const [selectedCactusLocation, setSelectedCactusLocation] = useState<{
+      x: number;
+      y: number;
+    } | null>(null);
+  
+    const cactusMapPress = (event: MapPressEvent) => {
+      const tempLatLng = event.nativeEvent.coordinate;
+      const tempXY = latLngToCartesian(tempLatLng, center);
+      setSelectedCactusLocation(tempXY);
+    };
+  
+    const handleConfirm = async () => {
+      if (selectedCactusLocation && activeCactusId) {
+        if (!auth.currentUser) return;
+        //console.log("Confirmed location:", selectedLocation);
+        //HEY THERE see if u can add the cactus button to trigger this function, then add the cactus id in the cactus folder :D
+        const cactusRef = ref(
+          database,
+          `rooms/${roomCode}/cactus/${activeCactusId}`
+        );
+        await update(cactusRef, {
+          cartesian: {
+            x: selectedCactusLocation.x,
+            y: selectedCactusLocation.y,
+          },
+          creator: auth.currentUser.uid,
+        });
+      }
+      setSelectedCactusLocation(null);
+      setCactusModalVisible(false);
+      setActiveCactusId(null);
+    };
+  
+
   // Powerup Function Calls (functions in seperate files)
 
+  //Using the powerup when user clicks the button:
+
+  const usePowerUp = async (powerUp: { 
+    id: string;
+    type: any;
+    coordinate?: { latitude: number; longitude: number };
+  }) => {
+    if (!auth.currentUser) return;
+    const playerRef = ref(database, `/rooms/${roomCode}/players/${auth.currentUser.uid}`);
+    const playerInfo = await get(playerRef);
+    if (!playerInfo.exists()) return;
+    const playerData = playerInfo.val();
+    if (playerData.eliminated) return;
+    switch (powerUp.type) {
+      case "Cowboy Boots":
+        cowboyBoots();
+        break;
+      case "Cowboy Hat":
+        cowboyHat(roomCode);
+        break;
+      case "Sheriff Badge":
+        console.log("Using badge power-up");
+        break;
+      case "Horseshoe":
+        console.log("Using horseshoe power-up");
+        break;
+      case "Lasso":
+        console.log("Using Lasso power-up");
+        break;
+      case "Bounty":
+        console.log("Using Bounty power-up");
+        break;
+      case "Cactus":
+        const seeIfUserHasCactus = async () => {
+          const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
+          const cactusInfo = await get(cactusRef);
+          if (!cactusInfo.exists()) {
+            setActiveCactusId(powerUp.id ?? null);
+            setCactusModalVisible(true);
+            setUserPowerUps((prev) =>
+              prev
+                .map((p) =>
+                  p.id === powerUp.id ? { ...p, count: p.count - 1 } : p
+                )
+                .filter((p) => p.count > 0)
+            );
+            return;
+          }
+          const cactusData = cactusInfo.val();
+
+          const cactusArray = Object.keys(cactusData).map((key) => ({
+            id: key,
+            ...cactusData[key],
+          }));
+          let cactusAlreadyMade = false;
+          for (const cactus of cactusArray) {
+            if (!auth.currentUser) return;
+            if (cactus.creator == auth.currentUser.uid) {
+              cactusAlreadyMade = true;
+              return;
+            }
+          }
+          setActiveCactusId(powerUp.id ?? null);
+          setCactusModalVisible(true);
+          //only use if cactus hasn't been made
+          if (cactusAlreadyMade==false){
+            setUserPowerUps((prev) =>
+              prev
+                .map((p) =>
+                  p.id === powerUp.id ? { ...p, count: p.count - 1 } : p
+                )
+                .filter((p) => p.count > 0)
+            );
+          }
+        };
+        seeIfUserHasCactus();
+        return;
+      case "Ox Stampede":
+        useOx();
+        break;
+      case "Money":
+        console.log("Using Money power-up");
+        break;
+      default:
+        console.log("Using unknown powerup");
+        break;
+    //use Powerups (-1 to count)
+    }
+    setUserPowerUps((prev) =>
+      prev
+        .map((p) => (p.id === powerUp.id ? { ...p, count: p.count - 1 } : p))
+        .filter((p) => p.count > 0)
+    );
+  }
+
+  const renderPowerUpItem = ({
+    item,
+  }: {
+    item: { id: string; type: string; count: number };
+  }) => {
+    return (
+      <TouchableOpacity
+        style={styles.powerUpItem}
+        onPress={() => {usePowerUp(item)}}
+      >
+        <View style={styles.powerUpIconContainer}>
+          {item.type === "Sheriff Badge" && <BadgeIcon width={30} height={30} />}
+          {item.type === "Cowboy Boots" && <BootsIcon width={30} height={30} />}
+          {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
+          {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
+          {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
+          {item.type === "Horseshoe" && <HorseshoeIcon width={30} height={30} />}
+          {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
+          {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
+          {item.type === "Money" && <MoneyIcon width={30} height={30} />}
+        </View>
+        {/* <AppText style={styles.powerUpName}>{item.type}</AppText> */}
+        {item.count > 1 && (
+          <AppText style={styles.powerUpCount}>{item.count}</AppText>
+        )}
+      </TouchableOpacity>
+    );
+  };
+  
   // Reset Game/Exit Game (Set State Variable to Lobby)
 
   // Game Ending Screen (modal)
@@ -632,6 +813,7 @@ export default function PlayScreen() {
   //console.log(playerArray)
   //console.log(playersURL)
   const [isPlayerListModal, setPlayerListModal] = useState(false);
+
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -725,7 +907,7 @@ export default function PlayScreen() {
           ))}
 
           {playerArray.map((player) => {
-            if (!player.cartesian) return null;
+            if (!player.cartesian || player.eliminated) return null;
             const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
             return (
               <Marker
@@ -737,9 +919,9 @@ export default function PlayScreen() {
                     .longitude,
                 }}
               >
-                <View
-                  style={[styles.marker, { backgroundColor: playerColor }]}
-                />
+                {!player.cowboyHat && (
+                  <View style={[styles.marker, { backgroundColor: playerColor }]} />
+                )}
               </Marker>
             );
           })}
@@ -771,6 +953,59 @@ export default function PlayScreen() {
             numColumns={3}
             style={styles.powerUpList}
           />
+
+          <Modal visible={cactusModalVisible} animationType="slide">
+            {location ? (
+              <View style={{ flex: 1 }}>
+                <MapView
+                  style={{ flex: 1 }}
+                  initialRegion={{
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                    latitudeDelta: 0.002222,
+                    longitudeDelta: 0.001521,
+                  }}
+                  mapType="hybrid"
+                  showsScale
+                  rotateEnabled={false}
+                  loadingEnabled
+                  zoomEnabled
+                  onPress={cactusMapPress}
+                >
+                  <Polygon
+                    coordinates={boundary}
+                    strokeColor="#FF0000"
+                    strokeWidth={2}
+                    fillColor="#FF000040"
+                  />
+                  {selectedCactusLocation && (
+                    <Marker
+                      coordinate={cartesianToLatLng(selectedCactusLocation, center)}
+                    >
+                      <CactusIcon width={30} height={30} />
+                    </Marker>
+                  )}
+                </MapView>
+
+                {/* Buttons on top of the map */}
+                <View
+                  style={{
+                    position: "absolute",
+                    bottom: 20,
+                    alignSelf: "center",
+                  }}
+                >
+                  <ReusableButton label="Confirm" onPress={handleConfirm} />
+                  <ReusableButton
+                    label="Cancel"
+                    onPress={() => setCactusModalVisible(false)}
+                  />
+                </View>
+              </View>
+            ) : (
+              <Text>Loading cactus...</Text>
+            )}
+          </Modal>
         </BottomSheetView>
       </BottomSheet>
 

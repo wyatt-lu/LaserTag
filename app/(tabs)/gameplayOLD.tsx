@@ -129,19 +129,18 @@ export default function PlayScreen() {
       const playerRef = ref(database, `players/${playerId}`);
       const playerInfo = await get(playerRef);
 
-      console.log("hello????")
+      console.log("hello????");
       if (!playerInfo.exists()) return;
 
       const playerData = playerInfo.val();
       setRoomCode(playerData.room);
       console.log("roomcode", playerData.room);
 
-      const roomRef = ref(database, `rooms/${playerData.room}`)
+      const roomRef = ref(database, `rooms/${playerData.room}`);
       const roomInfo = await get(roomRef);
       if (!roomInfo.exists()) return;
       const roomData = roomInfo.val();
-      setCenter(roomData.initialLocation)
-      
+      setCenter(roomData.initialLocation);
     };
 
     fetchRoomCode();
@@ -162,26 +161,26 @@ export default function PlayScreen() {
 
       for (const [id, data] of entries) {
         const player = { id, ...(data as any) };
-        console.log("center", center)
-        console.log("player.latitude", player.latitude)
-        console.log("player.longitude", player.longitude)
+        console.log("center", center);
+        console.log("player.latitude", player.latitude);
+        console.log("player.longitude", player.longitude);
         const insideCircle = isInsideCircle(
           { latitude: player.latitude, longitude: player.longitude },
           center,
           10
         );
-        console.log("insideCircle", insideCircle)
+        console.log("insideCircle", insideCircle);
         if (!insideCircle) {
           const currentPlayerRef = ref(
             database,
             `rooms/${roomCode}/players/${id}`
           );
           await update(currentPlayerRef, { eliminated: true });
-          console.log("GONE")
+          console.log("GONE");
           continue;
         }
         updatedPlayerList.push(player);
-/*
+        /*
         if (!player.eliminated) {
           updatedPlayerList.push(player);
         }*/
@@ -678,7 +677,7 @@ export default function PlayScreen() {
     coordinates.push(coordinates[0]);
     return coordinates;
   };
-/*
+  /*
   const getCenter = async () => {
     if (!auth.currentUser) return;
 
@@ -757,7 +756,7 @@ export default function PlayScreen() {
     return distance <= radius;
   };
 
-  console.log("CircleCoords center", center)
+  console.log("CircleCoords center", center);
   const circleCoordinates = generateCircleCoordinates(center, 10, 30); //160 was original radius
 
   // Powerup Generation
@@ -885,7 +884,7 @@ export default function PlayScreen() {
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
       if (!playerData.eliminated) return;
-      console.log("hello?")
+      console.log("hello?");
 
       let playerPowerUps = userPowerUps;
 
@@ -1372,13 +1371,13 @@ export default function PlayScreen() {
             strokeWidth={2}
             fillColor="#FF000040"
           />
-          {powerUps.map((powerUp) => (
+          {/* {powerUps.map((powerUp) => (
             <PowerUpMarker
               key={powerUp.id}
               coordinate={powerUp.coordinate}
               name={powerUp.type}
             />
-          ))}
+          ))} */}
           {/* {playerArray.map((player) => {
             const playerURL = playerURLArray.find(
               (urlItem) => urlItem.id === player.id

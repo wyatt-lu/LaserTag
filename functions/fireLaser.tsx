@@ -1,4 +1,4 @@
-import { ref, get } from "firebase/database";
+import { ref, get, update } from "firebase/database";
 
 type PLD = {
   playerId: string;
@@ -49,13 +49,13 @@ export async function fireLaser(
           curDir = value;
         }
         if (key === "cartesian") {
-          Object.entries(roomData as { [key: string]: any }).forEach(
-            ([key, value]) => {
-              if (key === "x") {
-                curX = value;
+          Object.entries(value as { [key: string]: any }).forEach(
+            ([coordKey, coordValue]) => {
+              if (coordKey === "x") {
+                curX = coordValue;
               }
-              if (key === "y") {
-                curY = value;
+              if (coordKey === "y") {
+                curY = coordValue;
               }
             }
           );
@@ -80,7 +80,7 @@ export async function fireLaser(
   //Now call generateLaserLine once after all the data is collected
   if (playerLaserData.length > 0) {
     console.log("Generated playerLaserData: ", playerLaserData);
-    generateLaserLine(playerLaserData, LASER_LENGTH);
+    generateLaserLine(playerLaserData, LASER_LENGTH, database, roomCode);
   } else {
     console.log("No valid player data collected");
   }
@@ -120,11 +120,18 @@ const checkIntersection = (
   return false;
 };
 
-const generateLaserLine = async (dataArray: PLD[], laserLength: number) => {
+const generateLaserLine = async (
+  dataArray: PLD[],
+  laserLength: number,
+  database: any,
+  roomCode: any
+) => {
   const laserData: LL[] = [];
   const boxList = getHitBox(dataArray);
+  let eliminatedPlayer = false;
 
   dataArray.forEach((player) => {
+    if (eliminatedPlayer) return;
     const angleRad = degToRad(player.direction);
     const endX = player.x + laserLength * Math.cos(angleRad);
     const endY = player.y + laserLength * Math.sin(angleRad);
@@ -152,15 +159,34 @@ const generateLaserLine = async (dataArray: PLD[], laserLength: number) => {
         console.log(
           `Player ${hitBox.player} is hit by laser from ${player.playerId}!`
         );
-        eliminatePlayer(hitBox.player); // Use hitBox.player as the target player ID
+        eliminatePlayer(hitBox.player, database, roomCode, player.playerId); // Use hitBox.player as the target player ID
+        eliminatedPlayer = true;
+        return;
       }
     });
   });
   return laserData;
 };
 
-const eliminatePlayer = async (playerId: string) => {
-  console.log("Eliminating player: ${playerId}");
+const eliminatePlayer = async (
+  playerId: string,
+  database: any,
+  roomCode: any,
+  winnerPlayer: any
+) => {
+  console.log(`Eliminating player: ${playerId}`);
+  const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+  await update(playerRef, { eliminated: true });
+
+  const winnerPlayerRef = ref(
+    database,
+    `rooms/${roomCode}/players/${winnerPlayer}`
+  );
+  const winnerPlayerInfo = await get(winnerPlayerRef);
+  if (winnerPlayerInfo.exists()) {
+    const winnerPlayerData = winnerPlayerInfo.val();
+    await update(winnerPlayerRef, { points: winnerPlayerData.points + 1 });
+  }
 };
 
 const getHitBox = (dataArray: PLD[]) => {

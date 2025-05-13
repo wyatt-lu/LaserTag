@@ -80,7 +80,7 @@ export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
-  const BOUNDARY_SIZE = { length: 10, width: 10 }; // meters
+  const BOUNDARY_SIZE = { length: 100, width: 100 }; // meters
   const PLAYER_HIT_BOX_SIZE = { height: 15, width: 15 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
@@ -437,9 +437,7 @@ export default function PlayScreen() {
           updatedPlayersList.push(player);
         }
         setPlayerArray(updatedPlayersList);
-      } catch (error) {
-        console.log(error);
-      }
+      } catch (error) {}
     });
     return () => {
       unsubscribe();

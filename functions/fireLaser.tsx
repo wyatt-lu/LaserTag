@@ -5,6 +5,7 @@ type PLD = {
   direction: number;
   x: number;
   y: number;
+  team: number;
 };
 type Box = {
   player: string;
@@ -26,25 +27,22 @@ export async function fireLaser(
   roomCode: any,
   LASER_LENGTH: number
 ) {
-  console.log("entered fireLaser");
   const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
   const roomPlayerInfo = await get(roomPlayerRef);
-  const roomsgklj = roomPlayerInfo.val();
-  if (!roomsgklj) {
-    console.log("No player data found in Firebase");
+  const roomsData = roomPlayerInfo.val();
+  if (!roomsData) {
     return;
   }
   let playerLaserData: PLD[] = [];
   //const [playerLaserData, setPlayerLaserData] = useState<PLD[]>([]);
-  Object.entries(roomsgklj).forEach(([playerId, roomData]) => {
-    console.log("inside first loop");
+  Object.entries(roomsData).forEach(([playerId, roomData]) => {
     console.log(`Player ID: ${playerId}`);
     //initialize vars outside
-    let curDir, curX, curY;
+    let curDir, curX, curY, curTeam;
     // Loop through each property of the player
     Object.entries(roomData as { [key: string]: any }).forEach(
       ([key, value]) => {
-        console.log(`${key}: ${value}`);
+        //console.log(`${key}: ${value}`);
         if (key === "direction") {
           curDir = value;
         }
@@ -60,15 +58,18 @@ export async function fireLaser(
             }
           );
         }
+        if (key === "team") {
+          curTeam = value;
+        }
       });
-    console.log(`Direction: ${curDir}, X: ${curX}, Y: ${curY}`);
-    if (curDir != null && curX != null && curY != null) {
-      console.log("condition met: adding data to player-laser state");
+    if (curDir != null && curX != null && curY != null && curTeam != null) {
+      //console.log("condition met: adding data to player-laser state");
       const fireCoords = {
         playerId: playerId,
         direction: curDir,
         x: curX,
         y: curY,
+        team: curTeam,
       };
       //update state and add data to array
       //setPlayerLaserData((prevData) => [...prevData, fireCoords]);
@@ -78,10 +79,10 @@ export async function fireLaser(
   //generateLaserLine(playerLaserData);
   //Now call generateLaserLine once after all the data is collected
   if (playerLaserData.length > 0) {
-    console.log("Generated playerLaserData: ", playerLaserData);
+   //console.log("Generated playerLaserData: ", playerLaserData);
     generateLaserLine(playerLaserData, LASER_LENGTH, database, roomCode);
   } else {
-    console.log("No valid player data collected");
+    //console.log("No valid player data collected");
   }
 }
 
@@ -142,7 +143,7 @@ const generateLaserLine = async (
       endX: endX,
       endY: endY,
     });
-    boxList.forEach((hitBox) => {
+    boxList.forEach(async (hitBox) => {
       if (
         checkIntersection(
           player.x,
@@ -154,10 +155,18 @@ const generateLaserLine = async (
           hitBox.width,
           hitBox.height
         )
+        && hitBox.player != player.playerId
       ) {
-        console.log(
-          `Player ${hitBox.player} is hit by laser from ${player.playerId}!`
-        );
+        console.log("hitBox", hitBox);
+        console.log("player", player);
+        const hitBoxPlayerRef = ref(database, `rooms/${roomCode}/players/${hitBox.player}`)
+        const hitBoxPlayerInfo = await get(hitBoxPlayerRef);
+        const hitBoxPlayerData = hitBoxPlayerInfo.val();
+        console.log("hitBoxPlayerData",hitBoxPlayerData)
+        if (!hitBoxPlayerData.exists) return;
+        console.log("hitboxhello", hitBoxPlayerData.team);
+        console.log("hitboxhello", player.team);
+        if (hitBoxPlayerData.team == player.team) return;
         eliminatePlayer(hitBox.player, database, roomCode, player.playerId); // Use hitBox.player as the target player ID
         eliminatedPlayer = true;
         return;

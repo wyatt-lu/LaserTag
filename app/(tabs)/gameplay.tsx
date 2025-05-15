@@ -184,7 +184,7 @@ export default function PlayScreen() {
       setUserPowerUps([]);
 
       if (roomData.gameReady) {
-        startGameTimer(20);
+        startGameTimer(1000);
         if (mapRef.current) {
           setTimeout(() => {
             mapRef.current?.animateToRegion(
@@ -1029,8 +1029,6 @@ export default function PlayScreen() {
     setGameTime(durationInSeconds);
     setIsTimerRunning(true);
   };
-
-  console.log("playerArray, ", playerArray)
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>

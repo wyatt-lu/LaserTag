@@ -97,8 +97,6 @@ export default function PlayScreen() {
   ]);
   // Set State Variable to Game (used state based on Firebase)
   // State Variable: Lobby, Game
-  // const [gameState, setGameState] = useState<"lobby" | "game" | null>(null);
-  // type GameStateType = "in-game" | "end-game" | "return" | null;
   const [gameState, setGameState] = useState<
     "in-game" | "end-game" | "return" | null
   >(null);

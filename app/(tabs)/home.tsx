@@ -139,13 +139,13 @@ export default function HomeScreen() {
     const laserRef = ref(database, `players/${auth.currentUser.uid}/laser`);
     const laserData = await get(laserRef);
 
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== "granted") {
-        console.log("Permission to access location was denied");
-        return;
-      }
-  
-      let hostLocation = await Location.getCurrentPositionAsync({});
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.log("Permission to access location was denied");
+      return;
+    }
+
+    let hostLocation = await Location.getCurrentPositionAsync({});
 
     await set(roomRef, {
       host: auth.currentUser.uid,
@@ -239,14 +239,14 @@ export default function HomeScreen() {
 
     await update(ref(database, `rooms/${roomCode}/players`), {
       [auth.currentUser.uid]: {
-          username: auth.currentUser.displayName,
-          ready: false,
-          team: 1,
-          laser: laserData.val(),
-          cowboyHat: false,
-          eliminated: false,
-          points: 0,
-          colorId: newColorId,
+        username: auth.currentUser.displayName,
+        ready: false,
+        team: 1,
+        laser: laserData.val(),
+        cowboyHat: false,
+        eliminated: false,
+        points: 0,
+        colorId: newColorId,
       },
     });
 
@@ -285,7 +285,7 @@ export default function HomeScreen() {
     const roomRef = ref(database, `rooms/${roomCode}`);
 
     await update(roomRef, {
-      gameStarted: true
+      gameStarted: true,
     });
   };
 
@@ -316,7 +316,6 @@ export default function HomeScreen() {
 
   const openSettings = () => {
     setIsSettingsVisible(true);
-    console.log("isSettingsVisible", isSettingsVisible);
   };
   const closeSettings = () => setIsSettingsVisible(false);
 
@@ -533,11 +532,12 @@ export default function HomeScreen() {
             visible={isLobbyVisible}
             roomCode={roomCode}
             beginReadyGame={beginReadyGame}
-          enterGame={enterGame}
-          closeLobby={() => {
-            closeLobby();
-            handleLeave();
-          }}/>
+            enterGame={enterGame}
+            closeLobby={() => {
+              closeLobby();
+              handleLeave();
+            }}
+          />
         )}
       </>
 

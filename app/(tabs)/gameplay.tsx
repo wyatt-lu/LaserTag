@@ -80,7 +80,7 @@ export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
-  const BOUNDARY_SIZE = { length: 10, width: 10 }; // meters
+  const BOUNDARY_SIZE = { length: 100, width: 100 }; // meters
   const PLAYER_HIT_BOX_SIZE = { height: 15, width: 15 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
@@ -460,24 +460,6 @@ export default function PlayScreen() {
   }
 
   const [playerHitBox, setPlayerHitBox] = useState<Box>();
-
-  const getHitBox = (dataArray: PLD[]) => {
-    const boxList: Box[] = [];
-    let x, y;
-    dataArray.forEach((player) => {
-      x = player.x;
-      y = player.y;
-      const hitBox = {
-        player: player.playerId,
-        x: x - 1,
-        y: y - 1,
-        width: PLAYER_HIT_BOX_SIZE.width,
-        height: PLAYER_HIT_BOX_SIZE.height,
-      };
-      boxList.push(hitBox);
-    });
-    return boxList;
-  };
 
   const inHitBox = async (powerup: PowerUp, player: Box) => {
     if (!auth.currentUser) return;
@@ -1052,6 +1034,7 @@ export default function PlayScreen() {
     setIsTimerRunning(true);
   };
 
+  console.log("playerArray, ", playerArray)
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>

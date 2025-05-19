@@ -157,15 +157,10 @@ const generateLaserLine = async (
         )
         && hitBox.player != player.playerId
       ) {
-        console.log("hitBox", hitBox.player);
-        console.log("player", player.playerId);
         const hitBoxPlayerRef = ref(database, `rooms/${roomCode}/players/${hitBox.player}`)
         const hitBoxPlayerInfo = await get(hitBoxPlayerRef);
         if (!hitBoxPlayerInfo.exists()) return;
         const hitBoxPlayerData = hitBoxPlayerInfo.val();
-        console.log("hitBoxPlayerData",hitBoxPlayerData)
-        console.log("hitboxhello", hitBoxPlayerData.team);
-        console.log("hitboxhello", player.team);
         if (hitBoxPlayerData.team == player.team) return;
         eliminatePlayer(hitBox.player, database, roomCode, player.playerId); // Use hitBox.player as the target player ID
         eliminatedPlayer = true;

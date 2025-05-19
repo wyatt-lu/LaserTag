@@ -81,7 +81,7 @@ export default function PlayScreen() {
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
   const BOUNDARY_SIZE = { length: 100, width: 100 }; // meters
-  const PLAYER_HIT_BOX_SIZE = { height: 15, width: 15 };
+  const PLAYER_HIT_BOX_SIZE = { height: 5, width: 5 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
@@ -345,6 +345,7 @@ export default function PlayScreen() {
     const cartesian = latLngToCartesian({ latitude, longitude }, center);
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    outOfBounds(cartesian.x, cartesian.y);
     setPlayerHitBox({
       player: auth.currentUser.uid,
       x: cartesian.x,
@@ -360,6 +361,17 @@ export default function PlayScreen() {
     }
   };
 
+  //Remove user from game if they leave the boundary
+
+  const outOfBounds = (async (x: number, y: number) => {
+    if ((x>BOUNDARY_SIZE.width || x<-BOUNDARY_SIZE.width)
+      ||(y>BOUNDARY_SIZE.length || y<-BOUNDARY_SIZE.length)){
+        if (!auth.currentUser) return;
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+      await update(playerRef, {eliminated: true});
+    }
+  });
   // Get PlayerURL from Firebase (storage as URL)
 
   const storage = getStorage();
@@ -481,12 +493,6 @@ export default function PlayScreen() {
   // Determine if Player is Hit (straight line laser, big hit box)
 
   // Generate Powerups
-  type PLD = {
-    playerId: string;
-    direction: number;
-    x: number;
-    y: number;
-  };
 
   type PowerUp = {
     id: string;
@@ -522,6 +528,10 @@ export default function PlayScreen() {
     const maxLat = boundary[0].latitude;
     const minLng = boundary[3].longitude;
     const maxLng = boundary[1].longitude;
+    // console.log("minLat", minLat);
+    // console.log("maxLat", maxLat);
+    // console.log("minLng", minLng);
+    // console.log("maxLng", maxLng);
     const randLatLng = {
       latitude: Math.random() * (maxLat - minLat) + minLat,
       longitude: Math.random() * (maxLng - minLng) + minLng,

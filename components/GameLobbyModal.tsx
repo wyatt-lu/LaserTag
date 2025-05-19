@@ -25,7 +25,6 @@ interface Player {
 
 interface RoomInfo {
   host: string;
-  roomType: string;
   players: { [key: string]: Player };
   gameStarted?: boolean;
   gameReady?: boolean;
@@ -91,7 +90,6 @@ export default function GameLobbyModal({
   }
 
   const handleTeamChange = (playerId: string) => {
-    if (roomInfo.roomType === "solo") return;
 
     const currentTeam = playerTeams[playerId];
     let newTeam = (currentTeam % numTeams) + 1;
@@ -172,8 +170,7 @@ export default function GameLobbyModal({
           </TouchableOpacity>
         </View>
         <RopeIcon style={styles.rope} width={"100%"} />
-        {auth.currentUser?.uid === roomInfo.host &&
-          roomInfo.roomType !== "solo" && (
+        {auth.currentUser?.uid === roomInfo.host && (
             <View style={styles.sliderContainer}>
               <AppText style={{ fontSize: 17 }}>
                 Select Number of Teams:
@@ -229,11 +226,9 @@ export default function GameLobbyModal({
                     }
                   >
                     <AppText>{player.username}</AppText>
-                    {roomInfo.roomType !== "solo" && (
                       <AppText style={{ marginLeft: 10 }}>
                         [Team {playerTeams[playerId]}]
                       </AppText>
-                    )}
                   </Pressable>
                   {isReady && <AppText style={styles.readyText}>Ready</AppText>}
                 </View>

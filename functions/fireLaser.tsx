@@ -181,7 +181,12 @@ const eliminatePlayer = async (
   console.log(`Eliminating player: ${playerId}`);
   const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
   await update(playerRef, { eliminated: true });
-  
+  const playerInfo = await get(playerRef);
+  if (!playerInfo.exists()) return;
+  const playerData = playerInfo.val();
+  //player eliminated is fake, DON'T reward user
+  if (playerData.fake) return;
+
   //set game points
   const winnerPlayerRef = ref(
     database,

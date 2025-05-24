@@ -80,7 +80,6 @@ export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
-  const BOUNDARY_SIZE = { length: 100, width: 100 }; // meters
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
@@ -95,6 +94,10 @@ export default function PlayScreen() {
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
   ]);
+  const [boundarySize, setBoundarySize] = useState<any>({
+    width: 0,
+    height: 0,
+  })
   // Set State Variable to Game (used state based on Firebase)
   // State Variable: Lobby, Game
   const [gameState, setGameState] = useState<
@@ -177,8 +180,11 @@ export default function PlayScreen() {
       const roomInfo = await get(roomRef);
       if (!roomInfo.exists()) return;
       const roomData = roomInfo.val();
+      let boundaryWidth = roomData.boundarySize.width;
+      let boundaryHeight = roomData.boundarySize.height;
       let tempCenter = roomData.initialLocation;
       setCenter(tempCenter);
+      setBoundarySize({width: boundaryWidth, height: boundaryHeight})
 
       setPowerUps([]);
       setUserPowerUps([]);
@@ -202,41 +208,41 @@ export default function PlayScreen() {
       setBoundary([
         {
           latitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
+            { x: boundaryWidth / 2, y: -boundaryHeight / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
+            { x: boundaryWidth / 2, y: -boundaryHeight / 2 },
             tempCenter
           ).longitude,
         },
         {
           latitude: cartesianToLatLng(
-            { x: -BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
+            { x: -boundaryWidth / 2, y: -boundaryHeight / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: -BOUNDARY_SIZE.width / 2, y: -BOUNDARY_SIZE.length / 2 },
+            { x: -boundaryWidth / 2, y: -boundaryHeight / 2 },
             tempCenter
           ).longitude,
         },
         {
           latitude: cartesianToLatLng(
-            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            { x: -boundaryWidth / 2, y: boundaryHeight / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: -BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            { x: -boundaryWidth / 2, y: boundaryHeight / 2 },
             tempCenter
           ).longitude,
         },
         {
           latitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            { x: boundaryWidth / 2, y: boundaryHeight / 2 },
             tempCenter
           ).latitude,
           longitude: cartesianToLatLng(
-            { x: BOUNDARY_SIZE.width / 2, y: BOUNDARY_SIZE.length / 2 },
+            { x: boundaryWidth / 2, y: boundaryHeight / 2 },
             tempCenter
           ).longitude,
         },
@@ -364,8 +370,8 @@ export default function PlayScreen() {
   //Remove user from game if they leave the boundary
 
   const outOfBounds = (async (x: number, y: number) => {
-    if ((x>BOUNDARY_SIZE.width || x<-BOUNDARY_SIZE.width)
-      ||(y>BOUNDARY_SIZE.length || y<-BOUNDARY_SIZE.length)){
+    if ((x>boundarySize.width || x<-boundarySize.width)
+      ||(y>boundarySize.height || y<-boundarySize.height)){
         if (!auth.currentUser) return;
       const playerId = auth.currentUser.uid;
       const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
@@ -1171,7 +1177,7 @@ export default function PlayScreen() {
         >
         </View>
       </View>
-      
+
       {location?.coords?.latitude && location?.coords?.longitude ? (
         <MapView
           ref={mapRef}

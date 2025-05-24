@@ -49,6 +49,10 @@ export default function GameLobbyModal({
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
   const [numTeams, setNumTeams] = useState(1);
+  const maxBoundary = 1000;
+  const minBoundary = 100;
+  const [boundaryWidth, setBoundaryWidth] = useState<number>(100);
+  const [boundaryHeight, setBoundaryHeight] = useState<number>(100);
 
   useEffect(() => {
     if (roomCode) {
@@ -150,6 +154,40 @@ export default function GameLobbyModal({
     }
   };
 
+  //Change boundary sizes
+  
+  const handleBoundaryWidthChange = (newBoundary: number) => {
+    if (newBoundary < minBoundary) {
+      Alert.alert(
+        "Error",
+        "Cannot reduce the boundary size below the current assignments."
+      );
+      return;
+    }
+    setBoundaryWidth(newBoundary);
+    const roomRef = ref(database, `rooms/${roomCode}/boundarySize`);
+    update(roomRef, {
+      width: newBoundary,
+    }).catch((error) => {
+      console.error("Error updating boundary size:", error);
+    });
+  };
+  const handleBoundaryHeightChange = (newBoundary: number) => {
+    if (newBoundary < minBoundary) {
+      Alert.alert(
+        "Error",
+        "Cannot reduce the boundary size below the current assignments."
+      );
+      return;
+    }
+    setBoundaryHeight(newBoundary);
+    const roomRef = ref(database, `rooms/${roomCode}/boundarySize`);
+    update(roomRef, {
+      height: newBoundary,
+    }).catch((error) => {
+      console.error("Error updating boundary size:", error);
+    });
+  };
   return (
     <Modal visible={visible} animationType="slide">
       <View style={globalStyles.container}>
@@ -169,14 +207,17 @@ export default function GameLobbyModal({
             <AppText style={styles.code}>{roomCode}</AppText>
           </TouchableOpacity>
         </View>
+
         <RopeIcon style={styles.rope} width={"100%"} />
-        {auth.currentUser?.uid === roomInfo.host && (
+
+        <View style={styles.sliders}>
+          {auth.currentUser?.uid === roomInfo.host && (
             <View style={styles.sliderContainer}>
-              <AppText style={{ fontSize: 17 }}>
-                Select Number of Teams:
+              <AppText style={{ fontSize: 15 }}>
+                Number of Teams:
               </AppText>
               <SliderComponent
-                style={{ width: 200, height: 40 }}
+                style={{ width: 160 }}
                 minimumValue={1}
                 maximumValue={Object.keys(roomInfo.players).length}
                 step={1}
@@ -186,6 +227,32 @@ export default function GameLobbyModal({
               <AppText>Number of Teams: {numTeams}</AppText>
             </View>
           )}
+          
+          {auth.currentUser?.uid === roomInfo.host && (
+            <View style={styles.sliderContainer}>
+              <AppText style={{ fontSize: 15 }}>
+                Boundary Width (x), Height (y):
+              </AppText>
+              <SliderComponent
+                style={{ width: 160 }}
+                minimumValue={minBoundary}
+                maximumValue={maxBoundary}
+                step={25}
+                value={boundaryWidth}
+                onValueChange={handleBoundaryWidthChange}
+              />
+              <SliderComponent
+                style={{ width: 160 }}
+                minimumValue={minBoundary}
+                maximumValue={maxBoundary}
+                step={25}
+                value={boundaryHeight}
+                onValueChange={handleBoundaryHeightChange}
+              />
+              <AppText>Boundary Size: {boundaryWidth} x {boundaryHeight}</AppText>
+            </View>
+          )}
+        </View>
         <View style={styles.middleContainer}>
           {Object.keys(roomInfo.players)
             .sort((a, b) => {
@@ -235,7 +302,6 @@ export default function GameLobbyModal({
               );
             })}
         </View>
-
         <View style={styles.bottomContainer}>
           {roomInfo.gameStarted ? (
             Object.keys(roomInfo.players).map((playerId) => {
@@ -322,7 +388,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   sliderContainer: {
-    width: "80%",
+    width: "40%",
     alignItems: "center",
   },
   readyText: {
@@ -343,5 +409,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     flexDirection: "row",
     position: "absolute",
+  },
+  sliders: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%"
   },
 });

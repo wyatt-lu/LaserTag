@@ -170,6 +170,10 @@ export default function HomeScreen() {
         latitude: hostLocation.coords.latitude,
         longitude: hostLocation.coords.longitude,
       },
+      boundarySize: {
+        width: 100,
+        height: 100,
+      },
       players: {
         [auth.currentUser.uid]: {
           username: auth.currentUser.displayName,

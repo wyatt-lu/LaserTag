@@ -1171,6 +1171,7 @@ export default function PlayScreen() {
         >
         </View>
       </View>
+      
       {location?.coords?.latitude && location?.coords?.longitude ? (
         <MapView
           ref={mapRef}
@@ -1235,81 +1236,82 @@ export default function PlayScreen() {
         snapPoints={snapPoints}
         enableDynamicSizing={false}
       >
-        <BottomSheetView style={styles.contentContainer}>
-          <ReusableButton
-            label="Fire"
-            onPress={() => fireLaser(database, roomCode, LASER_LENGTH)}
-          />
-          <ReusableButton
-            label="Player List"
-            onPress={() => setPlayerListModal(true)}
-          />
-          <AppText>Inventory</AppText>
+        
+      <BottomSheetView style={styles.contentContainer}>
+        <ReusableButton
+          label="Fire"
+          onPress={() => fireLaser(database, roomCode, LASER_LENGTH)}
+        />
+        <ReusableButton
+          label="Player List"
+          onPress={() => setPlayerListModal(true)}
+        />
+        <AppText>Inventory</AppText>
 
-          <FlatList
-            data={userPowerUps}
-            keyExtractor={(item) => item.type}
-            renderItem={renderPowerUpItem}
-            numColumns={3}
-            style={styles.powerUpList}
-          />
+        <FlatList
+          data={userPowerUps}
+          keyExtractor={(item) => item.type}
+          renderItem={renderPowerUpItem}
+          numColumns={3}
+          style={styles.powerUpList}
+        />
 
-          <Modal visible={cactusModalVisible} animationType="slide">
-            {location ? (
-              <View style={{ flex: 1 }}>
-                <MapView
-                  style={{ flex: 1 }}
-                  initialRegion={{
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                    latitudeDelta: 0.002222,
-                    longitudeDelta: 0.001521,
-                  }}
-                  mapType="hybrid"
-                  showsScale
-                  rotateEnabled={false}
-                  loadingEnabled
-                  zoomEnabled
-                  onPress={cactusMapPress}
-                >
-                  <Polygon
-                    coordinates={boundary}
-                    strokeColor="#FF0000"
-                    strokeWidth={2}
-                    fillColor="#FF000040"
-                  />
-                  {selectedCactusLocation && (
-                    <Marker
-                      coordinate={cartesianToLatLng(
-                        selectedCactusLocation,
-                        center
-                      )}
-                    >
-                      <CactusIcon width={30} height={30} />
-                    </Marker>
-                  )}
-                </MapView>
+        <Modal visible={cactusModalVisible} animationType="slide">
+          {location ? (
+            <View style={{ flex: 1 }}>
+              <MapView
+                style={{ flex: 1 }}
+                initialRegion={{
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                  latitudeDelta: 0.002222,
+                  longitudeDelta: 0.001521,
+                }}
+                mapType="hybrid"
+                showsScale
+                rotateEnabled={false}
+                loadingEnabled
+                zoomEnabled
+                onPress={cactusMapPress}
+              >
+                <Polygon
+                  coordinates={boundary}
+                  strokeColor="#FF0000"
+                  strokeWidth={2}
+                  fillColor="#FF000040"
+                />
+                {selectedCactusLocation && (
+                  <Marker
+                    coordinate={cartesianToLatLng(
+                      selectedCactusLocation,
+                      center
+                    )}
+                  >
+                    <CactusIcon width={30} height={30} />
+                  </Marker>
+                )}
+              </MapView>
 
-                {/* Buttons on top of the map */}
-                <View
-                  style={{
-                    position: "absolute",
-                    bottom: 20,
-                    alignSelf: "center",
-                  }}
-                >
-                  <ReusableButton label="Confirm" onPress={handleConfirm} />
-                  <ReusableButton
-                    label="Cancel"
-                    onPress={() => setCactusModalVisible(false)}
-                  />
-                </View>
+              {/* Buttons on top of the map */}
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 20,
+                  alignSelf: "center",
+                }}
+              >
+                <ReusableButton label="Confirm" onPress={handleConfirm} />
+                <ReusableButton
+                  label="Cancel"
+                  onPress={() => setCactusModalVisible(false)}
+                />
               </View>
-            ) : (
-              <Text>Loading cactus...</Text>
-            )}
-          </Modal>
-        </BottomSheetView>
+            </View>
+          ) : (
+            <Text>Loading cactus...</Text>
+          )}
+        </Modal>
+      </BottomSheetView>
 
       <TouchableOpacity onPress={resetGame} style={styles.exit}>
         <AppText>Exit Game</AppText>

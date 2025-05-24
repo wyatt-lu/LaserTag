@@ -57,7 +57,22 @@ export default function HomeScreen() {
   const closeInput = () => setIsCodeInputVisible(false);
 
   const [roomInfo, setRoomInfo] = useState<any>();
+  
+  const [points, setPoints] = useState<number>();
 
+  useEffect(() => {
+  const getTotalPoints = (async ()=>{
+    if (!auth.currentUser) return;
+    const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+    const playerInfo = await get(playerRef);
+    if (!playerInfo.exists()) return;
+    const playerData = playerInfo.val();
+    setPoints(playerData.points);
+    console.log("points" + playerData.points);
+  });
+  getTotalPoints();
+  }, []);
+  
   useEffect(() => {
     if (!roomCode) return;
 
@@ -449,6 +464,8 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={globalStyles.container}>
+
+      <AppText style={settingsStyles.points}>Points: {points}</AppText>
       {/* // SETTINGS PAGE // */}
       <View style={[settingsStyles.topContainer, { position: "absolute" }]}>
         <TouchableOpacity onPress={openSettings}>
@@ -492,7 +509,6 @@ export default function HomeScreen() {
           </View>
 
           <AppText style={settingsStyles.username}>{username}</AppText>
-
           <ReusableButton
             label="Choose Profile"
             theme="pfp"
@@ -621,5 +637,17 @@ const settingsStyles = StyleSheet.create({
   username: {
     marginBottom: 20,
     fontSize: 20,
+  },
+  points: {
+    position: 'absolute',
+    top: 54,
+    left: 20,
+    fontSize: 20,
+    color: '#3a160e',
+    fontWeight: 'bold',
+    zIndex: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 5,
   },
 });

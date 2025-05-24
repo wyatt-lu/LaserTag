@@ -81,7 +81,7 @@ export default function PlayScreen() {
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
   const BOUNDARY_SIZE = { length: 100, width: 100 }; // meters
-  const PLAYER_HIT_BOX_SIZE = { height: 5, width: 5 };
+  const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
@@ -897,7 +897,7 @@ export default function PlayScreen() {
 
   const handleSnapPress = useCallback(() => {
     if (isBottomSheetOpen) {
-      sheetRef.current?.close();
+      sheetRef.current?.snapToIndex(0);
     } else {
       sheetRef.current?.snapToIndex(2);
     }
@@ -1039,6 +1039,73 @@ export default function PlayScreen() {
     setGameTime(durationInSeconds);
     setIsTimerRunning(true);
   };
+
+  const resetGame = async () => {
+      if (!auth.currentUser) return;
+  
+      const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+      const playerSnapshot = await get(playerRef);
+  
+      if (playerSnapshot.exists()) {
+        const playerData = playerSnapshot.val();
+        await update(playerRef, { room: null });
+        if (playerData.room !== null) {
+          const roomRef = ref(database, `rooms/${playerData.room}`);
+          const roomSnapshot = await get(roomRef);
+          if (roomSnapshot.exists()) {
+            const roomData = roomSnapshot.val();
+            if (roomData.host === auth.currentUser.uid) {
+              await remove(roomRef);
+            } else {
+              await remove(
+                ref(
+                  database,
+                  `rooms/${playerData.room}/players/${auth.currentUser.uid}`
+                )
+              );
+            }
+          }
+        }
+      }
+  
+      // clear the interval that generates power-ups
+      if (generatePowerUpIntervalRef.current) {
+        clearInterval(generatePowerUpIntervalRef.current);
+      }
+      setBoundary([
+        { latitude: 0, longitude: 0 },
+        { latitude: 0, longitude: 0 },
+        { latitude: 0, longitude: 0 },
+        { latitude: 0, longitude: 0 },
+      ]);
+      //or null, idk
+      setGameState(null);
+      setLocation(undefined);
+      //setlocation --> nothing?
+      setMagnetometerData({ x: 0, y: 0, z: 0,
+      });
+      setPlayersURL([]);
+      setPlayerArray([]);
+      setUserPowerUps([]);
+      setPlayerHitBox(undefined);
+      setPowerUps([]);
+      setUserPowerUps([]);
+      setActiveCactusId(null);
+      setCactusModalVisible(false);
+      setSelectedCactusLocation({x: 0, y: 0});
+      setIsBottomSheetOpen(false);
+      setPlayerListModal(false);
+      setGameTime(0);
+      setTimeRemaining(0);
+      setIsTimerRunning(false);
+      setTimeout(() => {
+        router.replace("/(tabs)/home");
+      });
+      const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+      set(gameStateRef, "return");
+      sheetRef.current?.snapToIndex(0);
+    };
+    
   return (
     <GestureHandlerRootView style={styles.container}>
       <View style={styles.topButtonsContainer}>
@@ -1046,11 +1113,22 @@ export default function PlayScreen() {
           <View
             style={[
               styles.button,
-              { aspectRatio: 1, borderRadius: 30, padding: 10 },
+              { width: 50, height: 50, borderRadius: 30, padding: 10 },
             ]}
           >
             <TouchableOpacity onPress={handleSnapPress}>
               <FontAwesome name="gear" size={26} style={styles.buttonIcon} />
+            </TouchableOpacity>
+          </View>
+
+          <View
+            style={[
+              styles.button,
+              { width: 50, height: 50, borderRadius: 30, padding: 15 },
+            ]}
+          >
+            <TouchableOpacity onPress={focusOnUserLocation}>
+              <FontAwesome name="map" size={26} style={styles.buttonIcon} />
             </TouchableOpacity>
           </View>
           <View style={styles.button}>
@@ -1091,16 +1169,6 @@ export default function PlayScreen() {
             { justifyContent: "flex-end" },
           ]}
         >
-          <View
-            style={[
-              styles.button,
-              { aspectRatio: 1, borderRadius: 30, padding: 15 },
-            ]}
-          >
-            <TouchableOpacity onPress={focusOnUserLocation}>
-              <FontAwesome name="map" size={26} style={styles.buttonIcon} />
-            </TouchableOpacity>
-          </View>
         </View>
       </View>
       {location?.coords?.latitude && location?.coords?.longitude ? (
@@ -1242,6 +1310,10 @@ export default function PlayScreen() {
             )}
           </Modal>
         </BottomSheetView>
+
+      <TouchableOpacity onPress={resetGame} style={styles.exit}>
+        <AppText>Exit Game</AppText>
+      </TouchableOpacity>
       </BottomSheet>
 
       <PlayerListModal

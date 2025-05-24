@@ -24,11 +24,11 @@ export const styles = StyleSheet.create({
     top: 50,
     zIndex: 1,
     width: "100%",
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
   },
   topButtonsContainerRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-evenly",
     width: "100%",
   },
   map: {
@@ -78,7 +78,7 @@ export const styles = StyleSheet.create({
   button: {
     width: "auto",
     backgroundColor: "#3a160e",
-    padding: 20,
+    padding: 10,
     borderRadius: 20,
     alignItems: "center",
     shadowColor: "#3a160e",
@@ -98,8 +98,11 @@ export const styles = StyleSheet.create({
     color: "#faf6ea",
   },
   exit: {
-    bottom: 30,
     position: "absolute",
+    bottom: 30,
+    left: 0,
+    right: 0,
+    alignItems: "center",
   },
   powerUpItem: {
     padding: 10,

@@ -116,7 +116,7 @@ export default function PlayScreen() {
   const [boundarySize, setBoundarySize] = useState<any>({
     width: 0,
     height: 0,
-  })
+  });
   // Set State Variable to Game (used state based on Firebase)
   // State Variable: Lobby, Game
   const [gameState, setGameState] = useState<
@@ -203,7 +203,7 @@ export default function PlayScreen() {
       let boundaryHeight = roomData.boundarySize.height;
       let tempCenter = roomData.initialLocation;
       setCenter(tempCenter);
-      setBoundarySize({width: boundaryWidth, height: boundaryHeight})
+      setBoundarySize({ width: boundaryWidth, height: boundaryHeight });
 
       setPowerUps([]);
       setUserPowerUps([]);
@@ -1054,71 +1054,86 @@ export default function PlayScreen() {
   };
 
   const resetGame = async () => {
-      if (!auth.currentUser) return;
-  
-      const playerRef = ref(database, `players/${auth.currentUser.uid}`);
-      const playerSnapshot = await get(playerRef);
-  
-      if (playerSnapshot.exists()) {
-        const playerData = playerSnapshot.val();
-        await update(playerRef, { room: null });
-        if (playerData.room !== null) {
-          const roomRef = ref(database, `rooms/${playerData.room}`);
-          const roomSnapshot = await get(roomRef);
-          if (roomSnapshot.exists()) {
-            const roomData = roomSnapshot.val();
-            if (roomData.host === auth.currentUser.uid) {
-              await remove(roomRef);
-            } else {
-              await remove(
-                ref(
-                  database,
-                  `rooms/${playerData.room}/players/${auth.currentUser.uid}`
-                )
-              );
-            }
+    if (!auth.currentUser) return;
+
+    const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+    const playerSnapshot = await get(playerRef);
+
+    if (playerSnapshot.exists()) {
+      const playerData = playerSnapshot.val();
+      await update(playerRef, { room: null });
+      if (playerData.room !== null) {
+        const roomRef = ref(database, `rooms/${playerData.room}`);
+        const roomSnapshot = await get(roomRef);
+        if (roomSnapshot.exists()) {
+          const roomData = roomSnapshot.val();
+          if (roomData.host === auth.currentUser.uid) {
+            await remove(roomRef);
+          } else {
+            await remove(
+              ref(
+                database,
+                `rooms/${playerData.room}/players/${auth.currentUser.uid}`
+              )
+            );
           }
         }
       }
-  
-      // clear the interval that generates power-ups
-      if (generatePowerUpIntervalRef.current) {
-        clearInterval(generatePowerUpIntervalRef.current);
-      }
-      setBoundary([
-        { latitude: 0, longitude: 0 },
-        { latitude: 0, longitude: 0 },
-        { latitude: 0, longitude: 0 },
-        { latitude: 0, longitude: 0 },
-      ]);
-      //or null, idk
-      setGameState(null);
-      setLocation(undefined);
-      //setlocation --> nothing?
-      setMagnetometerData({ x: 0, y: 0, z: 0,
-      });
-      setPlayersURL([]);
-      setPlayerArray([]);
-      setUserPowerUps([]);
-      setPlayerHitBox(undefined);
-      setPowerUps([]);
-      setUserPowerUps([]);
-      setActiveCactusId(null);
-      setCactusModalVisible(false);
-      setSelectedCactusLocation({x: 0, y: 0});
-      setIsBottomSheetOpen(false);
-      setPlayerListModal(false);
-      setGameTime(0);
-      setTimeRemaining(0);
-      setIsTimerRunning(false);
-      setTimeout(() => {
-        router.replace("/(tabs)/home");
-      });
-      const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
-      set(gameStateRef, "return");
-      sheetRef.current?.snapToIndex(0);
-    };
-    
+    }
+
+    // clear the interval that generates power-ups
+    if (generatePowerUpIntervalRef.current) {
+      clearInterval(generatePowerUpIntervalRef.current);
+    }
+    setBoundary([
+      { latitude: 0, longitude: 0 },
+      { latitude: 0, longitude: 0 },
+      { latitude: 0, longitude: 0 },
+      { latitude: 0, longitude: 0 },
+    ]);
+    //or null, idk
+    setGameState(null);
+    setLocation(undefined);
+    //setlocation --> nothing?
+    setMagnetometerData({ x: 0, y: 0, z: 0 });
+    setPlayersURL([]);
+    setPlayerArray([]);
+    setUserPowerUps([]);
+    setPlayerHitBox(undefined);
+    setPowerUps([]);
+    setUserPowerUps([]);
+    setActiveCactusId(null);
+    setCactusModalVisible(false);
+    setSelectedCactusLocation({ x: 0, y: 0 });
+    setIsBottomSheetOpen(false);
+    setPlayerListModal(false);
+    setGameTime(0);
+    setTimeRemaining(0);
+    setIsTimerRunning(false);
+    setTimeout(() => {
+      router.replace("/(tabs)/home");
+    });
+    const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+    set(gameStateRef, "return");
+    sheetRef.current?.snapToIndex(0);
+  };
+
+  const [isFireDisabled, setIsFireDisabled] = useState(false);
+  const fireCooldownProgress = useSharedValue(1);
+
+  const fireReloadBarStyle = useAnimatedStyle(() => ({
+    width: `${fireCooldownProgress.value * 100}%`,
+    height: 60,
+    backgroundColor: fireCooldownProgress.value === 1 ? "#de2c4a" : "#968e84",
+    borderRadius: 20,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    padding: 20,
+  }));
+
+  const [isTopSheetVisible, setIsTopSheetVisible] = useState(true);
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={[]}>
@@ -1206,94 +1221,6 @@ export default function PlayScreen() {
                 strokeWidth={2}
                 fillColor="#FF000040"
               />
-    <GestureHandlerRootView style={styles.container}>
-      <View style={styles.topButtonsContainer}>
-        <View style={styles.topButtonsContainerRow}>
-          <View
-            style={[
-              styles.button,
-              { width: 50, height: 50, borderRadius: 30, padding: 10 },
-            ]}
-          >
-            <TouchableOpacity onPress={handleSnapPress}>
-              <FontAwesome name="gear" size={26} style={styles.buttonIcon} />
-            </TouchableOpacity>
-          </View>
-
-          <View
-            style={[
-              styles.button,
-              { width: 50, height: 50, borderRadius: 30, padding: 15 },
-            ]}
-          >
-            <TouchableOpacity onPress={focusOnUserLocation}>
-              <FontAwesome name="map" size={26} style={styles.buttonIcon} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.button}>
-            <Text style={styles.buttonText}>
-              {auth.currentUser?.displayName}
-            </Text>
-            <Text
-              style={[
-                styles.buttonText,
-                {
-                  color: auth.currentUser
-                    ? getTeamColor(
-                        playerArray.find(
-                          (player) => player.id === auth.currentUser?.uid
-                        )?.team || 1
-                      )
-                    : "#FFFFAA",
-                },
-              ]}
-            >
-              {"  "}
-              [TEAM{" "}
-              {playerArray.find((player) => player.id === auth.currentUser?.uid)
-                ?.team || 1}
-              ]
-            </Text>
-          </View>
-        </View>
-        <View style={styles.timerContainer}>
-          <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
-          <View style={styles.timerProgressBackground}>
-            <Animated.View style={progressBarStyle} />
-          </View>
-        </View>
-        <View
-          style={[
-            styles.topButtonsContainerRow,
-            { justifyContent: "flex-end" },
-          ]}
-        >
-        </View>
-      </View>
-
-      {location?.coords?.latitude && location?.coords?.longitude ? (
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            latitudeDelta: 0.002222,
-            longitudeDelta: 0.001521,
-          }}
-          showsScale={true}
-          mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          mapType="hybrid"
-          rotateEnabled={false}
-          loadingEnabled={true}
-          zoomEnabled={true}
-        >
-          <Polygon
-            coordinates={boundary}
-            strokeColor="#FF0000"
-            strokeWidth={2}
-            fillColor="#FF000040"
-          />
 
               {powerUps.map((powerUp) => (
                 <PowerUpMarker
@@ -1369,66 +1296,53 @@ export default function PlayScreen() {
               />
               <View style={styles.bottomSheetDivider} />
               <AppText style={styles.inventoryTitle}>Inventory</AppText>
-      <BottomSheet
-        ref={sheetRef}
-        snapPoints={snapPoints}
-        enableDynamicSizing={false}
-      >
-        
-      <BottomSheetView style={styles.contentContainer}>
-        <ReusableButton
-          label="Fire"
-          onPress={() => fireLaser(database, roomCode, LASER_LENGTH)}
-        />
-        <ReusableButton
-          label="Player List"
-          onPress={() => setPlayerListModal(true)}
-        />
-        <AppText>Inventory</AppText>
 
-        <FlatList
-          data={userPowerUps}
-          keyExtractor={(item) => item.type}
-          renderItem={renderPowerUpItem}
-          numColumns={3}
-          style={styles.powerUpList}
-        />
-
-        <Modal visible={cactusModalVisible} animationType="slide">
-          {location ? (
-            <View style={{ flex: 1 }}>
-              <MapView
-                style={{ flex: 1 }}
-                initialRegion={{
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-                  latitudeDelta: 0.002222,
-                  longitudeDelta: 0.001521,
-                }}
-                mapType="hybrid"
-                showsScale
-                rotateEnabled={false}
-                loadingEnabled
-                zoomEnabled
-                onPress={cactusMapPress}
-              >
-                <Polygon
-                  coordinates={boundary}
-                  strokeColor="#FF0000"
-                  strokeWidth={2}
-                  fillColor="#FF000040"
-                />
-                {selectedCactusLocation && (
-                  <Marker
-                    coordinate={cartesianToLatLng(
-                      selectedCactusLocation,
-                      center
-                    )}
-                  >
-                    <CactusIcon width={30} height={30} />
-                  </Marker>
-                )}
-              </MapView>
+              <FlatList
+                data={userPowerUps}
+                keyExtractor={(item) => item.type}
+                renderItem={renderPowerUpItem}
+                numColumns={3}
+                style={styles.powerUpList}
+              />
+              <View style={styles.bottomSheetDivider} />
+              <TouchableOpacity onPress={resetGame}>
+                <AppText>Exit Game</AppText>
+              </TouchableOpacity>
+              <Modal visible={cactusModalVisible} animationType="slide">
+                {location ? (
+                  <View style={{ flex: 1 }}>
+                    <MapView
+                      style={{ flex: 1 }}
+                      initialRegion={{
+                        latitude: location.coords.latitude,
+                        longitude: location.coords.longitude,
+                        latitudeDelta: 0.002222,
+                        longitudeDelta: 0.001521,
+                      }}
+                      mapType="hybrid"
+                      showsScale
+                      rotateEnabled={false}
+                      loadingEnabled
+                      zoomEnabled
+                      onPress={cactusMapPress}
+                    >
+                      <Polygon
+                        coordinates={boundary}
+                        strokeColor="#FF0000"
+                        strokeWidth={2}
+                        fillColor="#FF000040"
+                      />
+                      {selectedCactusLocation && (
+                        <Marker
+                          coordinate={cartesianToLatLng(
+                            selectedCactusLocation,
+                            center
+                          )}
+                        >
+                          <CactusIcon width={30} height={30} />
+                        </Marker>
+                      )}
+                    </MapView>
 
                     {/* Buttons on top of the map */}
                     <View style={styles.cactusButtonContainer}>
@@ -1450,31 +1364,6 @@ export default function PlayScreen() {
               </Modal>
             </BottomSheetView>
           </BottomSheet>
-              {/* Buttons on top of the map */}
-              <View
-                style={{
-                  position: "absolute",
-                  bottom: 20,
-                  alignSelf: "center",
-                }}
-              >
-                <ReusableButton label="Confirm" onPress={handleConfirm} />
-                <ReusableButton
-                  label="Cancel"
-                  onPress={() => setCactusModalVisible(false)}
-                />
-              </View>
-            </View>
-          ) : (
-            <Text>Loading cactus...</Text>
-          )}
-        </Modal>
-      </BottomSheetView>
-
-      <TouchableOpacity onPress={resetGame} style={styles.exit}>
-        <AppText>Exit Game</AppText>
-      </TouchableOpacity>
-      </BottomSheet>
 
           <PlayerListModal
             visible={isPlayerListModal}

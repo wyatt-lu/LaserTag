@@ -210,7 +210,7 @@ export default function PlayScreen() {
       setUserPowerUps([]);
 
       if (roomData.gameReady) {
-        startGameTimer(1000);
+        startGameTimer(roomData.gameDuration);
         if (mapRef.current) {
           setTimeout(() => {
             mapRef.current?.animateToRegion(
@@ -1135,6 +1135,20 @@ export default function PlayScreen() {
 
   const [isTopSheetVisible, setIsTopSheetVisible] = useState(true);
 
+  const focusOnUserLocation = () => {
+    if (mapRef.current && location) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.002222,
+          longitudeDelta: 0.001521,
+        },
+        1000
+      );
+    }
+  };
+
   return (
     <SafeAreaProvider>
       <StatusBar hidden={true} />
@@ -1161,7 +1175,10 @@ export default function PlayScreen() {
               <>
                 <View style={styles.topButtonsContainerRow}>
                   <View style={styles.iconButtonSpacer} />
-                  <View style={styles.userInfoButton}>
+                  <TouchableOpacity
+                    style={styles.userInfoButton}
+                    onPress={focusOnUserLocation}
+                  >
                     <Text style={styles.buttonText}>
                       {auth.currentUser?.displayName}
                     </Text>
@@ -1187,7 +1204,7 @@ export default function PlayScreen() {
                       )?.team || 1}
                       ]
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.timerContainer}>
                   <Text style={styles.timerText}>
@@ -1215,13 +1232,13 @@ export default function PlayScreen() {
               mapType="hybrid"
               rotateEnabled={false}
               loadingEnabled={true}
-              zoomEnabled={true}
+              zoomEnabled={false}
             >
               <Polygon
                 coordinates={boundary}
                 strokeColor="#FF0000"
-                strokeWidth={2}
-                fillColor="#FF000040"
+                strokeWidth={3}
+                fillColor="rgba(255, 0, 0, 0.1)"
               />
 
               {powerUps.map((powerUp) => (

@@ -58,6 +58,7 @@ export default function GameLobbyModal({
   const minBoundary = 100;
   const [boundaryWidth, setBoundaryWidth] = useState<number>(100);
   const [boundaryHeight, setBoundaryHeight] = useState<number>(100);
+  const [gameDuration, setGameDuration] = useState<number>(600);
 
   useEffect(() => {
     if (roomCode) {
@@ -192,6 +193,25 @@ export default function GameLobbyModal({
       console.error("Error updating boundary size:", error);
     });
   };
+
+  const handleDurationChange = (newDuration: number) => {
+    const roomRef = ref(database, `rooms/${roomCode}`);
+    setGameDuration(newDuration);
+    update(roomRef, {
+      gameDuration: newDuration,
+    }).catch((error) => {
+      console.error("Error updating game duration:", error);
+    });
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
   return (
     <Modal visible={visible} animationType="slide">
       <GestureHandlerRootView>
@@ -230,16 +250,30 @@ export default function GameLobbyModal({
                     value={numTeams}
                     onValueChange={handleNumTeamsChange}
                   />
+                  <AppText style={[styles.sliderLabel, { marginBottom: 21 }]}>
+                    {numTeams} Team{numTeams > 1 ? "s" : ""}
+                  </AppText>
+                  <AppText style={styles.dimensionLabel}>
+                    Game Duration:
+                  </AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={10}
+                    maximumValue={1800}
+                    step={10}
+                    value={gameDuration}
+                    onValueChange={handleDurationChange}
+                  />
                   <AppText style={styles.sliderLabel}>
-                    Number of Teams: {numTeams}
+                    {formatTime(gameDuration)}
                   </AppText>
                 </View>
 
                 <View style={styles.sliderContainer}>
                   <AppText style={styles.sliderLabel}>
-                    Boundary Width (x), Height (y):
+                    Boundary Dimensions:
                   </AppText>
-                  <AppText style={styles.dimensionLabel}>Width:</AppText>
+                  <AppText style={styles.dimensionLabel}>Width (x) :</AppText>
                   <SliderComponent
                     style={styles.slider}
                     minimumValue={minBoundary}
@@ -248,7 +282,7 @@ export default function GameLobbyModal({
                     value={boundaryWidth}
                     onValueChange={handleBoundaryWidthChange}
                   />
-                  <AppText style={styles.dimensionLabel}>Height:</AppText>
+                  <AppText style={styles.dimensionLabel}>Height (y) :</AppText>
                   <SliderComponent
                     style={styles.slider}
                     minimumValue={minBoundary}
@@ -258,7 +292,7 @@ export default function GameLobbyModal({
                     onValueChange={handleBoundaryHeightChange}
                   />
                   <AppText style={styles.sliderLabel}>
-                    Boundary Size: {boundaryWidth} x {boundaryHeight}
+                    {boundaryWidth} x {boundaryHeight}
                   </AppText>
                 </View>
               </View>
@@ -424,7 +458,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   slider: {
-    width: 120,
+    width: 150,
     height: 30,
   },
   playersSection: {

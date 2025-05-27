@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Pressable,
+  Text,
 } from "react-native";
 import ReusableButton from "./ReusableButton";
 import { get, off, onValue, ref, update } from "firebase/database";
@@ -16,6 +17,10 @@ import AppText from "./AppText";
 import * as Clipboard from "expo-clipboard";
 import { RopeIcon } from "@/constants/icons";
 import SliderComponent from "@react-native-community/slider";
+import {
+  GestureHandlerRootView,
+  ScrollView,
+} from "react-native-gesture-handler";
 
 interface Player {
   username: string;
@@ -94,7 +99,6 @@ export default function GameLobbyModal({
   }
 
   const handleTeamChange = (playerId: string) => {
-
     const currentTeam = playerTeams[playerId];
     let newTeam = (currentTeam % numTeams) + 1;
     setPlayerTeams((prev) => ({
@@ -155,7 +159,7 @@ export default function GameLobbyModal({
   };
 
   //Change boundary sizes
-  
+
   const handleBoundaryWidthChange = (newBoundary: number) => {
     if (newBoundary < minBoundary) {
       Alert.alert(
@@ -190,229 +194,290 @@ export default function GameLobbyModal({
   };
   return (
     <Modal visible={visible} animationType="slide">
-      <View style={globalStyles.container}>
-        <View style={styles.topContainer}>
-          <TouchableOpacity onPress={closeLobby}>
-            <IconSymbol name="x.circle.fill" size={60} color={"#3a160e"} />
-          </TouchableOpacity>
-          <AppText>Room Code: </AppText>
-          <TouchableOpacity
-            onPress={async () => {
-              if (roomCode) {
-                await Clipboard.setStringAsync(roomCode);
-                Alert.alert("Room code copied to clipboard.");
-              }
-            }}
-          >
-            <AppText style={styles.code}>{roomCode}</AppText>
-          </TouchableOpacity>
-        </View>
+      <GestureHandlerRootView>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={closeLobby}>
+              <IconSymbol name="x.circle.fill" size={60} color={"#3a160e"} />
+            </TouchableOpacity>
+            <View style={styles.roomCodeContainer}>
+              <AppText style={styles.roomCodeLabel}>Room Code:</AppText>
+              <TouchableOpacity
+                onPress={async () => {
+                  if (roomCode) {
+                    await Clipboard.setStringAsync(roomCode);
+                    Alert.alert("Room code copied to clipboard.");
+                  }
+                }}
+              >
+                <AppText style={styles.code}>{roomCode}</AppText>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        <RopeIcon style={styles.rope} width={"100%"} />
+          <RopeIcon style={styles.rope} width={"100%"} />
 
-        <View style={styles.sliders}>
           {auth.currentUser?.uid === roomInfo.host && (
-            <View style={styles.sliderContainer}>
-              <AppText style={{ fontSize: 15 }}>
-                Number of Teams:
-              </AppText>
-              <SliderComponent
-                style={{ width: 160 }}
-                minimumValue={1}
-                maximumValue={Object.keys(roomInfo.players).length}
-                step={1}
-                value={numTeams}
-                onValueChange={handleNumTeamsChange}
-              />
-              <AppText>Number of Teams: {numTeams}</AppText>
+            <View style={styles.hostControlsSection}>
+              <View style={styles.sliders}>
+                <View style={styles.sliderContainer}>
+                  <AppText style={styles.sliderLabel}>Number of Teams:</AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={1}
+                    maximumValue={Object.keys(roomInfo.players).length}
+                    step={1}
+                    value={numTeams}
+                    onValueChange={handleNumTeamsChange}
+                  />
+                  <AppText style={styles.sliderLabel}>
+                    Number of Teams: {numTeams}
+                  </AppText>
+                </View>
+
+                <View style={styles.sliderContainer}>
+                  <AppText style={styles.sliderLabel}>
+                    Boundary Width (x), Height (y):
+                  </AppText>
+                  <AppText style={styles.dimensionLabel}>Width:</AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={minBoundary}
+                    maximumValue={maxBoundary}
+                    step={25}
+                    value={boundaryWidth}
+                    onValueChange={handleBoundaryWidthChange}
+                  />
+                  <AppText style={styles.dimensionLabel}>Height:</AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={minBoundary}
+                    maximumValue={maxBoundary}
+                    step={25}
+                    value={boundaryHeight}
+                    onValueChange={handleBoundaryHeightChange}
+                  />
+                  <AppText style={styles.sliderLabel}>
+                    Boundary Size: {boundaryWidth} x {boundaryHeight}
+                  </AppText>
+                </View>
+              </View>
             </View>
           )}
-          
-          {auth.currentUser?.uid === roomInfo.host && (
-            <View style={styles.sliderContainer}>
-              <AppText style={{ fontSize: 15 }}>
-                Boundary Width (x), Height (y):
-              </AppText>
-              <SliderComponent
-                style={{ width: 160 }}
-                minimumValue={minBoundary}
-                maximumValue={maxBoundary}
-                step={25}
-                value={boundaryWidth}
-                onValueChange={handleBoundaryWidthChange}
+
+          <View style={styles.playersSection}>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {Object.keys(roomInfo.players)
+                .sort((a, b) => {
+                  if (a === roomInfo.host) return -1;
+                  if (b === roomInfo.host) return 1;
+                  return 0;
+                })
+                .map((playerId) => {
+                  const player = roomInfo.players[playerId];
+                  const teamColors = [
+                    { team: 1, color: "#8baaff" }, //blue
+                    { team: 2, color: "#ffe08b" }, //yellow
+                    { team: 3, color: "#ffbb8b" }, //orange
+                    { team: 4, color: "#bd99e6" }, //purple
+                    { team: 5, color: "#99d199" }, //green
+                    { team: 6, color: "#68dbcc" }, //teal
+                    { team: 7, color: "#e481c8" }, //pink
+                    { team: 8, color: "#ff9090" }, //red
+                  ];
+                  const teamColor =
+                    teamColors.find(
+                      (team) => team.team === playerTeams[playerId]
+                    )?.color || "#8baaff";
+                  const isReady = player.ready === true;
+                  const isHost = playerId === roomInfo.host;
+                  return (
+                    <View key={playerId} style={styles.playerRow}>
+                      <Pressable
+                        style={[
+                          styles.playerContainer,
+                          { backgroundColor: teamColor },
+                        ]}
+                        onPress={
+                          auth.currentUser?.uid === roomInfo.host
+                            ? () => handleTeamChange(playerId)
+                            : undefined
+                        }
+                      >
+                        <AppText style={styles.playerName}>
+                          {player.username}
+                          {""}
+                          <Text style={styles.hostIndicator}>
+                            {isHost && " (Host)"}
+                          </Text>
+                        </AppText>
+                        <AppText style={styles.teamText}>
+                          [Team {playerTeams[playerId]}]
+                        </AppText>
+                      </Pressable>
+                      {isReady && (
+                        <AppText style={styles.readyText}>Ready</AppText>
+                      )}
+                    </View>
+                  );
+                })}
+            </ScrollView>
+          </View>
+
+          <View style={styles.bottomSection}>
+            {roomInfo.gameStarted ? (
+              Object.keys(roomInfo.players).map((playerId) => {
+                const isReady = roomInfo.players[playerId]?.ready === true;
+                const readyLabel = isReady ? "Unready?" : "Ready?";
+                return (
+                  <View key={playerId} style={[styles.readyButton]}>
+                    {auth.currentUser?.uid === playerId && (
+                      <ReusableButton
+                        label={readyLabel}
+                        buttonTextStyle={{ position: "absolute" }}
+                        buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
+                        onPress={() => togglePlayerReady(playerId)}
+                      />
+                    )}
+                  </View>
+                );
+              })
+            ) : (
+              <ReusableButton
+                label={
+                  auth.currentUser?.uid === roomInfo.host
+                    ? "Start Game"
+                    : "Waiting for host to start..."
+                }
+                onPress={
+                  auth.currentUser?.uid === roomInfo.host
+                    ? beginReadyGame
+                    : () => {}
+                }
+                buttonStyle={
+                  auth.currentUser?.uid === roomInfo.host
+                    ? {}
+                    : { backgroundColor: "#968e84" }
+                }
               />
-              <SliderComponent
-                style={{ width: 160 }}
-                minimumValue={minBoundary}
-                maximumValue={maxBoundary}
-                step={25}
-                value={boundaryHeight}
-                onValueChange={handleBoundaryHeightChange}
-              />
-              <AppText>Boundary Size: {boundaryWidth} x {boundaryHeight}</AppText>
-            </View>
-          )}
+            )}
+          </View>
         </View>
-        <View style={styles.middleContainer}>
-          {Object.keys(roomInfo.players)
-            .sort((a, b) => {
-              if (a === roomInfo.host) return -1;
-              if (b === roomInfo.host) return 1;
-              return 0;
-            })
-            .map((playerId) => {
-              const player = roomInfo.players[playerId];
-              const teamColors = [
-                { team: 1, color: "#8baaff" }, //blue
-                { team: 2, color: "#ffe08b" }, //yellow
-                { team: 3, color: "#ffbb8b" }, //orange
-                { team: 4, color: "#bd99e6" }, //purple
-                { team: 5, color: "#99d199" }, //green
-                { team: 6, color: "#68dbcc" }, //teal
-                { team: 7, color: "#e481c8" }, //pink
-                { team: 8, color: "#ff9090" }, //red
-              ];
-              const teamColor =
-                teamColors.find((team) => team.team === playerTeams[playerId])
-                  ?.color || "#8baaff";
-              const isReady = player.ready === true;
-              return (
-                <View
-                  key={playerId}
-                  style={{ flexDirection: "row", alignItems: "center" }}
-                >
-                  <Pressable
-                    style={[
-                      styles.playerContainer,
-                      { backgroundColor: teamColor },
-                    ]}
-                    onPress={
-                      auth.currentUser?.uid === roomInfo.host
-                        ? () => handleTeamChange(playerId)
-                        : undefined
-                    }
-                  >
-                    <AppText>{player.username}</AppText>
-                      <AppText style={{ marginLeft: 10 }}>
-                        [Team {playerTeams[playerId]}]
-                      </AppText>
-                  </Pressable>
-                  {isReady && <AppText style={styles.readyText}>Ready</AppText>}
-                </View>
-              );
-            })}
-        </View>
-        <View style={styles.bottomContainer}>
-          {roomInfo.gameStarted ? (
-            Object.keys(roomInfo.players).map((playerId) => {
-              const isReady = roomInfo.players[playerId]?.ready === true;
-              const readyLabel = isReady ? "Unready?" : "Ready?";
-              return (
-                <View key={playerId} style={[styles.playerContainerOnTop]}>
-                  {auth.currentUser?.uid === playerId && (
-                    <ReusableButton
-                      label={readyLabel}
-                      buttonTextStyle={{ position: "absolute" }}
-                      buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
-                      onPress={() => togglePlayerReady(playerId)}
-                    />
-                  )}
-                </View>
-              );
-            })
-          ) : (
-            <ReusableButton
-              label={
-                auth.currentUser?.uid === roomInfo.host
-                  ? "Start Game"
-                  : "Waiting for host to start..."
-              }
-              onPress={
-                auth.currentUser?.uid === roomInfo.host
-                  ? beginReadyGame
-                  : () => {}
-              }
-              buttonStyle={
-                auth.currentUser?.uid === roomInfo.host
-                  ? {}
-                  : { backgroundColor: "#968e84" }
-              }
-            />
-          )}
-        </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
-
 const styles = StyleSheet.create({
-  topContainer: {
-    top: 50,
-    width: "100%",
-    height: 75,
-    justifyContent: "space-evenly",
-    alignItems: "center",
-    position: "absolute",
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f0e8",
+    paddingTop: 50,
+  },
+  header: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingVertical: 15,
+    height: 70,
   },
-  middleContainer: {
-    justifyContent: "center",
+  roomCodeContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    width: "100%",
-    marginTop: 100,
   },
-  bottomContainer: {
-    bottom: 50,
-    position: "absolute",
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 20,
+  roomCodeLabel: {
+    fontSize: 16,
   },
   code: {
-    right: "30%",
     color: "#32CD32",
     textDecorationLine: "underline",
+    marginLeft: 5,
   },
   rope: {
-    top: "15%",
-    position: "absolute",
+    height: 30,
+    marginVertical: 10,
   },
-  playerContainer: {
-    width: "75%",
-    borderRadius: 15,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    flexDirection: "row",
-  },
-  sliderContainer: {
-    width: "40%",
-    alignItems: "center",
-  },
-  readyText: {
-    color: "#32CD32",
-    fontWeight: "bold",
-    marginLeft: 10,
-    marginBottom: 20,
-  },
-  invisibleReadyText: {
-    display: "none",
-  },
-  playerContainerOnTop: {
-    width: "75%",
-    borderRadius: 15,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    flexDirection: "row",
-    position: "absolute",
+  hostControlsSection: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
   },
   sliders: {
     flexDirection: "row",
     justifyContent: "space-around",
-    width: "100%"
+  },
+  sliderContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginHorizontal: 10,
+  },
+  sliderLabel: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 5,
+  },
+  dimensionLabel: {
+    fontSize: 12,
+    marginTop: 5,
+  },
+  slider: {
+    width: 120,
+    height: 30,
+  },
+  playersSection: {
+    flex: 1,
+    marginTop: 10,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  playerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+    width: "100%",
+  },
+  playerContainer: {
+    flex: 1,
+    borderRadius: 15,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexDirection: "row",
+    paddingHorizontal: 15,
+  },
+  playerName: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  hostIndicator: {
+    fontSize: 12,
+    color: "#de2c4a",
+  },
+  teamText: {
+    fontSize: 14,
+  },
+  readyText: {
+    color: "#32CD32",
+    fontWeight: "bold",
+    marginLeft: 15,
+    fontSize: 14,
+  },
+  bottomSection: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  readyButton: {
+    borderRadius: 15,
+  },
+  disabledButton: {
+    backgroundColor: "#968e84",
   },
 });

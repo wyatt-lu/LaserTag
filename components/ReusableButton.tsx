@@ -14,6 +14,7 @@ type Props = {
   onPress?: () => void;
   buttonStyle?: ViewStyle;
   buttonTextStyle?: TextStyle;
+  disabled?: boolean;
 };
 
 export default function ReusableButton({
@@ -22,9 +23,14 @@ export default function ReusableButton({
   onPress,
   buttonStyle,
   buttonTextStyle,
+  disabled,
 }: Props) {
   return (
-    <TouchableOpacity style={[styles.button, buttonStyle]} onPress={onPress}>
+    <TouchableOpacity
+      style={[styles.button, buttonStyle]}
+      onPress={onPress}
+      disabled={disabled}
+    >
       {theme === "pfp" && (
         <FontAwesome name="picture-o" size={18} style={styles.buttonIcon} />
       )}

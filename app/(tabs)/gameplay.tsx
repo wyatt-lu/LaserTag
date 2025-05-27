@@ -7,7 +7,17 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Text, TouchableOpacity, View, FlatList, Modal } from "react-native";
+import {
+  Text,
+  TouchableOpacity,
+  View,
+  FlatList,
+  Modal,
+  Pressable,
+  Dimensions,
+  Platform,
+  StyleSheet,
+} from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
 import { Magnetometer } from "expo-sensors";
@@ -21,7 +31,15 @@ import Animated, {
   withTiming,
   Easing,
   runOnJS,
+  configureReanimatedLogger,
+  ReanimatedLogLevel,
+  withSpring,
 } from "react-native-reanimated";
+
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false,
+});
 
 // Firebase Imports
 import { get, off, onValue, ref, remove, set, update } from "firebase/database";
@@ -39,7 +57,7 @@ import PowerUpMarker from "@/components/PowerUpMarker";
 import PlayerListModal from "@/components/PlayerListModal";
 import GameEndModal from "@/components/GameEndModal";
 import { fireLaser } from "@/functions/fireLaser";
-import { styles } from "@/constants/styles";
+// import { styles } from "@/constants/styles";
 import {
   teamColors,
   playerColors,
@@ -67,22 +85,23 @@ import {
   MoneyIcon,
   OxIcon,
 } from "@/constants/icons";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 // Type Definitions
 type LatLng = { latitude: number; longitude: number };
-type PowerUp = {
-  id: string;
-  type: string;
-  coordinate: LatLng;
-};
 
 export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
-  const BOUNDARY_SIZE = { length: 100, width: 100 }; // meters
-  const PLAYER_HIT_BOX_SIZE = { height: 5, width: 5 };
+  const BOUNDARY_SIZE = { length: 30, width: 30 }; // meters
+  const PLAYER_HIT_BOX_SIZE = { height: 30, width: 30 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
+  const FIRE_LASER_COOLDOWN = 5; // seconds
 
   // Team Colors (team number, color)
 
@@ -363,15 +382,19 @@ export default function PlayScreen() {
 
   //Remove user from game if they leave the boundary
 
-  const outOfBounds = (async (x: number, y: number) => {
-    if ((x>BOUNDARY_SIZE.width || x<-BOUNDARY_SIZE.width)
-      ||(y>BOUNDARY_SIZE.length || y<-BOUNDARY_SIZE.length)){
-        if (!auth.currentUser) return;
+  const outOfBounds = async (x: number, y: number) => {
+    if (
+      x > BOUNDARY_SIZE.width ||
+      x < -BOUNDARY_SIZE.width ||
+      y > BOUNDARY_SIZE.length ||
+      y < -BOUNDARY_SIZE.length
+    ) {
+      if (!auth.currentUser) return;
       const playerId = auth.currentUser.uid;
       const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-      await update(playerRef, {eliminated: true});
+      await update(playerRef, { eliminated: true });
     }
-  });
+  };
   // Get PlayerURL from Firebase (storage as URL)
 
   const storage = getStorage();
@@ -862,10 +885,7 @@ export default function PlayScreen() {
           {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
           {item.type === "Money" && <MoneyIcon width={30} height={30} />}
         </View>
-        {/* <AppText style={styles.powerUpName}>{item.type}</AppText> */}
-        {item.count > 1 && (
-          <AppText style={styles.powerUpCount}>{item.count}</AppText>
-        )}
+        <AppText style={styles.powerUpCount}>{item.count}</AppText>
       </TouchableOpacity>
     );
   };
@@ -875,24 +895,11 @@ export default function PlayScreen() {
   // Game Ending Screen (modal)
 
   // Bottom Sheet (Powerup List, Player List, Fire Button)
-  const snapPoints = useMemo(() => ["18%", "28%", "75%"], []);
+  const snapPoints = useMemo(() => ["15%", "31%", "75%"], []);
 
   const mapRef = useRef<MapView | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
 
-  const focusOnUserLocation = () => {
-    if (mapRef.current && location) {
-      mapRef.current.animateToRegion(
-        {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.002222,
-          longitudeDelta: 0.001521,
-        },
-        1000
-      );
-    }
-  };
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 
   const handleSnapPress = useCallback(() => {
@@ -930,9 +937,9 @@ export default function PlayScreen() {
       backgroundColor:
         timerProgress.value > 0.2
           ? timerProgress.value > 0.5
-            ? "#4CAF50"
-            : "#FFC107"
-          : "#F44336",
+            ? "#88cb54"
+            : "#ffe08b"
+          : "#cb4533",
       borderRadius: 5,
     };
   });
@@ -1039,227 +1046,512 @@ export default function PlayScreen() {
     setGameTime(durationInSeconds);
     setIsTimerRunning(true);
   };
+
+  const [isFireDisabled, setIsFireDisabled] = useState(false);
+  const fireCooldownProgress = useSharedValue(1);
+
+  const fireReloadBarStyle = useAnimatedStyle(() => ({
+    width: `${fireCooldownProgress.value * 100}%`,
+    height: 60,
+    backgroundColor: fireCooldownProgress.value === 1 ? "#de2c4a" : "#968e84",
+    borderRadius: 20,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    padding: 20,
+  }));
+
+  const [isTopSheetVisible, setIsTopSheetVisible] = useState(true);
+
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <View style={styles.topButtonsContainer}>
-        <View style={styles.topButtonsContainerRow}>
-          <View
-            style={[
-              styles.button,
-              { aspectRatio: 1, borderRadius: 30, padding: 10 },
-            ]}
-          >
-            <TouchableOpacity onPress={handleSnapPress}>
-              <FontAwesome name="gear" size={26} style={styles.buttonIcon} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.button}>
-            <Text style={styles.buttonText}>
-              {auth.currentUser?.displayName}
-            </Text>
-            <Text
-              style={[
-                styles.buttonText,
-                {
-                  color: auth.currentUser
-                    ? getTeamColor(
-                        playerArray.find(
-                          (player) => player.id === auth.currentUser?.uid
-                        )?.team || 1
-                      )
-                    : "#FFFFAA",
-                },
-              ]}
-            >
-              {"  "}
-              [TEAM{" "}
-              {playerArray.find((player) => player.id === auth.currentUser?.uid)
-                ?.team || 1}
-              ]
-            </Text>
-          </View>
-        </View>
-        <View style={styles.timerContainer}>
-          <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
-          <View style={styles.timerProgressBackground}>
-            <Animated.View style={progressBarStyle} />
-          </View>
-        </View>
-        <View
-          style={[
-            styles.topButtonsContainerRow,
-            { justifyContent: "flex-end" },
-          ]}
-        >
-          <View
-            style={[
-              styles.button,
-              { aspectRatio: 1, borderRadius: 30, padding: 15 },
-            ]}
-          >
-            <TouchableOpacity onPress={focusOnUserLocation}>
-              <FontAwesome name="map" size={26} style={styles.buttonIcon} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      {location?.coords?.latitude && location?.coords?.longitude ? (
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            latitudeDelta: 0.002222,
-            longitudeDelta: 0.001521,
-          }}
-          showsScale={true}
-          mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          mapType="hybrid"
-          rotateEnabled={false}
-          loadingEnabled={true}
-          zoomEnabled={true}
-        >
-          <Polygon
-            coordinates={boundary}
-            strokeColor="#FF0000"
-            strokeWidth={2}
-            fillColor="#FF000040"
-          />
-
-          {powerUps.map((powerUp) => (
-            <PowerUpMarker
-              key={powerUp.id}
-              cartesian={powerUp.cartesian}
-              center={center}
-              name={powerUp.type}
-            />
-          ))}
-
-          {playerArray.map((player) => {
-            if (!player.cartesian || player.eliminated) return null;
-            const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
-            return (
-              <Marker
-                key={player.id}
-                coordinate={{
-                  latitude: cartesianToLatLng(player.cartesian, center)
-                    .latitude,
-                  longitude: cartesianToLatLng(player.cartesian, center)
-                    .longitude,
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container} edges={[]}>
+        <GestureHandlerRootView style={styles.container}>
+          <View style={[styles.persistentButtonContainer]}>
+            <View style={[styles.iconButton]}>
+              <TouchableOpacity
+                onPress={() => {
+                  handleSnapPress;
+                  setIsTopSheetVisible(!isTopSheetVisible);
                 }}
               >
-                {!player.cowboyHat && (
-                  <View
-                    style={[styles.marker, { backgroundColor: playerColor }]}
-                  />
-                )}
-              </Marker>
-            );
-          })}
-        </MapView>
-      ) : (
-        <Text>Loading map...</Text>
-      )}
-
-      <BottomSheet
-        ref={sheetRef}
-        snapPoints={snapPoints}
-        enableDynamicSizing={false}
-      >
-        <BottomSheetView style={styles.contentContainer}>
-          <ReusableButton
-            label="Fire"
-            onPress={() => fireLaser(database, roomCode, LASER_LENGTH)}
-          />
-          <ReusableButton
-            label="Player List"
-            onPress={() => setPlayerListModal(true)}
-          />
-          <AppText>Inventory</AppText>
-
-          <FlatList
-            data={userPowerUps}
-            keyExtractor={(item) => item.type}
-            renderItem={renderPowerUpItem}
-            numColumns={3}
-            style={styles.powerUpList}
-          />
-
-          <Modal visible={cactusModalVisible} animationType="slide">
-            {location ? (
-              <View style={{ flex: 1 }}>
-                <MapView
-                  style={{ flex: 1 }}
-                  initialRegion={{
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                    latitudeDelta: 0.002222,
-                    longitudeDelta: 0.001521,
-                  }}
-                  mapType="hybrid"
-                  showsScale
-                  rotateEnabled={false}
-                  loadingEnabled
-                  zoomEnabled
-                  onPress={cactusMapPress}
-                >
-                  <Polygon
-                    coordinates={boundary}
-                    strokeColor="#FF0000"
-                    strokeWidth={2}
-                    fillColor="#FF000040"
-                  />
-                  {selectedCactusLocation && (
-                    <Marker
-                      coordinate={cartesianToLatLng(
-                        selectedCactusLocation,
-                        center
-                      )}
+                <FontAwesome
+                  name={isTopSheetVisible ? "times" : "bars"}
+                  size={26}
+                  style={styles.buttonIcon}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <Animated.View style={[styles.topButtonsContainer]}>
+            {isTopSheetVisible && (
+              <>
+                <View style={styles.topButtonsContainerRow}>
+                  <View style={styles.iconButtonSpacer} />
+                  <View style={styles.userInfoButton}>
+                    <Text style={styles.buttonText}>
+                      {auth.currentUser?.displayName}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        {
+                          color: auth.currentUser
+                            ? getTeamColor(
+                                playerArray.find(
+                                  (player) =>
+                                    player.id === auth.currentUser?.uid
+                                )?.team || 1
+                              )
+                            : "#FFFFAA",
+                        },
+                      ]}
                     >
-                      <CactusIcon width={30} height={30} />
-                    </Marker>
-                  )}
-                </MapView>
-
-                {/* Buttons on top of the map */}
-                <View
-                  style={{
-                    position: "absolute",
-                    bottom: 20,
-                    alignSelf: "center",
-                  }}
-                >
-                  <ReusableButton label="Confirm" onPress={handleConfirm} />
-                  <ReusableButton
-                    label="Cancel"
-                    onPress={() => setCactusModalVisible(false)}
-                  />
+                      {"  "}
+                      [TEAM{" "}
+                      {playerArray.find(
+                        (player) => player.id === auth.currentUser?.uid
+                      )?.team || 1}
+                      ]
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ) : (
-              <Text>Loading cactus...</Text>
+                <View style={styles.timerContainer}>
+                  <Text style={styles.timerText}>
+                    {formatTime(timeRemaining)}
+                  </Text>
+                  <View style={styles.timerProgressBackground}>
+                    <Animated.View style={progressBarStyle} />
+                  </View>
+                </View>
+              </>
             )}
-          </Modal>
-        </BottomSheetView>
-      </BottomSheet>
+          </Animated.View>
+          {location?.coords?.latitude && location?.coords?.longitude ? (
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              initialRegion={{
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                latitudeDelta: 0.002222,
+                longitudeDelta: 0.001521,
+              }}
+              showsScale={true}
+              mapPadding={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              mapType="hybrid"
+              rotateEnabled={false}
+              loadingEnabled={true}
+              zoomEnabled={true}
+            >
+              <Polygon
+                coordinates={boundary}
+                strokeColor="#FF0000"
+                strokeWidth={2}
+                fillColor="#FF000040"
+              />
 
-      <PlayerListModal
-        visible={isPlayerListModal}
-        onClose={() => setPlayerListModal(false)}
-        players={playerArray}
-        playerURLArray={playersURL}
-        disabled={true}
-      />
-      <GameEndModal
-        visible={gameState === "end-game"}
-        onClose={() => {
-          const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
-          set(gameStateRef, "return");
-        }}
-        players={playerArray}
-        playerURLArray={playersURL}
-      />
-    </GestureHandlerRootView>
+              {powerUps.map((powerUp) => (
+                <PowerUpMarker
+                  key={powerUp.id}
+                  cartesian={powerUp.cartesian}
+                  center={center}
+                  name={powerUp.type}
+                />
+              ))}
+
+              {playerArray.map((player) => {
+                if (!player.cartesian || player.eliminated) return null;
+                const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
+                return (
+                  <Marker
+                    key={player.id}
+                    coordinate={{
+                      latitude: cartesianToLatLng(player.cartesian, center)
+                        .latitude,
+                      longitude: cartesianToLatLng(player.cartesian, center)
+                        .longitude,
+                    }}
+                  >
+                    {!player.cowboyHat && (
+                      <View
+                        style={[
+                          styles.marker,
+                          { backgroundColor: playerColor },
+                        ]}
+                      />
+                    )}
+                  </Marker>
+                );
+              })}
+            </MapView>
+          ) : (
+            <Text>Loading map...</Text>
+          )}
+
+          <BottomSheet
+            ref={sheetRef}
+            snapPoints={snapPoints}
+            enableDynamicSizing={false}
+          >
+            <BottomSheetView style={styles.contentContainer}>
+              <View style={styles.fireButtonContainer}>
+                <Animated.View style={[fireReloadBarStyle]}>
+                  <Pressable
+                    disabled={isFireDisabled}
+                    onPress={() => {
+                      fireLaser(database, roomCode, LASER_LENGTH);
+                      setIsFireDisabled(true);
+                      fireCooldownProgress.value = 0;
+                      fireCooldownProgress.value = withTiming(1, {
+                        duration: FIRE_LASER_COOLDOWN * 1000,
+                        easing: Easing.linear,
+                      });
+                      setTimeout(() => {
+                        setIsFireDisabled(false);
+                      }, FIRE_LASER_COOLDOWN * 1000);
+                    }}
+                  >
+                    <Text style={styles.fireButtonText}>
+                      {!isFireDisabled ? "Throw Lasso" : "Reloading..."}
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+              </View>
+              <ReusableButton
+                label="Player List"
+                onPress={() => setPlayerListModal(true)}
+                buttonStyle={styles.button}
+              />
+              <View style={styles.bottomSheetDivider} />
+              <AppText style={styles.inventoryTitle}>Inventory</AppText>
+
+              <FlatList
+                data={userPowerUps}
+                keyExtractor={(item) => item.type}
+                renderItem={renderPowerUpItem}
+                numColumns={3}
+                style={styles.powerUpList}
+              />
+              <View style={styles.bottomSheetDivider} />
+              <Modal visible={cactusModalVisible} animationType="slide">
+                {location ? (
+                  <View style={{ flex: 1 }}>
+                    <MapView
+                      style={{ flex: 1 }}
+                      initialRegion={{
+                        latitude: location.coords.latitude,
+                        longitude: location.coords.longitude,
+                        latitudeDelta: 0.002222,
+                        longitudeDelta: 0.001521,
+                      }}
+                      mapType="hybrid"
+                      showsScale
+                      rotateEnabled={false}
+                      loadingEnabled
+                      zoomEnabled
+                      onPress={cactusMapPress}
+                    >
+                      <Polygon
+                        coordinates={boundary}
+                        strokeColor="#FF0000"
+                        strokeWidth={2}
+                        fillColor="#FF000040"
+                      />
+                      {selectedCactusLocation && (
+                        <Marker
+                          coordinate={cartesianToLatLng(
+                            selectedCactusLocation,
+                            center
+                          )}
+                        >
+                          <CactusIcon width={30} height={30} />
+                        </Marker>
+                      )}
+                    </MapView>
+
+                    {/* Buttons on top of the map */}
+                    <View style={styles.cactusButtonContainer}>
+                      <ReusableButton
+                        label="Confirm"
+                        onPress={handleConfirm}
+                        buttonStyle={{ backgroundColor: "#88cb54" }}
+                        buttonTextStyle={{ color: "#3a160e" }}
+                      />
+                      <ReusableButton
+                        label="Cancel"
+                        onPress={() => setCactusModalVisible(false)}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <Text>Loading cactus...</Text>
+                )}
+              </Modal>
+            </BottomSheetView>
+          </BottomSheet>
+
+          <PlayerListModal
+            visible={isPlayerListModal}
+            onClose={() => setPlayerListModal(false)}
+            players={playerArray}
+            playerURLArray={playersURL}
+            disabled={true}
+          />
+          <GameEndModal
+            visible={gameState === "end-game"}
+            onClose={() => {
+              const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+              set(gameStateRef, "return");
+            }}
+            players={playerArray}
+            playerURLArray={playersURL}
+          />
+        </GestureHandlerRootView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+
+  map: {
+    flex: 1,
+  },
+
+  contentContainer: {
+    flex: 1,
+    padding: 25,
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+
+  topButtonsContainer: {
+    position: "absolute",
+    top: 50,
+    zIndex: 1,
+    width: "100%",
+    paddingHorizontal: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+  },
+
+  topButtonsContainerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+  },
+
+  persistentButtonContainer: {
+    position: "absolute",
+    top: 67,
+    left: 35,
+    zIndex: 1001,
+  },
+
+  iconButtonSpacer: {
+    width: 60,
+    height: 60,
+  },
+
+  button: {
+    backgroundColor: "#3a160e",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#3a160e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    marginBottom: 12,
+    minHeight: 50,
+  },
+
+  iconButton: {
+    width: 50,
+    height: 50,
+    backgroundColor: "#3a160e",
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#3a160e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: "rgba(250, 246, 234, 0.3)",
+  },
+
+  userInfoButton: {
+    marginTop: 20,
+    marginRight: 15,
+    backgroundColor: "#3a160e",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 17,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#3a160e",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+    borderColor: "rgba(239, 208, 117, 0.2)",
+  },
+
+  buttonText: {
+    fontSize: 16,
+    color: "#faf6ea",
+    fontFamily: "Bungee-Regular",
+  },
+
+  buttonIcon: {
+    color: "#faf6ea",
+  },
+
+  timerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+
+  timerText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#3a160e",
+    marginBottom: 8,
+    textShadowColor: "rgba(255, 255, 255, 0.8)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+    fontFamily: "Bungee-Regular",
+  },
+
+  timerProgressBackground: {
+    width: "100%",
+    height: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "000",
+  },
+
+  fireButtonContainer: {
+    width: "80%",
+    height: 60,
+    backgroundColor: "rgba(58, 22, 14, 0.9)",
+    borderRadius: 20,
+    overflow: "hidden",
+    marginBottom: 20,
+    shadowColor: "#3a160e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  fireButtonText: {
+    fontSize: 18,
+    color: "#faf6ea",
+    fontFamily: "Bungee-Regular",
+    textAlign: "center",
+    fontWeight: "600",
+  },
+
+  marker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+
+  powerUpItem: {
+    padding: 10,
+    marginVertical: 5,
+    marginHorizontal: 10,
+    backgroundColor: "#fff",
+    borderColor: "rgba(58, 22, 14, 0.2)",
+    borderWidth: 1,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    minHeight: 60,
+  },
+
+  powerUpIconContainer: {
+    marginRight: 5,
+  },
+
+  powerUpList: {
+    marginTop: 20,
+    width: "100%",
+  },
+
+  powerUpCount: {
+    marginTop: 20,
+    fontSize: 8,
+    color: "#fff",
+    backgroundColor: "#3a160e",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: "hidden",
+    textAlign: "center",
+  },
+
+  loadingText: {
+    fontSize: 18,
+    color: "#3a160e",
+    fontFamily: "Bungee-Regular",
+    textAlign: "center",
+    marginTop: 50,
+  },
+
+  bottomSheetDivider: {
+    height: 3,
+    width: "100%",
+    backgroundColor: "#ccc",
+    marginVertical: 10,
+  },
+
+  inventoryTitle: {
+    fontSize: 20,
+    color: "#3a160e",
+    marginBottom: 10,
+    fontFamily: "Bungee-Regular",
+  },
+
+  cactusButtonContainer: {
+    position: "absolute",
+    bottom: 20,
+    width: "100%",
+    alignItems: "center",
+  },
+
+  safeTopArea: {
+    paddingTop: Platform.OS === "ios" ? 44 : 24,
+  },
+});

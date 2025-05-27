@@ -6,13 +6,17 @@ import {
   View,
   StyleSheet,
   Text,
+  Button,
 } from "react-native";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BootsIcon, CactusIcon, HatIcon } from "@/constants/icons";
+import { useAudioPlayer } from "expo-audio";
+const audioSource = require("@/assets/sounds/button-click.mp3");
 
 export default function InformationScreen() {
+  const player = useAudioPlayer(audioSource);
   return (
     <SafeAreaProvider>
       <StatusBar hidden={true} />
@@ -71,6 +75,13 @@ export default function InformationScreen() {
             Have fun, and happy hunting!
           </AppText>
         </View>
+        <Button
+          title="play sounds please"
+          onPress={() => {
+            player.play();
+            player.seekTo(0);
+          }}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   );

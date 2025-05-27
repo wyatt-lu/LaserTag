@@ -21,6 +21,7 @@ import {
   GestureHandlerRootView,
   ScrollView,
 } from "react-native-gesture-handler";
+import { useSound } from "@/constants/useSound";
 
 interface Player {
   username: string;
@@ -51,6 +52,7 @@ export default function GameLobbyModal({
   beginReadyGame,
   closeLobby,
 }: Props) {
+  const { playSound } = useSound();
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
   const [numTeams, setNumTeams] = useState(1);
@@ -217,13 +219,19 @@ export default function GameLobbyModal({
       <GestureHandlerRootView>
         <View style={styles.container}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={closeLobby}>
+            <TouchableOpacity
+              onPress={() => {
+                playSound("buttonClick");
+                closeLobby();
+              }}
+            >
               <IconSymbol name="x.circle.fill" size={60} color={"#3a160e"} />
             </TouchableOpacity>
             <View style={styles.roomCodeContainer}>
               <AppText style={styles.roomCodeLabel}>Room Code:</AppText>
               <TouchableOpacity
                 onPress={async () => {
+                  playSound("buttonClick");
                   if (roomCode) {
                     await Clipboard.setStringAsync(roomCode);
                     Alert.alert("Room code copied to clipboard.");
@@ -249,6 +257,9 @@ export default function GameLobbyModal({
                     step={1}
                     value={numTeams}
                     onValueChange={handleNumTeamsChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
                   />
                   <AppText style={[styles.sliderLabel, { marginBottom: 21 }]}>
                     {numTeams} Team{numTeams > 1 ? "s" : ""}
@@ -263,6 +274,9 @@ export default function GameLobbyModal({
                     step={10}
                     value={gameDuration}
                     onValueChange={handleDurationChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
                   />
                   <AppText style={styles.sliderLabel}>
                     {formatTime(gameDuration)}
@@ -281,6 +295,9 @@ export default function GameLobbyModal({
                     step={25}
                     value={boundaryWidth}
                     onValueChange={handleBoundaryWidthChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
                   />
                   <AppText style={styles.dimensionLabel}>Height (y) :</AppText>
                   <SliderComponent
@@ -290,6 +307,9 @@ export default function GameLobbyModal({
                     step={25}
                     value={boundaryHeight}
                     onValueChange={handleBoundaryHeightChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
                   />
                   <AppText style={styles.sliderLabel}>
                     {boundaryWidth} x {boundaryHeight}
@@ -374,7 +394,10 @@ export default function GameLobbyModal({
                         label={readyLabel}
                         buttonTextStyle={{ position: "absolute" }}
                         buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
-                        onPress={() => togglePlayerReady(playerId)}
+                        onPress={() => {
+                          playSound("buttonClick");
+                          togglePlayerReady(playerId);
+                        }}
                       />
                     )}
                   </View>

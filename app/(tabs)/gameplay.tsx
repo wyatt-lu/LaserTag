@@ -42,6 +42,8 @@ configureReanimatedLogger({
   strict: false,
 });
 
+import { useSound } from "@/constants/useSound";
+
 // Firebase Imports
 import { get, off, onValue, ref, remove, set, update } from "firebase/database";
 import { auth, database } from "../../firebaseconfig";
@@ -102,6 +104,8 @@ export default function PlayScreen() {
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
   const FIRE_LASER_COOLDOWN = 5; // seconds
+
+  const { playSound } = useSound();
 
   // Team Colors (team number, color)
 
@@ -210,7 +214,9 @@ export default function PlayScreen() {
       setUserPowerUps([]);
 
       if (roomData.gameReady) {
-        startGameTimer(roomData.gameDuration);
+        roomData.gameDuration
+          ? startGameTimer(roomData.gameDuration)
+          : startGameTimer(600);
         if (mapRef.current) {
           setTimeout(() => {
             mapRef.current?.animateToRegion(
@@ -1158,7 +1164,7 @@ export default function PlayScreen() {
             <View style={[styles.iconButton]}>
               <TouchableOpacity
                 onPress={() => {
-                  handleSnapPress;
+                  playSound("buttonClick");
                   setIsTopSheetVisible(!isTopSheetVisible);
                 }}
               >
@@ -1177,7 +1183,10 @@ export default function PlayScreen() {
                   <View style={styles.iconButtonSpacer} />
                   <TouchableOpacity
                     style={styles.userInfoButton}
-                    onPress={focusOnUserLocation}
+                    onPress={() => {
+                      playSound("buttonClick");
+                      focusOnUserLocation;
+                    }}
                   >
                     <Text style={styles.buttonText}>
                       {auth.currentUser?.displayName}
@@ -1290,6 +1299,7 @@ export default function PlayScreen() {
                   <Pressable
                     disabled={isFireDisabled}
                     onPress={() => {
+                      playSound("lasso");
                       fireLaser(database, roomCode, LASER_LENGTH);
                       setIsFireDisabled(true);
                       fireCooldownProgress.value = 0;
@@ -1310,7 +1320,10 @@ export default function PlayScreen() {
               </View>
               <ReusableButton
                 label="Player List"
-                onPress={() => setPlayerListModal(true)}
+                onPress={() => {
+                  playSound("buttonClick");
+                  setPlayerListModal(true);
+                }}
                 buttonStyle={styles.button}
               />
               <View style={styles.bottomSheetDivider} />
@@ -1324,7 +1337,12 @@ export default function PlayScreen() {
                 style={styles.powerUpList}
               />
               <View style={styles.bottomSheetDivider} />
-              <TouchableOpacity onPress={resetGame}>
+              <TouchableOpacity
+                onPress={() => {
+                  playSound("buttonClick");
+                  resetGame();
+                }}
+              >
                 <AppText>Exit Game</AppText>
               </TouchableOpacity>
               <Modal visible={cactusModalVisible} animationType="slide">
@@ -1367,13 +1385,19 @@ export default function PlayScreen() {
                     <View style={styles.cactusButtonContainer}>
                       <ReusableButton
                         label="Confirm"
-                        onPress={handleConfirm}
+                        onPress={() => {
+                          playSound("buttonClick");
+                          handleConfirm();
+                        }}
                         buttonStyle={{ backgroundColor: "#88cb54" }}
                         buttonTextStyle={{ color: "#3a160e" }}
                       />
                       <ReusableButton
                         label="Cancel"
-                        onPress={() => setCactusModalVisible(false)}
+                        onPress={() => {
+                          playSound("buttonClick");
+                          setCactusModalVisible(false);
+                        }}
                       />
                     </View>
                   </View>

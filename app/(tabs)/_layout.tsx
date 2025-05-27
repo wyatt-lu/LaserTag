@@ -23,9 +23,9 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="settings"
+        name="information"
         options={{
-          title: "Settings",
+          title: "Information",
           tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>
@@ -102,9 +102,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="equipment"
+        name="profile"
         options={{
-          title: "Equipment",
+          title: "Profile",
           tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>

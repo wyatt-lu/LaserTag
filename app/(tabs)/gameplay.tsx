@@ -17,6 +17,7 @@ import {
   Dimensions,
   Platform,
   StyleSheet,
+  StatusBar,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
@@ -1136,6 +1137,7 @@ export default function PlayScreen() {
 
   return (
     <SafeAreaProvider>
+      <StatusBar hidden={true} />
       <SafeAreaView style={styles.container} edges={[]}>
         <GestureHandlerRootView style={styles.container}>
           <View style={[styles.persistentButtonContainer]}>

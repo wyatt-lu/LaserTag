@@ -177,19 +177,32 @@ const eliminatePlayer = async (
   roomCode: any,
   playerId: any
 ) => {
+  //eliminate player
   console.log(`Eliminating player: ${playerId}`);
   const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
   await update(playerRef, { eliminated: true });
+  const playerInfo = await get(playerRef);
+  if (!playerInfo.exists()) return;
+  const playerData = playerInfo.val();
+  //player eliminated is fake, DON'T reward user
+  if (playerData.fake) return;
 
+  //set game points
   const winnerPlayerRef = ref(
     database,
     `rooms/${roomCode}/players/${winnerPlayer}`
   );
   const winnerPlayerInfo = await get(winnerPlayerRef);
-  if (winnerPlayerInfo.exists()) {
-    const winnerPlayerData = winnerPlayerInfo.val();
-    await update(winnerPlayerRef, { points: winnerPlayerData.points + 1 });
-  }
+  if (!winnerPlayerInfo.exists()) return;
+  const winnerPlayerData = winnerPlayerInfo.val();
+  let curPoints = winnerPlayerData.points + 1;
+  await update(winnerPlayerRef, { points: curPoints });
+
+  //set forever points
+  const winnerIndividualRef = ref(database, `players/${playerId}`);
+  const winnerIndividualInfo = await get(winnerIndividualRef);
+  const winnerIndividualData = winnerIndividualInfo.val();
+  await update(winnerPlayerRef, { points: winnerIndividualData.points + curPoints });
 };
 
 const getHitBox = (dataArray: PLD[]) => {

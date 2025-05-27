@@ -53,11 +53,12 @@ const index = () => {
         const displayName = email.split("@")[0].toLowerCase();
         await updateProfile(userCredential.user, { displayName });
 
-        set(ref(database, `players/${userCredential.user.uid}`), {
+        await set(ref(database, `players/${userCredential.user.uid}`), {
           username: userCredential.user.displayName,
           email,
           laser: "default",
           room: null,
+          points: 0,
         });
 
         try {

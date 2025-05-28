@@ -18,6 +18,7 @@ import {
   Platform,
   StyleSheet,
   StatusBar,
+  Vibration
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
@@ -93,6 +94,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Type Definitions
 type LatLng = { latitude: number; longitude: number };
@@ -194,7 +196,6 @@ export default function PlayScreen() {
         }
       }
     });
-
     return () => unsubscribe();
   }, [roomCode, router]);
 
@@ -470,9 +471,11 @@ export default function PlayScreen() {
 
   // Get All Players Location from Firebase (cartesian)
 
+  const [eliminatedFully, setEliminatedFully] = useState<boolean>(false);
   useEffect(() => {
     const playersRef = ref(database, `rooms/${roomCode}/players`);
-    const unsubscribe = onValue(playersRef, (snapshot) => {
+    const unsubscribe = onValue(playersRef, async (snapshot) => {
+      if (!auth.currentUser) return;
       try {
         const playersData = snapshot.val();
         const entries = Object.entries(playersData);
@@ -481,6 +484,17 @@ export default function PlayScreen() {
         for (const [id, data] of entries) {
           const player = { id, ...(data as any) };
           updatedPlayersList.push(player);
+          //vibrate if out at all
+          const stored = await AsyncStorage.getItem("eliminatedFully");
+          if (player.eliminated && auth.currentUser.uid == player.id) {
+            if (stored !== "true"){
+              setEliminatedFully(true);
+              await AsyncStorage.setItem("eliminatedFully", "true");
+              Vibration.vibrate(300);
+            } else {
+              setEliminatedFully(true);
+            }
+          }
         }
         setPlayerArray(updatedPlayersList);
       } catch (error) {}
@@ -525,8 +539,6 @@ export default function PlayScreen() {
       return false;
     }
   };
-
-  // Determine if Player is Hit (straight line laser, big hit box)
 
   // Generate Powerups
 
@@ -778,6 +790,8 @@ export default function PlayScreen() {
     type: any;
     coordinate?: { latitude: number; longitude: number };
   }) => {
+    //vibrate if use a powerup
+    Vibration.vibrate(100);
     //return if user is eliminated: don't let them continue to use their powerups in their inventory
     if (!auth.currentUser) return;
     const playerRef = ref(
@@ -1123,6 +1137,8 @@ export default function PlayScreen() {
     const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
     set(gameStateRef, "return");
     sheetRef.current?.snapToIndex(0);
+    await AsyncStorage.setItem("eliminatedFully", "false");
+    setEliminatedFully(false);
   };
 
   const [isFireDisabled, setIsFireDisabled] = useState(false);
@@ -1299,6 +1315,7 @@ export default function PlayScreen() {
                   <Pressable
                     disabled={isFireDisabled}
                     onPress={() => {
+                      Vibration.vibrate(200);
                       playSound("lasso");
                       fireLaser(database, roomCode, LASER_LENGTH);
                       setIsFireDisabled(true);
@@ -1417,9 +1434,10 @@ export default function PlayScreen() {
           />
           <GameEndModal
             visible={gameState === "end-game"}
-            onClose={() => {
+            onClose={async () => {
               const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
               set(gameStateRef, "return");
+              await AsyncStorage.setItem("eliminatedFully", "false");
             }}
             players={playerArray}
             playerURLArray={playersURL}

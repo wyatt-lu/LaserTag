@@ -24,7 +24,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 // Firebase Imports
-import { get, off, onValue, ref, remove, set, update } from "firebase/database";
+import { get, off, onValue, ref, remove, set, update, DataSnapshot } from "firebase/database";
+
 import { auth, database } from "../../firebaseconfig";
 import {
   getStorage,
@@ -81,7 +82,7 @@ export default function PlayScreen() {
   // Laser Type (length, width)
   const LASER_LENGTH = 7; // in meters
   const BOUNDARY_SIZE = { length: 100, width: 100 }; // meters
-  const PLAYER_HIT_BOX_SIZE = { height: 15, width: 15 };
+  const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
 
   // Team Colors (team number, color)
@@ -478,16 +479,45 @@ export default function PlayScreen() {
     }
   };
 
-  // Determine if Player is Hit (straight line laser, big hit box)
+  //eliminate player modal check
+  const [eliminationMessage, setEliminationMessage] = useState<string | null>(null);
+  const [shownEliminations, setShownEliminations] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    console.log("Room code is", roomCode);
+    const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
+    const handleSnapshot = (snapshot: DataSnapshot) => {
+      const playersData = snapshot.val();
+      if (!playersData) return;
+      console.log("playersData", playersData);
+      Object.entries(playersData).forEach(([playerId, playerData]) => {
+        const { eliminated, username } = playerData as { eliminated: boolean; username: string };
+        console.log("Player:", username, "Eliminated:", eliminated);
+        setShownEliminations((prev) => {
+          if (eliminated && !prev.has(playerId)) {
+            // New Set so React knows it's a change
+            const newSet = new Set(prev);
+            newSet.add(playerId);
+
+            setEliminationMessage(`${username} has been eliminated`);
+            setTimeout(() => setEliminationMessage(null), 3000);
+
+            return newSet;
+          }
+          return prev;
+        });
+      });
+    };
+    onValue(roomPlayerRef, handleSnapshot);
+    return () => off(roomPlayerRef, 'value', handleSnapshot);
+  }, [roomCode]);
+
+  //checks if updating correctlyf
+  useEffect(() => {
+    console.log("eliminationMessage changed:", eliminationMessage);
+  }, [eliminationMessage]);
+  
   // Generate Powerups
-  type PLD = {
-    playerId: string;
-    direction: number;
-    x: number;
-    y: number;
-  };
-
   type PowerUp = {
     id: string;
     type: string;
@@ -1175,7 +1205,40 @@ export default function PlayScreen() {
             numColumns={3}
             style={styles.powerUpList}
           />
-
+          <Modal
+            transparent
+            visible={!!eliminationMessage}
+            animationType="fade"
+          >
+            <View style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',}}>
+              <View style={{
+                backgroundColor: 'white',
+                padding: 20,
+                borderRadius: 10,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 5,
+              }}>
+                <Text style={{
+                  fontSize: 18, 
+                  fontWeight: 'bold', 
+                  textAlign: 'center' }}>
+                  {eliminationMessage}
+                </Text>
+              </View>
+            </View>
+          </Modal> 
+          {eliminationMessage === null && (
+          <Text style={{ textAlign: 'center', marginTop: 20 }}>
+            Modal hidden
+          </Text>
+          )}
           <Modal visible={cactusModalVisible} animationType="slide">
             {location ? (
               <View style={{ flex: 1 }}>

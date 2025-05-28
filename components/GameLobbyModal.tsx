@@ -57,7 +57,7 @@ export default function GameLobbyModal({
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
   const [numTeams, setNumTeams] = useState(1);
   const maxBoundary = 1000;
-  const minBoundary = 1;
+  const minBoundary = 100;
   const [boundaryWidth, setBoundaryWidth] = useState<number>(100);
   const [boundaryHeight, setBoundaryHeight] = useState<number>(100);
   const [gameDuration, setGameDuration] = useState<number>(600);

@@ -40,9 +40,12 @@ import GameLobbyModal from "@/components/GameLobbyModal";
 import { getAuth } from "firebase/auth";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import * as Location from "expo-location";
+import { useSound } from "@/constants/useSound";
 
 export default function HomeScreen() {
   // HOME SCREEN //
+
+  const { playSound } = useSound();
 
   const [isLobbyVisible, setIsLobbyVisible] = useState(false);
 
@@ -57,21 +60,7 @@ export default function HomeScreen() {
   const closeInput = () => setIsCodeInputVisible(false);
 
   const [roomInfo, setRoomInfo] = useState<any>();
-  
-  const [points, setPoints] = useState<number>();
 
-  useEffect(() => {
-  const getTotalPoints = (async ()=>{
-    if (!auth.currentUser) return;
-    const playerRef = ref(database, `players/${auth.currentUser.uid}`);
-    const playerInfo = await get(playerRef);
-    if (!playerInfo.exists()) return;
-    const playerData = playerInfo.val();
-    setPoints(playerData.points);
-  });
-  getTotalPoints();
-  }, []);
-  
   useEffect(() => {
     if (!roomCode) return;
 
@@ -467,11 +456,14 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={globalStyles.container}>
-
-      <AppText style={settingsStyles.points}>Points: {points}</AppText>
       {/* // SETTINGS PAGE // */}
       <View style={[settingsStyles.topContainer, { position: "absolute" }]}>
-        <TouchableOpacity onPress={openSettings}>
+        <TouchableOpacity
+          onPress={() => {
+            playSound("buttonClick");
+            openSettings();
+          }}
+        >
           <Image
             source={{ uri: imageUrl }}
             style={settingsStyles.profileIcon}
@@ -482,7 +474,10 @@ export default function HomeScreen() {
         <View style={settingsStyles.container}>
           <TouchableOpacity
             style={settingsStyles.topContainer}
-            onPress={closeSettings}
+            onPress={() => {
+              playSound("buttonClick");
+              closeSettings();
+            }}
           >
             {Platform.OS === "ios" ? (
               <IconSymbol
@@ -515,18 +510,27 @@ export default function HomeScreen() {
           <ReusableButton
             label="Choose Profile"
             theme="pfp"
-            onPress={pickImage}
+            onPress={() => {
+              playSound("buttonClick");
+              pickImage();
+            }}
           />
           <ReusableButton
             label="Change Username"
             theme="username"
-            onPress={openNameChange}
+            onPress={() => {
+              playSound("buttonClick");
+              openNameChange();
+            }}
           />
           <InputModal
             visible={isNameChangeVisible}
             title="Change Username"
             onConfirm={handleNameChange}
-            onClose={closeNameChange}
+            onClose={() => {
+              playSound("buttonClick");
+              closeNameChange();
+            }}
           />
           <View
             style={{
@@ -536,7 +540,12 @@ export default function HomeScreen() {
               position: "absolute",
             }}
           >
-            <TouchableOpacity onPress={handleSignOut}>
+            <TouchableOpacity
+              onPress={() => {
+                playSound("buttonClick");
+                handleSignOut();
+              }}
+            >
               <AppText>Sign Out</AppText>
             </TouchableOpacity>
           </View>
@@ -566,10 +575,19 @@ export default function HomeScreen() {
 
         <SignIcon />
 
-        <ReusableButton label="Create a Room" onPress={createRoom} />
+        <ReusableButton
+          label="Create a Room"
+          onPress={() => {
+            playSound("buttonClick");
+            createRoom();
+          }}
+        />
         <ReusableButton
           label="Join a Room"
-          onPress={openInput}
+          onPress={() => {
+            playSound("buttonClick");
+            openInput();
+          }}
           buttonStyle={{ backgroundColor: "transparent", marginTop: -20 }}
           buttonTextStyle={{ color: "#824a32" }}
         />
@@ -578,7 +596,10 @@ export default function HomeScreen() {
           visible={isCodeInputVisible}
           title="Join Room"
           placeholder="Enter Code"
-          onClose={closeInput}
+          onClose={() => {
+            playSound("buttonClick");
+            closeInput();
+          }}
           onConfirm={joinRoom}
           confirmText="Enter"
           closeText="Cancel"
@@ -640,17 +661,5 @@ const settingsStyles = StyleSheet.create({
   username: {
     marginBottom: 20,
     fontSize: 20,
-  },
-  points: {
-    position: 'absolute',
-    top: 54,
-    left: 20,
-    fontSize: 20,
-    color: '#3a160e',
-    fontWeight: 'bold',
-    zIndex: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 5,
   },
 });

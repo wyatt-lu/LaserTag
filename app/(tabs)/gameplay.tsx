@@ -18,7 +18,7 @@ import {
   Platform,
   StyleSheet,
   StatusBar,
-  Vibration
+  Vibration,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
@@ -96,9 +96,6 @@ import {
 } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Type Definitions
-type LatLng = { latitude: number; longitude: number };
-
 export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
@@ -114,7 +111,7 @@ export default function PlayScreen() {
   // Player Colors (player number, color)
 
   //Set Boundary
-  const [boundary, setBoundary] = useState<any[]>([
+  const [boundary, setBoundary] = useState<LatLng[]>([
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
@@ -353,14 +350,6 @@ export default function PlayScreen() {
     };
   }, [gameState]);
 
-  interface Box {
-    player: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }
-
   const updatePlayerLocation = async (
     latitude: number,
     longitude: number,
@@ -487,7 +476,7 @@ export default function PlayScreen() {
           //vibrate if out at all
           const stored = await AsyncStorage.getItem("eliminatedFully");
           if (player.eliminated && auth.currentUser.uid == player.id) {
-            if (stored !== "true"){
+            if (stored !== "true") {
               setEliminatedFully(true);
               await AsyncStorage.setItem("eliminatedFully", "true");
               Vibration.vibrate(300);
@@ -547,18 +536,6 @@ export default function PlayScreen() {
     type: string;
     cartesian: XY;
   };
-
-  const powerUpTypes = [
-    { type: "Lasso" },
-    { type: "Horseshoe" },
-    { type: "Cowboy Boots" },
-    { type: "Bounty" },
-    { type: "Sheriff Badge" },
-    { type: "Cowboy Hat" },
-    { type: "Cactus" },
-    { type: "Ox Stampede" },
-    { type: "Money" },
-  ];
 
   const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -638,6 +615,7 @@ export default function PlayScreen() {
 
   //set powerups up in a usestate
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     const fetchPowerUps = async () => {
       if (!roomCode) return;
 
@@ -660,11 +638,11 @@ export default function PlayScreen() {
           setPowerUps([]);
         }
       });
-
-      return () => unsubscribe();
     };
-
     fetchPowerUps();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [gameState]);
 
   // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
@@ -1201,7 +1179,7 @@ export default function PlayScreen() {
                     style={styles.userInfoButton}
                     onPress={() => {
                       playSound("buttonClick");
-                      focusOnUserLocation;
+                      focusOnUserLocation();
                     }}
                   >
                     <Text style={styles.buttonText}>

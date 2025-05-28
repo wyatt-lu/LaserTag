@@ -68,7 +68,6 @@ export default function HomeScreen() {
     if (!playerInfo.exists()) return;
     const playerData = playerInfo.val();
     setPoints(playerData.points);
-    console.log("points" + playerData.points);
   });
   getTotalPoints();
   }, []);

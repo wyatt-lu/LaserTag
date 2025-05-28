@@ -40,9 +40,12 @@ import GameLobbyModal from "@/components/GameLobbyModal";
 import { getAuth } from "firebase/auth";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import * as Location from "expo-location";
+import { useSound } from "@/constants/useSound";
 
 export default function HomeScreen() {
   // HOME SCREEN //
+
+  const { playSound } = useSound();
 
   const [isLobbyVisible, setIsLobbyVisible] = useState(false);
 
@@ -154,6 +157,10 @@ export default function HomeScreen() {
       initialLocation: {
         latitude: hostLocation.coords.latitude,
         longitude: hostLocation.coords.longitude,
+      },
+      boundarySize: {
+        width: 100,
+        height: 100,
       },
       players: {
         [auth.currentUser.uid]: {
@@ -451,7 +458,12 @@ export default function HomeScreen() {
     <SafeAreaView style={globalStyles.container}>
       {/* // SETTINGS PAGE // */}
       <View style={[settingsStyles.topContainer, { position: "absolute" }]}>
-        <TouchableOpacity onPress={openSettings}>
+        <TouchableOpacity
+          onPress={() => {
+            playSound("buttonClick");
+            openSettings();
+          }}
+        >
           <Image
             source={{ uri: imageUrl }}
             style={settingsStyles.profileIcon}
@@ -462,7 +474,10 @@ export default function HomeScreen() {
         <View style={settingsStyles.container}>
           <TouchableOpacity
             style={settingsStyles.topContainer}
-            onPress={closeSettings}
+            onPress={() => {
+              playSound("buttonClick");
+              closeSettings();
+            }}
           >
             {Platform.OS === "ios" ? (
               <IconSymbol
@@ -492,22 +507,30 @@ export default function HomeScreen() {
           </View>
 
           <AppText style={settingsStyles.username}>{username}</AppText>
-
           <ReusableButton
             label="Choose Profile"
             theme="pfp"
-            onPress={pickImage}
+            onPress={() => {
+              playSound("buttonClick");
+              pickImage();
+            }}
           />
           <ReusableButton
             label="Change Username"
             theme="username"
-            onPress={openNameChange}
+            onPress={() => {
+              playSound("buttonClick");
+              openNameChange();
+            }}
           />
           <InputModal
             visible={isNameChangeVisible}
             title="Change Username"
             onConfirm={handleNameChange}
-            onClose={closeNameChange}
+            onClose={() => {
+              playSound("buttonClick");
+              closeNameChange();
+            }}
           />
           <View
             style={{
@@ -517,7 +540,12 @@ export default function HomeScreen() {
               position: "absolute",
             }}
           >
-            <TouchableOpacity onPress={handleSignOut}>
+            <TouchableOpacity
+              onPress={() => {
+                playSound("buttonClick");
+                handleSignOut();
+              }}
+            >
               <AppText>Sign Out</AppText>
             </TouchableOpacity>
           </View>
@@ -547,10 +575,19 @@ export default function HomeScreen() {
 
         <SignIcon />
 
-        <ReusableButton label="Create a Room" onPress={createRoom} />
+        <ReusableButton
+          label="Create a Room"
+          onPress={() => {
+            playSound("buttonClick");
+            createRoom();
+          }}
+        />
         <ReusableButton
           label="Join a Room"
-          onPress={openInput}
+          onPress={() => {
+            playSound("buttonClick");
+            openInput();
+          }}
           buttonStyle={{ backgroundColor: "transparent", marginTop: -20 }}
           buttonTextStyle={{ color: "#824a32" }}
         />
@@ -559,7 +596,10 @@ export default function HomeScreen() {
           visible={isCodeInputVisible}
           title="Join Room"
           placeholder="Enter Code"
-          onClose={closeInput}
+          onClose={() => {
+            playSound("buttonClick");
+            closeInput();
+          }}
           onConfirm={joinRoom}
           confirmText="Enter"
           closeText="Cancel"

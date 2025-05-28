@@ -1,0 +1,55 @@
+import React, { useEffect, useState } from "react";
+import { SafeAreaView, View, StyleSheet, StatusBar } from "react-native";
+import { globalStyles } from "@/constants/styles";
+import AppText from "@/components/AppText";
+import { auth, database } from "@/firebaseconfig";
+import { ref, get } from "firebase/database";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+export default function ProfileScreen() {
+  const [points, setPoints] = useState<number>();
+
+  useEffect(() => {
+    const getTotalPoints = async () => {
+      if (!auth.currentUser) return;
+      const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      setPoints(playerData.points);
+      console.log("points" + playerData.points);
+    };
+    getTotalPoints();
+  }, []);
+
+  return (
+    <SafeAreaProvider>
+      <StatusBar hidden={true} />
+      <SafeAreaView style={styles.container}>
+        <View>
+          <AppText style={styles.points}>Points: {points}</AppText>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: "#faf6ea",
+    flex: 1,
+  },
+
+  points: {
+    position: "absolute",
+    top: 54,
+    left: 20,
+    fontSize: 20,
+    color: "#3a160e",
+    fontWeight: "bold",
+    zIndex: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 5,
+  },
+});

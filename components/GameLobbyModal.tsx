@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Pressable,
+  Text,
 } from "react-native";
 import ReusableButton from "./ReusableButton";
 import { get, off, onValue, ref, update } from "firebase/database";
@@ -16,6 +17,11 @@ import AppText from "./AppText";
 import * as Clipboard from "expo-clipboard";
 import { RopeIcon } from "@/constants/icons";
 import SliderComponent from "@react-native-community/slider";
+import {
+  GestureHandlerRootView,
+  ScrollView,
+} from "react-native-gesture-handler";
+import { useSound } from "@/constants/useSound";
 
 interface Player {
   username: string;
@@ -25,7 +31,6 @@ interface Player {
 
 interface RoomInfo {
   host: string;
-  roomType: string;
   players: { [key: string]: Player };
   gameStarted?: boolean;
   gameReady?: boolean;
@@ -47,9 +52,15 @@ export default function GameLobbyModal({
   beginReadyGame,
   closeLobby,
 }: Props) {
+  const { playSound } = useSound();
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
   const [playerTeams, setPlayerTeams] = useState<{ [key: string]: number }>({});
   const [numTeams, setNumTeams] = useState(1);
+  const maxBoundary = 1000;
+  const minBoundary = 100;
+  const [boundaryWidth, setBoundaryWidth] = useState<number>(100);
+  const [boundaryHeight, setBoundaryHeight] = useState<number>(100);
+  const [gameDuration, setGameDuration] = useState<number>(600);
 
   useEffect(() => {
     if (roomCode) {
@@ -91,8 +102,6 @@ export default function GameLobbyModal({
   }
 
   const handleTeamChange = (playerId: string) => {
-    if (roomInfo.roomType === "solo") return;
-
     const currentTeam = playerTeams[playerId];
     let newTeam = (currentTeam % numTeams) + 1;
     setPlayerTeams((prev) => ({
@@ -152,201 +161,380 @@ export default function GameLobbyModal({
     }
   };
 
+  //Change boundary sizes
+
+  const handleBoundaryWidthChange = (newBoundary: number) => {
+    if (newBoundary < minBoundary) {
+      Alert.alert(
+        "Error",
+        "Cannot reduce the boundary size below the current assignments."
+      );
+      return;
+    }
+    setBoundaryWidth(newBoundary);
+    const roomRef = ref(database, `rooms/${roomCode}/boundarySize`);
+    update(roomRef, {
+      width: newBoundary,
+    }).catch((error) => {
+      console.error("Error updating boundary size:", error);
+    });
+  };
+  const handleBoundaryHeightChange = (newBoundary: number) => {
+    if (newBoundary < minBoundary) {
+      Alert.alert(
+        "Error",
+        "Cannot reduce the boundary size below the current assignments."
+      );
+      return;
+    }
+    setBoundaryHeight(newBoundary);
+    const roomRef = ref(database, `rooms/${roomCode}/boundarySize`);
+    update(roomRef, {
+      height: newBoundary,
+    }).catch((error) => {
+      console.error("Error updating boundary size:", error);
+    });
+  };
+
+  const handleDurationChange = (newDuration: number) => {
+    const roomRef = ref(database, `rooms/${roomCode}`);
+    setGameDuration(newDuration);
+    update(roomRef, {
+      gameDuration: newDuration,
+    }).catch((error) => {
+      console.error("Error updating game duration:", error);
+    });
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
   return (
     <Modal visible={visible} animationType="slide">
-      <View style={globalStyles.container}>
-        <View style={styles.topContainer}>
-          <TouchableOpacity onPress={closeLobby}>
-            <IconSymbol name="x.circle.fill" size={60} color={"#3a160e"} />
-          </TouchableOpacity>
-          <AppText>Room Code: </AppText>
-          <TouchableOpacity
-            onPress={async () => {
-              if (roomCode) {
-                await Clipboard.setStringAsync(roomCode);
-                Alert.alert("Room code copied to clipboard.");
-              }
-            }}
-          >
-            <AppText style={styles.code}>{roomCode}</AppText>
-          </TouchableOpacity>
-        </View>
-        <RopeIcon style={styles.rope} width={"100%"} />
-        {auth.currentUser?.uid === roomInfo.host &&
-          roomInfo.roomType !== "solo" && (
-            <View style={styles.sliderContainer}>
-              <AppText style={{ fontSize: 17 }}>
-                Select Number of Teams:
-              </AppText>
-              <SliderComponent
-                style={{ width: 200, height: 40 }}
-                minimumValue={1}
-                maximumValue={Object.keys(roomInfo.players).length}
-                step={1}
-                value={numTeams}
-                onValueChange={handleNumTeamsChange}
-              />
-              <AppText>Number of Teams: {numTeams}</AppText>
+      <GestureHandlerRootView>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => {
+                playSound("buttonClick");
+                closeLobby();
+              }}
+            >
+              <IconSymbol name="x.circle.fill" size={60} color={"#3a160e"} />
+            </TouchableOpacity>
+            <View style={styles.roomCodeContainer}>
+              <AppText style={styles.roomCodeLabel}>Room Code:</AppText>
+              <TouchableOpacity
+                onPress={async () => {
+                  playSound("buttonClick");
+                  if (roomCode) {
+                    await Clipboard.setStringAsync(roomCode);
+                    Alert.alert("Room code copied to clipboard.");
+                  }
+                }}
+              >
+                <AppText style={styles.code}>{roomCode}</AppText>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <RopeIcon style={styles.rope} width={"100%"} />
+
+          {auth.currentUser?.uid === roomInfo.host && (
+            <View style={styles.hostControlsSection}>
+              <View style={styles.sliders}>
+                <View style={styles.sliderContainer}>
+                  <AppText style={styles.sliderLabel}>Number of Teams:</AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={1}
+                    maximumValue={Object.keys(roomInfo.players).length}
+                    step={1}
+                    value={numTeams}
+                    onValueChange={handleNumTeamsChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
+                  />
+                  <AppText style={[styles.sliderLabel, { marginBottom: 21 }]}>
+                    {numTeams} Team{numTeams > 1 ? "s" : ""}
+                  </AppText>
+                  <AppText style={styles.dimensionLabel}>
+                    Game Duration:
+                  </AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={10}
+                    maximumValue={1800}
+                    step={10}
+                    value={gameDuration}
+                    onValueChange={handleDurationChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
+                  />
+                  <AppText style={styles.sliderLabel}>
+                    {formatTime(gameDuration)}
+                  </AppText>
+                </View>
+
+                <View style={styles.sliderContainer}>
+                  <AppText style={styles.sliderLabel}>
+                    Boundary Dimensions:
+                  </AppText>
+                  <AppText style={styles.dimensionLabel}>Width (x) :</AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={minBoundary}
+                    maximumValue={maxBoundary}
+                    step={25}
+                    value={boundaryWidth}
+                    onValueChange={handleBoundaryWidthChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
+                  />
+                  <AppText style={styles.dimensionLabel}>Height (y) :</AppText>
+                  <SliderComponent
+                    style={styles.slider}
+                    minimumValue={minBoundary}
+                    maximumValue={maxBoundary}
+                    step={25}
+                    value={boundaryHeight}
+                    onValueChange={handleBoundaryHeightChange}
+                    minimumTrackTintColor="#3a160e"
+                    maximumTrackTintColor="#d3d3d3"
+                    thumbTintColor="#b81157"
+                  />
+                  <AppText style={styles.sliderLabel}>
+                    {boundaryWidth} x {boundaryHeight}
+                  </AppText>
+                </View>
+              </View>
             </View>
           )}
-        <View style={styles.middleContainer}>
-          {Object.keys(roomInfo.players)
-            .sort((a, b) => {
-              if (a === roomInfo.host) return -1;
-              if (b === roomInfo.host) return 1;
-              return 0;
-            })
-            .map((playerId) => {
-              const player = roomInfo.players[playerId];
-              const teamColors = [
-                { team: 1, color: "#8baaff" }, //blue
-                { team: 2, color: "#ffe08b" }, //yellow
-                { team: 3, color: "#ffbb8b" }, //orange
-                { team: 4, color: "#bd99e6" }, //purple
-                { team: 5, color: "#99d199" }, //green
-                { team: 6, color: "#68dbcc" }, //teal
-                { team: 7, color: "#e481c8" }, //pink
-                { team: 8, color: "#ff9090" }, //red
-              ];
-              const teamColor =
-                teamColors.find((team) => team.team === playerTeams[playerId])
-                  ?.color || "#8baaff";
-              const isReady = player.ready === true;
-              return (
-                <View
-                  key={playerId}
-                  style={{ flexDirection: "row", alignItems: "center" }}
-                >
-                  <Pressable
-                    style={[
-                      styles.playerContainer,
-                      { backgroundColor: teamColor },
-                    ]}
-                    onPress={
-                      auth.currentUser?.uid === roomInfo.host
-                        ? () => handleTeamChange(playerId)
-                        : undefined
-                    }
-                  >
-                    <AppText>{player.username}</AppText>
-                    {roomInfo.roomType !== "solo" && (
-                      <AppText style={{ marginLeft: 10 }}>
-                        [Team {playerTeams[playerId]}]
-                      </AppText>
-                    )}
-                  </Pressable>
-                  {isReady && <AppText style={styles.readyText}>Ready</AppText>}
-                </View>
-              );
-            })}
-        </View>
 
-        <View style={styles.bottomContainer}>
-          {roomInfo.gameStarted ? (
-            Object.keys(roomInfo.players).map((playerId) => {
-              const isReady = roomInfo.players[playerId]?.ready === true;
-              const readyLabel = isReady ? "Unready?" : "Ready?";
-              return (
-                <View key={playerId} style={[styles.playerContainerOnTop]}>
-                  {auth.currentUser?.uid === playerId && (
-                    <ReusableButton
-                      label={readyLabel}
-                      buttonTextStyle={{ position: "absolute" }}
-                      buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
-                      onPress={() => togglePlayerReady(playerId)}
-                    />
-                  )}
-                </View>
-              );
-            })
-          ) : (
-            <ReusableButton
-              label={
-                auth.currentUser?.uid === roomInfo.host
-                  ? "Start Game"
-                  : "Waiting for host to start..."
-              }
-              onPress={
-                auth.currentUser?.uid === roomInfo.host
-                  ? beginReadyGame
-                  : () => {}
-              }
-              buttonStyle={
-                auth.currentUser?.uid === roomInfo.host
-                  ? {}
-                  : { backgroundColor: "#968e84" }
-              }
-            />
-          )}
+          <View style={styles.playersSection}>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {Object.keys(roomInfo.players)
+                .sort((a, b) => {
+                  if (a === roomInfo.host) return -1;
+                  if (b === roomInfo.host) return 1;
+                  return 0;
+                })
+                .map((playerId) => {
+                  const player = roomInfo.players[playerId];
+                  const teamColors = [
+                    { team: 1, color: "#8baaff" }, //blue
+                    { team: 2, color: "#ffe08b" }, //yellow
+                    { team: 3, color: "#ffbb8b" }, //orange
+                    { team: 4, color: "#bd99e6" }, //purple
+                    { team: 5, color: "#99d199" }, //green
+                    { team: 6, color: "#68dbcc" }, //teal
+                    { team: 7, color: "#e481c8" }, //pink
+                    { team: 8, color: "#ff9090" }, //red
+                  ];
+                  const teamColor =
+                    teamColors.find(
+                      (team) => team.team === playerTeams[playerId]
+                    )?.color || "#8baaff";
+                  const isReady = player.ready === true;
+                  const isHost = playerId === roomInfo.host;
+                  return (
+                    <View key={playerId} style={styles.playerRow}>
+                      <Pressable
+                        style={[
+                          styles.playerContainer,
+                          { backgroundColor: teamColor },
+                        ]}
+                        onPress={
+                          auth.currentUser?.uid === roomInfo.host
+                            ? () => handleTeamChange(playerId)
+                            : undefined
+                        }
+                      >
+                        <AppText style={styles.playerName}>
+                          {player.username}
+                          {""}
+                          <Text style={styles.hostIndicator}>
+                            {isHost && " (Host)"}
+                          </Text>
+                        </AppText>
+                        <AppText style={styles.teamText}>
+                          [Team {playerTeams[playerId]}]
+                        </AppText>
+                      </Pressable>
+                      {isReady && (
+                        <AppText style={styles.readyText}>Ready</AppText>
+                      )}
+                    </View>
+                  );
+                })}
+            </ScrollView>
+          </View>
+
+          <View style={styles.bottomSection}>
+            {roomInfo.gameStarted ? (
+              Object.keys(roomInfo.players).map((playerId) => {
+                const isReady = roomInfo.players[playerId]?.ready === true;
+                const readyLabel = isReady ? "Unready?" : "Ready?";
+                return (
+                  <View key={playerId} style={[styles.readyButton]}>
+                    {auth.currentUser?.uid === playerId && (
+                      <ReusableButton
+                        label={readyLabel}
+                        buttonTextStyle={{ position: "absolute" }}
+                        buttonStyle={{ marginBottom: 60, borderRadius: 15 }}
+                        onPress={() => {
+                          playSound("buttonClick");
+                          togglePlayerReady(playerId);
+                        }}
+                      />
+                    )}
+                  </View>
+                );
+              })
+            ) : (
+              <ReusableButton
+                label={
+                  auth.currentUser?.uid === roomInfo.host
+                    ? "Start Game"
+                    : "Waiting for host to start..."
+                }
+                onPress={
+                  auth.currentUser?.uid === roomInfo.host
+                    ? beginReadyGame
+                    : () => {}
+                }
+                buttonStyle={
+                  auth.currentUser?.uid === roomInfo.host
+                    ? {}
+                    : { backgroundColor: "#968e84" }
+                }
+              />
+            )}
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
-
 const styles = StyleSheet.create({
-  topContainer: {
-    top: 50,
-    width: "100%",
-    height: 75,
-    justifyContent: "space-evenly",
-    alignItems: "center",
-    position: "absolute",
+  container: {
+    flex: 1,
+    backgroundColor: "#f5f0e8",
+    paddingTop: 50,
+  },
+  header: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingVertical: 15,
+    height: 70,
   },
-  middleContainer: {
-    justifyContent: "center",
+  roomCodeContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    width: "100%",
-    marginTop: 100,
   },
-  bottomContainer: {
-    bottom: 50,
-    position: "absolute",
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 20,
+  roomCodeLabel: {
+    fontSize: 16,
   },
   code: {
-    right: "30%",
     color: "#32CD32",
     textDecorationLine: "underline",
+    marginLeft: 5,
   },
   rope: {
-    top: "15%",
-    position: "absolute",
+    height: 30,
+    marginVertical: 10,
+  },
+  hostControlsSection: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  sliders: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  sliderContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginHorizontal: 10,
+  },
+  sliderLabel: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 5,
+  },
+  dimensionLabel: {
+    fontSize: 12,
+    marginTop: 5,
+  },
+  slider: {
+    width: 150,
+    height: 30,
+  },
+  playersSection: {
+    flex: 1,
+    marginTop: 10,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  playerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+    width: "100%",
   },
   playerContainer: {
-    width: "75%",
+    flex: 1,
     borderRadius: 15,
     height: 50,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
+    justifyContent: "space-between",
     flexDirection: "row",
+    paddingHorizontal: 15,
   },
-  sliderContainer: {
-    width: "80%",
-    alignItems: "center",
+  playerName: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  hostIndicator: {
+    fontSize: 12,
+    color: "#de2c4a",
+  },
+  teamText: {
+    fontSize: 14,
   },
   readyText: {
     color: "#32CD32",
     fontWeight: "bold",
-    marginLeft: 10,
-    marginBottom: 20,
+    marginLeft: 15,
+    fontSize: 14,
   },
-  invisibleReadyText: {
-    display: "none",
-  },
-  playerContainerOnTop: {
-    width: "75%",
-    borderRadius: 15,
-    height: 50,
+  bottomSection: {
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    flexDirection: "row",
-    position: "absolute",
+    paddingVertical: 20,
+  },
+  readyButton: {
+    borderRadius: 15,
+  },
+  disabledButton: {
+    backgroundColor: "#968e84",
   },
 });

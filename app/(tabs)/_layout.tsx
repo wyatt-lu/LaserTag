@@ -1,10 +1,23 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { IconSymbol } from "@/components/ui/IconSymbol";
-import { View, StyleSheet, Platform } from "react-native";
+import { View, StyleSheet, Platform, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import { useSound } from "@/constants/useSound";
 
 export default function TabLayout() {
+  const { playSound } = useSound();
+  const TabButton = ({ children, onPress, ...props }: any) => (
+    <TouchableOpacity
+      {...props}
+      onPress={(e) => {
+        playSound("buttonClick");
+        onPress?.(e);
+      }}
+    >
+      {children}
+    </TouchableOpacity>
+  );
   return (
     <Tabs
       screenOptions={{
@@ -20,12 +33,13 @@ export default function TabLayout() {
           fontSize: 12,
           fontFamily: "Bungee-Regular",
         },
+        tabBarButton: TabButton,
       }}
     >
       <Tabs.Screen
-        name="settings"
+        name="information"
         options={{
-          title: "Settings",
+          title: "Information",
           tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>
@@ -102,9 +116,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="equipment"
+        name="profile"
         options={{
-          title: "Equipment",
+          title: "Profile",
           tabBarIcon: ({ focused }) =>
             focused ? (
               <View style={styles.unfocused}>

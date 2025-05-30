@@ -5,10 +5,6 @@ import {
     cartesianToLatLng,
     degree,
   } from "@/functions/locationUtilityFunctions";
-
-export const useOx = () => {};
-export const useHorseshoe = () => {};
-export const useLasso = () => {};
 export const cowboyHat = async (roomCode: string | string[]) => {
     if (!auth.currentUser) return;
     const playerId = auth.currentUser.uid;

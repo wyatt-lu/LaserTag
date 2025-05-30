@@ -89,20 +89,12 @@ import {
 } from "@/functions/locationUtilityFunctions";
 import {
   cowboyBoots,
-  useOx,
-  useLasso,
   cowboyHat,
 } from "@/functions/powerupFunctions";
 import {
-  BadgeIcon,
   BootsIcon,
-  BountyIcon,
   CactusIcon,
   HatIcon,
-  HorseshoeIcon,
-  LassoIcon,
-  MoneyIcon,
-  OxIcon,
 } from "@/constants/icons";
 import {
   SafeAreaProvider,
@@ -118,9 +110,7 @@ export default function PlayScreen() {
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
   const FIRE_LASER_COOLDOWN = 5; // seconds
-  const [laserLines, setLaserLines] = useState<
-    { id: string; start: LatLng; end: LatLng }[]
-  >([]);
+  const [laserLines, setLaserLines] = useState<{ id: string; start: LatLng; end: LatLng }[]>([]);
 
   const { playSound } = useSound();
 
@@ -930,19 +920,9 @@ export default function PlayScreen() {
         }}
       >
         <View style={styles.powerUpIconContainer}>
-          {item.type === "Sheriff Badge" && (
-            <BadgeIcon width={30} height={30} />
-          )}
           {item.type === "Cowboy Boots" && <BootsIcon width={30} height={30} />}
-          {item.type === "Bounty" && <BountyIcon width={30} height={30} />}
           {item.type === "Cactus" && <CactusIcon width={30} height={30} />}
           {item.type === "Cowboy Hat" && <HatIcon width={30} height={30} />}
-          {item.type === "Horseshoe" && (
-            <HorseshoeIcon width={30} height={30} />
-          )}
-          {item.type === "Lasso" && <LassoIcon width={30} height={30} />}
-          {item.type === "Ox Stampede" && <OxIcon width={30} height={30} />}
-          {item.type === "Money" && <MoneyIcon width={30} height={30} />}
         </View>
         <AppText style={styles.powerUpCount}>{item.count}</AppText>
       </TouchableOpacity>
@@ -1406,49 +1386,41 @@ export default function PlayScreen() {
                 }}
               >
                 <AppText>Exit Game</AppText>
-              </TouchableOpacity>{" "}
-              <Modal
-                transparent
-                visible={!!eliminationMessage}
-                animationType="fade"
-              >
-                <View
-                  style={{
-                    flex: 1,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor: "rgba(0, 0, 0, 0.5)",
-                  }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: "white",
-                      padding: 20,
-                      borderRadius: 10,
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 4,
-                      elevation: 5,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        fontWeight: "bold",
-                        textAlign: "center",
-                      }}
-                    >
-                      {eliminationMessage}
-                    </Text>
-                  </View>
-                </View>
-              </Modal>
-              {eliminationMessage === null && (
-                <Text style={{ textAlign: "center", marginTop: 20 }}>
-                  Modal hidden
+              </TouchableOpacity>
+          <Modal
+            transparent
+            visible={!!eliminationMessage}
+            animationType="fade"
+          >
+            <View style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',}}>
+              <View style={{
+                backgroundColor: 'white',
+                padding: 20,
+                borderRadius: 10,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 5,
+              }}>
+                <Text style={{
+                  fontSize: 18, 
+                  fontWeight: 'bold', 
+                  textAlign: 'center' }}>
+                  {eliminationMessage}
                 </Text>
-              )}
+              </View>
+            </View>
+          </Modal> 
+          {eliminationMessage === null && (
+          <Text style={{ textAlign: 'center', marginTop: 20 }}>
+            Modal hidden
+          </Text>
+          )}
               <Modal visible={cactusModalVisible} animationType="slide">
                 {location ? (
                   <View style={{ flex: 1 }}>

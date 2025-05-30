@@ -29,12 +29,10 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.container}>
 
         <AppText style={styles.points}>Points: {points}</AppText>
-        <View>
+
+        <View style={styles.text}>
           <AppText>Choose your weapon!</AppText>
           <AppText>Sorry, you only have one choice... Lasso!!!</AppText>
-
-        </View>
-        <View style={styles.lassoContainer}>
           <LassoIcon width={30} height={30} />
         </View>
       </SafeAreaView>
@@ -60,8 +58,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 5,
   },
-  lassoContainer: {
-    marginLeft: 20,
-    marginTop: 20,
+  text: {
+    marginLeft: 40,
+    marginTop: 100,
+    fontSize: 20,
   }
 });

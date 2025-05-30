@@ -653,7 +653,7 @@ export default function PlayScreen() {
             await remove(powerUpsRef);
           }
         }, despawnTime);
-      }, Math.random() * (4000 - 3000) + 3600);
+      }, Math.random() * (6000 - 3000) + 3600);
     }
 
     return () => {

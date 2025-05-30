@@ -87,15 +87,8 @@ import {
   cartesianToLatLng,
   degree,
 } from "@/functions/locationUtilityFunctions";
-import {
-  cowboyBoots,
-  cowboyHat,
-} from "@/functions/powerupFunctions";
-import {
-  BootsIcon,
-  CactusIcon,
-  HatIcon,
-} from "@/constants/icons";
+import { cowboyBoots, cowboyHat } from "@/functions/powerupFunctions";
+import { BootsIcon, CactusIcon, HatIcon } from "@/constants/icons";
 import {
   SafeAreaProvider,
   SafeAreaView,
@@ -110,9 +103,11 @@ export default function PlayScreen() {
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
   const FIRE_LASER_COOLDOWN = 5; // seconds
-  const [laserLines, setLaserLines] = useState<{ id: string; start: LatLng; end: LatLng }[]>([]);
+  const [laserLines, setLaserLines] = useState<
+    { id: string; start: LatLng; end: LatLng }[]
+  >([]);
 
-  const { playSound } = useSound();
+  const { playSound, loopSound, stopSound } = useSound();
 
   // Team Colors (team number, color)
 
@@ -225,7 +220,7 @@ export default function PlayScreen() {
         roomData.gameDuration
           ? startGameTimer(roomData.gameDuration)
           : startGameTimer(600);
-        playSound("backgroundTheme");
+        loopSound("backgroundTheme");
         if (mapRef.current) {
           setTimeout(() => {
             mapRef.current?.animateToRegion(
@@ -486,7 +481,6 @@ export default function PlayScreen() {
           updatedPlayersList.push(player);
           //vibrate if out at all
           const stored = await AsyncStorage.getItem("eliminatedFully");
-          console.log("stored", stored);
           if (player.eliminated && auth.currentUser.uid == player.id) {
             if (stored !== "true") {
               setEliminatedFully(true);
@@ -550,18 +544,15 @@ export default function PlayScreen() {
   );
 
   useEffect(() => {
-    console.log("Room code is", roomCode);
     const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
     const handleSnapshot = (snapshot: DataSnapshot) => {
       const playersData = snapshot.val();
       if (!playersData) return;
-      console.log("playersData", playersData);
       Object.entries(playersData).forEach(([playerId, playerData]) => {
         const { eliminated, username } = playerData as {
           eliminated: boolean;
           username: string;
         };
-        console.log("Player:", username, "Eliminated:", eliminated);
         setShownEliminations((prev) => {
           if (eliminated && !prev.has(playerId)) {
             // New Set so React knows it's a change
@@ -1151,6 +1142,7 @@ export default function PlayScreen() {
     sheetRef.current?.snapToIndex(0);
     await AsyncStorage.setItem("eliminatedFully", "false");
     setEliminatedFully(false);
+    stopSound("backgroundTheme");
   };
 
   const [isFireDisabled, setIsFireDisabled] = useState(false);
@@ -1387,40 +1379,48 @@ export default function PlayScreen() {
               >
                 <AppText>Exit Game</AppText>
               </TouchableOpacity>
-          <Modal
-            transparent
-            visible={!!eliminationMessage}
-            animationType="fade"
-          >
-            <View style={{
-              flex: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',}}>
-              <View style={{
-                backgroundColor: 'white',
-                padding: 20,
-                borderRadius: 10,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 4,
-                elevation: 5,
-              }}>
-                <Text style={{
-                  fontSize: 18, 
-                  fontWeight: 'bold', 
-                  textAlign: 'center' }}>
-                  {eliminationMessage}
+              <Modal
+                transparent
+                visible={!!eliminationMessage}
+                animationType="fade"
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: "white",
+                      padding: 20,
+                      borderRadius: 10,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 4,
+                      elevation: 5,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        textAlign: "center",
+                      }}
+                    >
+                      {eliminationMessage}
+                    </Text>
+                  </View>
+                </View>
+              </Modal>
+              {eliminationMessage === null && (
+                <Text style={{ textAlign: "center", marginTop: 20 }}>
+                  Modal hidden
                 </Text>
-              </View>
-            </View>
-          </Modal> 
-          {eliminationMessage === null && (
-          <Text style={{ textAlign: 'center', marginTop: 20 }}>
-            Modal hidden
-          </Text>
-          )}
+              )}
               <Modal visible={cactusModalVisible} animationType="slide">
                 {location ? (
                   <View style={{ flex: 1 }}>

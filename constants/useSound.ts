@@ -37,12 +37,72 @@ export const useSound = () => {
     }
 
     try {
-      player.play();
       player.seekTo(0);
+      player.loop = false;
+      player.play();
     } catch (error) {
       console.log("Sound play error:", error);
     }
   };
 
-  return { playSound };
+  const loopSound = (soundName: SoundName): void => {
+    let player;
+    switch (soundName) {
+      case "buttonClick":
+        player = buttonClickPlayer;
+        break;
+      case "gameStart":
+        player = gameStartPlayer;
+        break;
+      case "lasso":
+        player = lassoPlayer;
+        break;
+      case "backgroundTheme":
+        player = backgroundPlayer;
+        player.volume = 0.2;
+        break;
+      default:
+        console.warn(`Sound ${soundName} not found`);
+        return;
+    }
+
+    try {
+      player.seekTo(0);
+      player.loop = true;
+      player.play();
+    } catch (error) {
+      console.log("Sound play error:", error);
+    }
+  };
+
+  const stopSound = (soundName: SoundName): void => {
+    let player;
+    switch (soundName) {
+      case "buttonClick":
+        player = buttonClickPlayer;
+        break;
+      case "gameStart":
+        player = gameStartPlayer;
+        break;
+      case "lasso":
+        player = lassoPlayer;
+        break;
+      case "backgroundTheme":
+        player = backgroundPlayer;
+        break;
+      default:
+        console.warn(`Sound ${soundName} not found`);
+        return;
+    }
+
+    try {
+      player.pause();
+      player.seekTo(0);
+      player.loop = false;
+    } catch (error) {
+      console.log("Sound play error:", error);
+    }
+  };
+
+  return { playSound, loopSound, stopSound };
 };

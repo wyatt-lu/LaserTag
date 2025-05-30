@@ -5,6 +5,7 @@ import AppText from "@/components/AppText";
 import { auth, database } from "@/firebaseconfig";
 import { ref, get } from "firebase/database";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { LassoIcon } from "@/constants/icons";
 
 export default function ProfileScreen() {
   const [points, setPoints] = useState<number>();
@@ -26,8 +27,15 @@ export default function ProfileScreen() {
     <SafeAreaProvider>
       <StatusBar hidden={true} />
       <SafeAreaView style={styles.container}>
+
+        <AppText style={styles.points}>Points: {points}</AppText>
         <View>
-          <AppText style={styles.points}>Points: {points}</AppText>
+          <AppText>Choose your weapon!</AppText>
+          <AppText>Sorry, you only have one choice... Lasso!!!</AppText>
+
+        </View>
+        <View style={styles.lassoContainer}>
+          <LassoIcon width={30} height={30} />
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -52,4 +60,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 5,
   },
+  lassoContainer: {
+    marginLeft: 20,
+    marginTop: 20,
+  }
 });

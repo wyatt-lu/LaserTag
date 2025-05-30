@@ -1,5 +1,4 @@
 import { ref, get, update } from "firebase/database";
-import { Vibration } from "react-native";
 import { cartesianToLatLng } from "@/functions/locationUtilityFunctions";
 
 type PLD = {

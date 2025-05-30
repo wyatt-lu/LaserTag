@@ -106,7 +106,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
-  const LASER_LENGTH = 7; // in meters
+  const LASER_LENGTH = 20; // in meters
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
   const FIRE_LASER_COOLDOWN = 5; // seconds
@@ -618,15 +618,13 @@ export default function PlayScreen() {
     // console.log("maxLat", maxLat);
     // console.log("minLng", minLng);
     // console.log("maxLng", maxLng);
-    const randLatLng = {
-      latitude: Math.random() * (maxLat - minLat) + minLat,
-      longitude: Math.random() * (maxLng - minLng) + minLng,
+    let randX = Math.random() * (boundarySize.width)-boundarySize.width/2;
+    let randY = Math.random() * (boundarySize.height)-boundarySize.height/2;
+    const randCartesian = {
+      x: randX,
+      y: randY
     };
-    const cartesian = latLngToCartesian(randLatLng, center);
-    return {
-      x: cartesian.x,
-      y: cartesian.y,
-    };
+    return randCartesian;
   };
 
   //make random powerups

@@ -4,6 +4,7 @@ const soundFiles = {
   buttonClick: require("@/assets/sounds/button-click.mp3"),
   gameStart: require("@/assets/sounds/game-start.wav"),
   lasso: require("@/assets/sounds/lasso.wav"),
+  backgroundTheme: require("@/assets/sounds/background-theme.wav"),
   // Add more sounds here
 } as const;
 
@@ -13,6 +14,7 @@ export const useSound = () => {
   const buttonClickPlayer = useAudioPlayer(soundFiles.buttonClick);
   const gameStartPlayer = useAudioPlayer(soundFiles.gameStart);
   const lassoPlayer = useAudioPlayer(soundFiles.lasso);
+  const backgroundPlayer = useAudioPlayer(soundFiles.backgroundTheme);
 
   const playSound = (soundName: SoundName): void => {
     let player;
@@ -25,6 +27,9 @@ export const useSound = () => {
         break;
       case "lasso":
         player = lassoPlayer;
+        break;
+      case "backgroundTheme":
+        player = backgroundPlayer;
         break;
       default:
         console.warn(`Sound ${soundName} not found`);

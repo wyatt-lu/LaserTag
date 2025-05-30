@@ -235,6 +235,7 @@ export default function PlayScreen() {
         roomData.gameDuration
           ? startGameTimer(roomData.gameDuration)
           : startGameTimer(600);
+        playSound("backgroundTheme");
         if (mapRef.current) {
           setTimeout(() => {
             mapRef.current?.animateToRegion(
@@ -957,7 +958,6 @@ export default function PlayScreen() {
 
   const mapRef = useRef<MapView | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
-
 
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 

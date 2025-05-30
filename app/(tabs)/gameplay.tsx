@@ -21,7 +21,12 @@ import {
   Vibration,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import MapView, { MapPressEvent, Marker, Polygon, Polyline } from "react-native-maps";
+import MapView, {
+  MapPressEvent,
+  Marker,
+  Polygon,
+  Polyline,
+} from "react-native-maps";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -46,7 +51,16 @@ configureReanimatedLogger({
 import { useSound } from "@/constants/useSound";
 
 // Firebase Imports
-import { get, off, onValue, ref, remove, set, update, DataSnapshot } from "firebase/database";
+import {
+  get,
+  off,
+  onValue,
+  ref,
+  remove,
+  set,
+  update,
+  DataSnapshot,
+} from "firebase/database";
 
 import { auth, database } from "../../firebaseconfig";
 import {
@@ -527,8 +541,12 @@ export default function PlayScreen() {
   };
 
   //eliminate player modal check
-  const [eliminationMessage, setEliminationMessage] = useState<string | null>(null);
-  const [shownEliminations, setShownEliminations] = useState<Set<string>>(new Set());
+  const [eliminationMessage, setEliminationMessage] = useState<string | null>(
+    null
+  );
+  const [shownEliminations, setShownEliminations] = useState<Set<string>>(
+    new Set()
+  );
 
   useEffect(() => {
     console.log("Room code is", roomCode);
@@ -538,7 +556,10 @@ export default function PlayScreen() {
       if (!playersData) return;
       console.log("playersData", playersData);
       Object.entries(playersData).forEach(([playerId, playerData]) => {
-        const { eliminated, username } = playerData as { eliminated: boolean; username: string };
+        const { eliminated, username } = playerData as {
+          eliminated: boolean;
+          username: string;
+        };
         console.log("Player:", username, "Eliminated:", eliminated);
         setShownEliminations((prev) => {
           if (eliminated && !prev.has(playerId)) {
@@ -556,14 +577,14 @@ export default function PlayScreen() {
       });
     };
     onValue(roomPlayerRef, handleSnapshot);
-    return () => off(roomPlayerRef, 'value', handleSnapshot);
+    return () => off(roomPlayerRef, "value", handleSnapshot);
   }, [roomCode]);
 
   //checks if updating correctlyf
   useEffect(() => {
     console.log("eliminationMessage changed:", eliminationMessage);
   }, [eliminationMessage]);
-  
+
   // Generate Powerups
   type PowerUp = {
     id: string;
@@ -1315,7 +1336,12 @@ export default function PlayScreen() {
                     onPress={async () => {
                       Vibration.vibrate(200);
                       playSound("lasso");
-                      const laserVisuals = await fireLaser(database, roomCode, LASER_LENGTH, center);
+                      const laserVisuals = await fireLaser(
+                        database,
+                        roomCode,
+                        LASER_LENGTH,
+                        center
+                      );
                       setLaserLines(laserVisuals);
                       setIsFireDisabled(true);
                       fireCooldownProgress.value = 0;
@@ -1345,7 +1371,6 @@ export default function PlayScreen() {
               />
               <View style={styles.bottomSheetDivider} />
               <AppText style={styles.inventoryTitle}>Inventory</AppText>
-
               <FlatList
                 data={userPowerUps}
                 keyExtractor={(item) => item.type}
@@ -1391,7 +1416,6 @@ export default function PlayScreen() {
               </View>
             </View>
           </Modal> 
-          
           {eliminationMessage === null && (
           <Text style={{ textAlign: 'center', marginTop: 20 }}>
             Modal hidden

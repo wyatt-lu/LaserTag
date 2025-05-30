@@ -214,6 +214,8 @@ export default function PlayScreen() {
       setPowerUps([]);
       setUserPowerUps([]);
 
+      await AsyncStorage.setItem("eliminatedFully", "false");
+
       if (roomData.gameReady) {
         roomData.gameDuration
           ? startGameTimer(roomData.gameDuration)
@@ -486,6 +488,7 @@ export default function PlayScreen() {
           updatedPlayersList.push(player);
           //vibrate if out at all
           const stored = await AsyncStorage.getItem("eliminatedFully");
+          console.log("stored", stored);
           if (player.eliminated && auth.currentUser.uid == player.id) {
             if (stored !== "true"){
               setEliminatedFully(true);
@@ -549,15 +552,9 @@ export default function PlayScreen() {
   };
 
   const powerUpTypes = [
-    { type: "Lasso" },
-    { type: "Horseshoe" },
     { type: "Cowboy Boots" },
-    { type: "Bounty" },
-    { type: "Sheriff Badge" },
     { type: "Cowboy Hat" },
     { type: "Cactus" },
-    { type: "Ox Stampede" },
-    { type: "Money" },
   ];
 
   const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -618,14 +615,14 @@ export default function PlayScreen() {
         );
         await set(powerUpsRef, newPowerUp);
 
-        const despawnTime = Math.random() * (36000 - 3000) + 3000;
+        const despawnTime = Math.random() * (72000 - 3000) + 3000;
         setTimeout(async () => {
           // Only remove if still in-game state
           if (gameState === "in-game") {
             await remove(powerUpsRef);
           }
         }, despawnTime);
-      }, Math.random() * (4000 - 3000) + 3000);
+      }, Math.random() * (4000 - 3000) + 3600);
     }
 
     return () => {
@@ -810,18 +807,6 @@ export default function PlayScreen() {
       case "Cowboy Hat":
         cowboyHat(roomCode);
         break;
-      case "Sheriff Badge":
-        console.log("Using badge power-up");
-        break;
-      case "Horseshoe":
-        console.log("Using horseshoe power-up");
-        break;
-      case "Lasso":
-        console.log("Using Lasso power-up");
-        break;
-      case "Bounty":
-        console.log("Using Bounty power-up");
-        break;
       case "Cactus":
         const seeIfUserHasCactus = async () => {
           const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
@@ -867,12 +852,6 @@ export default function PlayScreen() {
         };
         seeIfUserHasCactus();
         return;
-      case "Ox Stampede":
-        useOx();
-        break;
-      case "Money":
-        console.log("Using Money power-up");
-        break;
       default:
         console.log("Using unknown powerup");
         break;
@@ -926,6 +905,7 @@ export default function PlayScreen() {
 
   const mapRef = useRef<MapView | null>(null);
   const sheetRef = useRef<BottomSheet>(null);
+
 
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 

@@ -18,10 +18,10 @@ import {
   Platform,
   StyleSheet,
   StatusBar,
-  Vibration
+  Vibration,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import MapView, { MapPressEvent, Marker, Polygon } from "react-native-maps";
+import MapView, { MapPressEvent, Marker, Polygon, Polyline } from "react-native-maps";
 import { Magnetometer } from "expo-sensors";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -46,7 +46,8 @@ configureReanimatedLogger({
 import { useSound } from "@/constants/useSound";
 
 // Firebase Imports
-import { get, off, onValue, ref, remove, set, update } from "firebase/database";
+import { get, off, onValue, ref, remove, set, update, DataSnapshot } from "firebase/database";
+
 import { auth, database } from "../../firebaseconfig";
 import {
   getStorage,
@@ -96,9 +97,6 @@ import {
 } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Type Definitions
-type LatLng = { latitude: number; longitude: number };
-
 export default function PlayScreen() {
   // Global Variables
   // Laser Type (length, width)
@@ -106,6 +104,9 @@ export default function PlayScreen() {
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
   const FIRE_LASER_COOLDOWN = 5; // seconds
+  const [laserLines, setLaserLines] = useState<
+    { id: string; start: LatLng; end: LatLng }[]
+  >([]);
 
   const { playSound } = useSound();
 
@@ -114,7 +115,7 @@ export default function PlayScreen() {
   // Player Colors (player number, color)
 
   //Set Boundary
-  const [boundary, setBoundary] = useState<any[]>([
+  const [boundary, setBoundary] = useState<LatLng[]>([
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
@@ -355,14 +356,6 @@ export default function PlayScreen() {
     };
   }, [gameState]);
 
-  interface Box {
-    player: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }
-
   const updatePlayerLocation = async (
     latitude: number,
     longitude: number,
@@ -490,7 +483,7 @@ export default function PlayScreen() {
           const stored = await AsyncStorage.getItem("eliminatedFully");
           console.log("stored", stored);
           if (player.eliminated && auth.currentUser.uid == player.id) {
-            if (stored !== "true"){
+            if (stored !== "true") {
               setEliminatedFully(true);
               await AsyncStorage.setItem("eliminatedFully", "true");
               Vibration.vibrate(300);
@@ -543,8 +536,45 @@ export default function PlayScreen() {
     }
   };
 
-  // Generate Powerups
+  //eliminate player modal check
+  const [eliminationMessage, setEliminationMessage] = useState<string | null>(null);
+  const [shownEliminations, setShownEliminations] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    console.log("Room code is", roomCode);
+    const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
+    const handleSnapshot = (snapshot: DataSnapshot) => {
+      const playersData = snapshot.val();
+      if (!playersData) return;
+      console.log("playersData", playersData);
+      Object.entries(playersData).forEach(([playerId, playerData]) => {
+        const { eliminated, username } = playerData as { eliminated: boolean; username: string };
+        console.log("Player:", username, "Eliminated:", eliminated);
+        setShownEliminations((prev) => {
+          if (eliminated && !prev.has(playerId)) {
+            // New Set so React knows it's a change
+            const newSet = new Set(prev);
+            newSet.add(playerId);
+
+            setEliminationMessage(`${username} has been eliminated`);
+            setTimeout(() => setEliminationMessage(null), 3000);
+
+            return newSet;
+          }
+          return prev;
+        });
+      });
+    };
+    onValue(roomPlayerRef, handleSnapshot);
+    return () => off(roomPlayerRef, 'value', handleSnapshot);
+  }, [roomCode]);
+
+  //checks if updating correctlyf
+  useEffect(() => {
+    console.log("eliminationMessage changed:", eliminationMessage);
+  }, [eliminationMessage]);
+  
+  // Generate Powerups
   type PowerUp = {
     id: string;
     type: string;
@@ -635,6 +665,7 @@ export default function PlayScreen() {
 
   //set powerups up in a usestate
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     const fetchPowerUps = async () => {
       if (!roomCode) return;
 
@@ -657,11 +688,11 @@ export default function PlayScreen() {
           setPowerUps([]);
         }
       });
-
-      return () => unsubscribe();
     };
-
     fetchPowerUps();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [gameState]);
 
   // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
@@ -1181,7 +1212,7 @@ export default function PlayScreen() {
                     style={styles.userInfoButton}
                     onPress={() => {
                       playSound("buttonClick");
-                      focusOnUserLocation;
+                      focusOnUserLocation();
                     }}
                   >
                     <Text style={styles.buttonText}>
@@ -1254,7 +1285,14 @@ export default function PlayScreen() {
                   name={powerUp.type}
                 />
               ))}
-
+              {laserLines.map((line) => (
+                <Polyline
+                  key={line.id}
+                  coordinates={[line.start, line.end]}
+                  strokeColor="#FF0000"
+                  strokeWidth={3}
+                />
+              ))}
               {playerArray.map((player) => {
                 if (!player.cartesian || player.eliminated) return null;
                 const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
@@ -1294,10 +1332,11 @@ export default function PlayScreen() {
                 <Animated.View style={[fireReloadBarStyle]}>
                   <Pressable
                     disabled={isFireDisabled}
-                    onPress={() => {
+                    onPress={async () => {
                       Vibration.vibrate(200);
                       playSound("lasso");
-                      fireLaser(database, roomCode, LASER_LENGTH);
+                      const laserVisuals = await fireLaser(database, roomCode, LASER_LENGTH, center);
+                      setLaserLines(laserVisuals);
                       setIsFireDisabled(true);
                       fireCooldownProgress.value = 0;
                       fireCooldownProgress.value = withTiming(1, {
@@ -1305,6 +1344,7 @@ export default function PlayScreen() {
                         easing: Easing.linear,
                       });
                       setTimeout(() => {
+                        setLaserLines([]); // remove visuals
                         setIsFireDisabled(false);
                       }, FIRE_LASER_COOLDOWN * 1000);
                     }}
@@ -1341,7 +1381,40 @@ export default function PlayScreen() {
                 }}
               >
                 <AppText>Exit Game</AppText>
-              </TouchableOpacity>
+              </TouchableOpacity>          <Modal
+            transparent
+            visible={!!eliminationMessage}
+            animationType="fade"
+          >
+            <View style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',}}>
+              <View style={{
+                backgroundColor: 'white',
+                padding: 20,
+                borderRadius: 10,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 5,
+              }}>
+                <Text style={{
+                  fontSize: 18, 
+                  fontWeight: 'bold', 
+                  textAlign: 'center' }}>
+                  {eliminationMessage}
+                </Text>
+              </View>
+            </View>
+          </Modal> 
+          {eliminationMessage === null && (
+          <Text style={{ textAlign: 'center', marginTop: 20 }}>
+            Modal hidden
+          </Text>
+          )}
               <Modal visible={cactusModalVisible} animationType="slide">
                 {location ? (
                   <View style={{ flex: 1 }}>

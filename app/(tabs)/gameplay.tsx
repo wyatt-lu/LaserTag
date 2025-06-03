@@ -103,6 +103,9 @@ export default function PlayScreen() {
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
   const FIRE_LASER_COOLDOWN = 5; // seconds
+  const PLAYER_LIVES = 5;
+  const PLAYER_RESPAWN_COOLDOWN = 5000; // ms
+
   const [laserLines, setLaserLines] = useState<
     { id: string; start: LatLng; end: LatLng }[]
   >([]);
@@ -401,7 +404,14 @@ export default function PlayScreen() {
       if (!auth.currentUser) return;
       const playerId = auth.currentUser.uid;
       const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-      await update(playerRef, { eliminated: true });
+      const playerInfo = await get(playerRef);
+
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+
+      if (!playerData.eliminated && !playerData.isRespawning) {
+        await handlePlayerElimination("You went out of bounds!");
+      }
     }
   };
   // Get PlayerURL from Firebase (storage as URL)
@@ -610,11 +620,11 @@ export default function PlayScreen() {
     // console.log("maxLat", maxLat);
     // console.log("minLng", minLng);
     // console.log("maxLng", maxLng);
-    let randX = Math.random() * (boundarySize.width)-boundarySize.width/2;
-    let randY = Math.random() * (boundarySize.height)-boundarySize.height/2;
+    let randX = Math.random() * boundarySize.width - boundarySize.width / 2;
+    let randY = Math.random() * boundarySize.height - boundarySize.height / 2;
     const randCartesian = {
       x: randX,
-      y: randY
+      y: randY,
     };
     return randCartesian;
   };
@@ -703,11 +713,13 @@ export default function PlayScreen() {
 
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+
     const checkLocationPowerUpAndCactus = async () => {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
-      if (playerData.eliminated || !playerHitBox) return;
+      if (playerData.eliminated || playerData.isRespawning || !playerHitBox)
+        return;
       let playerPowerUps = userPowerUps;
       powerUps.map(async (powerUp) => {
         /* change the delta to be whatever value u want*/
@@ -750,7 +762,7 @@ export default function PlayScreen() {
       cactusArray.forEach(async (cactus) => {
         if (await inHitBox(cactus, playerHitBox)) {
           //remove current player from game if they are on an active cactus
-          await update(playerRef, { eliminated: true });
+          await handlePlayerElimination("You hit a cactus!");
 
           //reward the cactus placer
           const cactusPlacerRef = ref(
@@ -1173,6 +1185,195 @@ export default function PlayScreen() {
     }
   };
 
+  const [playerLives, setPlayerLives] = useState<number>(PLAYER_LIVES);
+  const [isRespawning, setIsRespawning] = useState<boolean>(false);
+  const [respawnTimeLeft, setRespawnTimeLeft] = useState<number>(0);
+  const [eliminationModalVisible, setEliminationModalVisible] =
+    useState<boolean>(false);
+  const [eliminationReason, setEliminationReason] = useState<string>("");
+
+  const respawnTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const initializePlayerLives = async () => {
+    if (!auth.currentUser || !roomCode) return;
+
+    const playerRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}`
+    );
+    await update(playerRef, {
+      lives: PLAYER_LIVES,
+      isAlive: true,
+      isRespawning: false,
+    });
+    setPlayerLives(PLAYER_LIVES);
+  };
+
+  const handlePlayerElimination = async (
+    reason: string = "You were eliminated!"
+  ) => {
+    if (!auth.currentUser || !roomCode) return;
+
+    const playerRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}`
+    );
+    const playerInfo = await get(playerRef);
+
+    if (!playerInfo.exists()) return;
+    const playerData = playerInfo.val();
+
+    const newLives = Math.max(0, (playerData.lives || PLAYER_LIVES) - 1);
+    setPlayerLives(newLives);
+
+    setEliminationReason(reason);
+    setEliminationModalVisible(true);
+
+    playSound("buttonClick"); // elimination sound will go here
+    Vibration.vibrate([100, 50, 100, 50, 200]);
+
+    if (newLives > 0) {
+      setIsRespawning(true);
+      setRespawnTimeLeft(PLAYER_RESPAWN_COOLDOWN / 1000);
+
+      await update(playerRef, {
+        lives: newLives,
+        eliminated: true,
+        isRespawning: true,
+        isAlive: false,
+      });
+
+      // start respawn countdown
+      let timeLeft = PLAYER_RESPAWN_COOLDOWN / 1000;
+      respawnTimerRef.current = setInterval(async () => {
+        timeLeft--;
+        setRespawnTimeLeft(timeLeft);
+
+        if (timeLeft <= 0) {
+          // respawn player
+          await respawnPlayer();
+          if (respawnTimerRef.current) {
+            clearInterval(respawnTimerRef.current);
+            respawnTimerRef.current = null;
+          }
+        }
+      }, 1000);
+    } else {
+      await update(playerRef, {
+        lives: 0,
+        eliminated: true,
+        isRespawning: false,
+        isAlive: false,
+        isSpectator: true,
+      });
+
+      setTimeout(() => {
+        setEliminationModalVisible(false);
+      }, 3000);
+    }
+  };
+
+  const respawnPlayer = async () => {
+    if (!auth.currentUser || !roomCode) return;
+
+    const playerRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}`
+    );
+
+    // Generate random respawn location within bounds
+    const respawnLocation = generateRandomCartesianInBounds();
+
+    const freshPlayerInfo = await get(playerRef);
+    const playerData = freshPlayerInfo.val();
+
+    await update(playerRef, {
+      eliminated: false,
+      isRespawning: false,
+      isAlive: true,
+      cartesian: playerData.cartesian, // current location of player i hope
+    });
+
+    setIsRespawning(false);
+    setEliminationModalVisible(false);
+    setRespawnTimeLeft(0);
+
+    // clear user inventory (can remove)
+    setUserPowerUps([]);
+  };
+
+  useEffect(() => {
+    if (gameState === "in-game") {
+      initializePlayerLives();
+    }
+  }, [gameState]);
+
+  useEffect(() => {
+    if (!auth.currentUser || !roomCode) return;
+
+    const playerLivesRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}/lives`
+    );
+    const unsubscribe = onValue(playerLivesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setPlayerLives(snapshot.val());
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode]);
+
+  const EliminationModal = () => (
+    <Modal
+      transparent={true}
+      visible={eliminationModalVisible}
+      animationType="fade"
+    >
+      <View style={styles.eliminationModalOverlay}>
+        <View style={styles.eliminationModalContent}>
+          <Text style={styles.eliminationTitle}>
+            {playerLives > 0 ? "ELIMINATED!" : "GAME OVER!"}
+          </Text>
+          <Text style={styles.eliminationMessage}>{eliminationReason}</Text>
+
+          {playerLives > 0 ? (
+            <>
+              <Text style={styles.livesText}>
+                Lives Remaining: {playerLives}
+              </Text>
+              {isRespawning && (
+                <>
+                  <Text style={styles.respawnText}>
+                    Respawning in: {respawnTimeLeft}s
+                  </Text>
+                  <View style={styles.respawnProgressContainer}>
+                    <View
+                      style={[
+                        styles.respawnProgressBar,
+                        {
+                          width: `${
+                            (respawnTimeLeft /
+                              (PLAYER_RESPAWN_COOLDOWN / 1000)) *
+                            100
+                          }%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </>
+              )}
+            </>
+          ) : (
+            <Text style={styles.spectatorText}>
+              You are now spectating the game
+            </Text>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <SafeAreaProvider>
       <StatusBar hidden={true} />
@@ -1231,6 +1432,11 @@ export default function PlayScreen() {
                       )?.team || 1}
                       ]
                     </Text>
+                    <View style={styles.livesContainer}>
+                      <Text style={styles.livesDisplayText}>
+                        ❤️ {playerLives}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.timerContainer}>
@@ -1332,7 +1538,7 @@ export default function PlayScreen() {
                         LASER_LENGTH,
                         center
                       );
-                      setLaserLines(laserVisuals);
+                      setLaserLines(laserVisuals ?? []);
                       setIsFireDisabled(true);
                       fireCooldownProgress.value = 0;
                       fireCooldownProgress.value = withTiming(1, {
@@ -1499,6 +1705,7 @@ export default function PlayScreen() {
             players={playerArray}
             playerURLArray={playersURL}
           />
+          <EliminationModal />
         </GestureHandlerRootView>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -1745,5 +1952,95 @@ const styles = StyleSheet.create({
 
   safeTopArea: {
     paddingTop: Platform.OS === "ios" ? 44 : 24,
+  },
+
+  eliminationModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  eliminationModalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 30,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 280,
+    maxWidth: 320,
+  },
+
+  eliminationTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#de2c4a",
+    marginBottom: 15,
+    fontFamily: "Bungee-Regular",
+    textAlign: "center",
+  },
+
+  eliminationMessage: {
+    fontSize: 16,
+    color: "#3a160e",
+    marginBottom: 20,
+    textAlign: "center",
+    fontFamily: "Bungee-Regular",
+  },
+
+  livesText: {
+    fontSize: 18,
+    color: "#88cb54",
+    marginBottom: 15,
+    fontWeight: "bold",
+    fontFamily: "Bungee-Regular",
+  },
+
+  respawnText: {
+    fontSize: 16,
+    color: "#3a160e",
+    marginBottom: 10,
+    fontFamily: "Bungee-Regular",
+  },
+
+  spectatorText: {
+    fontSize: 16,
+    color: "#968e84",
+    textAlign: "center",
+    fontStyle: "italic",
+    fontFamily: "Bungee-Regular",
+  },
+
+  respawnProgressContainer: {
+    width: 200,
+    height: 8,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginTop: 10,
+  },
+
+  respawnProgressBar: {
+    height: "100%",
+    backgroundColor: "#de2c4a",
+    borderRadius: 4,
+  },
+
+  livesContainer: {
+    marginLeft: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(222, 44, 74, 0.2)",
+    borderRadius: 12,
+  },
+
+  livesDisplayText: {
+    fontSize: 14,
+    color: "#faf6ea",
+    fontFamily: "Bungee-Regular",
   },
 });

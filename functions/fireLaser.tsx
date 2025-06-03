@@ -1,180 +1,184 @@
-import { ref, get, update } from "firebase/database";
+import { ref, get, update, Database } from "firebase/database";
 import { cartesianToLatLng } from "@/functions/locationUtilityFunctions";
+import { getAuth } from "firebase/auth";
 
-type PLD = {
-  playerId: string;
-  direction: number;
-  x: number;
-  y: number;
-  team: number;
-};
-
-type Box = {
-  player: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-type LL = {
-  playerId: string;
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-};
+type LatLng = { latitude: number; longitude: number };
 
 export async function fireLaser(
-  database: any,
-  roomCode: any,
+  database: Database,
+  roomCode: string | string[],
   LASER_LENGTH: number,
   center: { latitude: number; longitude: number }
 ) {
+  const auth = getAuth();
+  if (!auth.currentUser) return;
+
+  const playerId = auth.currentUser.uid;
+  const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+  const playerInfo = await get(playerRef);
+
+  if (!playerInfo.exists()) return;
+
+  const playerData = playerInfo.val();
+
+  if (
+    playerData.eliminated ||
+    playerData.isRespawning ||
+    playerData.lives === 0
+  ) {
+    return;
+  }
+
+  const { cartesian, direction } = playerData;
+
   const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
   const roomPlayerInfo = await get(roomPlayerRef);
-  const roomsData = roomPlayerInfo.val();
-  if (!roomsData) return [];
 
-  let playerLaserData: PLD[] = [];
+  if (!roomPlayerInfo.exists()) return;
 
-  Object.entries(roomsData).forEach(([playerId, roomData]) => {
-    let curDir, curX, curY, curTeam;
-    Object.entries(roomData as { [key: string]: any }).forEach(([key, value]) => {
-      if (key === "direction") curDir = value;
-      if (key === "cartesian") {
-        curX = value.x;
-        curY = value.y;
-      }
-      if (key === "team") curTeam = value;
-    });
+  const roomPlayerData = roomPlayerInfo.val();
 
-    if (curDir != null && curX != null && curY != null && curTeam != null) {
-      playerLaserData.push({
-        playerId,
-        direction: curDir,
-        x: curX,
-        y: curY,
-        team: curTeam,
-      });
-    }
+  const directionInRadians = (direction * Math.PI) / 180;
+  const laserEndX = cartesian.x + LASER_LENGTH * Math.cos(directionInRadians);
+  const laserEndY = cartesian.y + LASER_LENGTH * Math.sin(directionInRadians);
+
+  const laserStart = cartesianToLatLng(cartesian, center);
+  const laserEnd = cartesianToLatLng({ x: laserEndX, y: laserEndY }, center);
+
+  const laserVisuals = [];
+  laserVisuals.push({
+    id: `laser-${Date.now()}`,
+    start: laserStart,
+    end: laserEnd,
   });
 
-  const laserData = await generateLaserLine(playerLaserData, LASER_LENGTH, database, roomCode);
+  for (const [targetPlayerId, targetPlayerData] of Object.entries(
+    roomPlayerData
+  )) {
+    const target = targetPlayerData as any;
 
-  // Convert to visual lines
-  return laserData.map((l) => ({
-    id: `${l.playerId}-${Date.now()}`,
-    start: cartesianToLatLng({ x: l.startX, y: l.startY }, center),
-    end: cartesianToLatLng({ x: l.endX, y: l.endY }, center),
-  }));
+    if (
+      targetPlayerId === playerId ||
+      target.eliminated ||
+      target.isRespawning ||
+      target.lives === 0 ||
+      !target.cartesian
+    ) {
+      continue;
+    }
+
+    if (target.cowboyHat) continue;
+
+    if (
+      checkIfLineIntersectsRectangle(
+        cartesian.x,
+        cartesian.y,
+        laserEndX,
+        laserEndY,
+        target.cartesian.x - 1,
+        target.cartesian.y - 1,
+        2,
+        2
+      )
+    ) {
+      const angleToTarget =
+        Math.atan2(
+          target.cartesian.y - cartesian.y,
+          target.cartesian.x - cartesian.x
+        ) *
+        (180 / Math.PI);
+
+      const normalizedDirection = ((direction % 360) + 360) % 360;
+      const normalizedAngleToTarget = ((angleToTarget % 360) + 360) % 360;
+
+      const angleDiff = Math.abs(normalizedAngleToTarget - normalizedDirection);
+      const normalizedAngleDiff = Math.min(angleDiff, 360 - angleDiff);
+
+      if (normalizedAngleDiff <= 30) {
+        const targetRef = ref(
+          database,
+          `rooms/${roomCode}/players/${targetPlayerId}`
+        );
+        const currentLives = target.lives || 5;
+        const newLives = Math.max(0, currentLives - 1);
+
+        if (newLives > 0) {
+          await update(targetRef, {
+            eliminated: true,
+            lives: newLives,
+            isRespawning: true,
+            isAlive: false,
+          });
+        } else {
+          await update(targetRef, {
+            eliminated: true,
+            lives: 0,
+            isRespawning: false,
+            isAlive: false,
+            isSpectator: true,
+          });
+        }
+
+        const freshPlayerInfo = await get(playerRef);
+        const shooterData = freshPlayerInfo.val();
+        const newPoints = (shooterData.points || 0) + 1;
+        await update(playerRef, { points: newPoints });
+
+        break;
+      }
+    }
+  }
+
+  return laserVisuals;
 }
 
-const generateLaserLine = async (
-  dataArray: PLD[],
-  laserLength: number,
-  database: any,
-  roomCode: any
-) => {
-  const laserData: LL[] = [];
-  const boxList = getHitBox(dataArray);
-  let eliminatedPlayer = false;
-
-  dataArray.forEach((player) => {
-    if (eliminatedPlayer) return;
-    const angleRad = degToRad(player.direction);
-    const endX = player.x + laserLength * Math.cos(angleRad);
-    const endY = player.y + laserLength * Math.sin(angleRad);
-
-    laserData.push({
-      playerId: player.playerId,
-      startX: player.x,
-      startY: player.y,
-      endX,
-      endY,
-    });
-
-    boxList.forEach(async (hitBox) => {
-      if (
-        checkIntersection(player.x, player.y, endX, endY, hitBox.x, hitBox.y, hitBox.width, hitBox.height) &&
-        hitBox.player !== player.playerId
-      ) {
-        const hitBoxPlayerRef = ref(database, `rooms/${roomCode}/players/${hitBox.player}`);
-        const hitBoxPlayerInfo = await get(hitBoxPlayerRef);
-        if (!hitBoxPlayerInfo.exists()) return;
-        const hitBoxPlayerData = hitBoxPlayerInfo.val();
-        if (hitBoxPlayerData.team === player.team) return;
-
-        await eliminatePlayer(hitBox.player, database, roomCode, player.playerId);
-        eliminatedPlayer = true;
-      }
-    });
-  });
-
-  return laserData;
-};
-
-const eliminatePlayer = async (
-  winnerPlayer: string,
-  database: any,
-  roomCode: any,
-  playerId: string
-) => {
-  const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-  await update(playerRef, { eliminated: true });
-  const playerInfo = await get(playerRef);
-  if (!playerInfo.exists()) return;
-  const playerData = playerInfo.val();
-  if (playerData.fake) return;
-
-  const winnerRef = ref(database, `rooms/${roomCode}/players/${winnerPlayer}`);
-  const winnerInfo = await get(winnerRef);
-  if (!winnerInfo.exists()) return;
-  const winnerData = winnerInfo.val();
-
-  const newPoints = winnerData.points + 1;
-  await update(winnerRef, { points: newPoints });
-
-  const winnerGlobalRef = ref(database, `players/${winnerPlayer}`);
-  const globalData = await get(winnerGlobalRef);
-  if (globalData.exists()) {
-    const currentPoints = globalData.val().points || 0;
-    await update(winnerGlobalRef, { points: currentPoints + 1 });
-  }
-};
-
-const getHitBox = (dataArray: PLD[]) => {
-  return dataArray.map((player) => ({
-    player: player.playerId,
-    x: player.x - 1,
-    y: player.y - 1,
-    width: 2,
-    height: 2,
-  }));
-};
-
-const degToRad = (deg: number) => deg * (Math.PI / 180);
-
-const checkIntersection = (
+const checkIfLineIntersectsRectangle = (
   x1: number,
   y1: number,
   x2: number,
   y2: number,
-  bx: number,
-  by: number,
-  bw: number,
-  bh: number
+  rectX: number,
+  rectY: number,
+  rectWidth: number,
+  rectHeight: number
 ): boolean => {
-  const checkHorizontal = (y: number, startX: number, endX: number): boolean =>
-    y >= by && y <= by + bh && startX <= bx + bw && endX >= bx;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
 
-  const checkVertical = (x: number, startY: number, endY: number): boolean =>
-    x >= bx && x <= bx + bw && startY <= by + bh && endY >= by;
+  if (dx === 0 && dy === 0) {
+    return (
+      x1 >= rectX &&
+      x1 <= rectX + rectWidth &&
+      y1 >= rectY &&
+      y1 <= rectY + rectHeight
+    );
+  }
 
-  return (
-    checkHorizontal(y1, x1, x2) ||
-    checkHorizontal(y2, x1, x2) ||
-    checkVertical(x1, y1, y2) ||
-    checkVertical(x2, y1, y2)
-  );
+  let t0 = 0;
+  let t1 = 1;
+
+  const p = [-dx, dx, -dy, dy];
+  const q = [
+    x1 - rectX,
+    rectX + rectWidth - x1,
+    y1 - rectY,
+    rectY + rectHeight - y1,
+  ];
+
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return false;
+    } else {
+      const t = q[i] / p[i];
+      if (p[i] < 0) {
+        if (t > t1) return false;
+        if (t > t0) t0 = t;
+      } else {
+        if (t < t0) return false;
+        if (t < t1) t1 = t;
+      }
+    }
+  }
+
+  return t0 <= t1;
 };

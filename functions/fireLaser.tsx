@@ -1,8 +1,5 @@
 import { ref, get, update, Database } from "firebase/database";
-import { cartesianToLatLng } from "@/functions/locationUtilityFunctions";
 import { getAuth } from "firebase/auth";
-
-type LatLng = { latitude: number; longitude: number };
 
 export async function fireLaser(
   database: Database,
@@ -21,11 +18,18 @@ export async function fireLaser(
 
   const playerData = playerInfo.val();
 
+  console.log("=== LASSO HAS BEEN THROWN ===");
+  console.log("Lasso thrower:", playerData.username);
+
   if (
-    playerData.eliminated ||
-    playerData.isRespawning ||
+    playerData.isEliminated ||
+    !playerData.isMarkerShowing ||
     playerData.lives === 0
   ) {
+    console.log(
+      playerData.username,
+      "is either eliminated already or out of lives."
+    );
     return;
   }
 
@@ -42,16 +46,6 @@ export async function fireLaser(
   const laserEndX = cartesian.x + LASER_LENGTH * Math.cos(directionInRadians);
   const laserEndY = cartesian.y + LASER_LENGTH * Math.sin(directionInRadians);
 
-  const laserStart = cartesianToLatLng(cartesian, center);
-  const laserEnd = cartesianToLatLng({ x: laserEndX, y: laserEndY }, center);
-
-  const laserVisuals = [];
-  laserVisuals.push({
-    id: `laser-${Date.now()}`,
-    start: laserStart,
-    end: laserEnd,
-  });
-
   for (const [targetPlayerId, targetPlayerData] of Object.entries(
     roomPlayerData
   )) {
@@ -59,77 +53,66 @@ export async function fireLaser(
 
     if (
       targetPlayerId === playerId ||
-      target.eliminated ||
-      target.isRespawning ||
+      target.team === playerData.team ||
+      target.isEliminated ||
+      !target.isMarkerShowing ||
       target.lives === 0 ||
       !target.cartesian
     ) {
+      console.log("Target is on same team or eliminated already.");
       continue;
     }
 
-    if (target.cowboyHat) continue;
+    if (target.cowboyHat) {
+      console.log("Target is the doppleganger of a player.");
+      continue;
+    }
 
-    if (
-      checkIfLineIntersectsRectangle(
-        cartesian.x,
-        cartesian.y,
-        laserEndX,
-        laserEndY,
-        target.cartesian.x - 1,
-        target.cartesian.y - 1,
-        2,
-        2
-      )
-    ) {
-      const angleToTarget =
-        Math.atan2(
-          target.cartesian.y - cartesian.y,
-          target.cartesian.x - cartesian.x
-        ) *
-        (180 / Math.PI);
+    console.log("Shooter position:", cartesian.x, cartesian.y);
+    console.log("Shooter direction:", direction);
+    console.log("Laser end:", laserEndX, laserEndY);
+    console.log("Target position:", target.cartesian.x, target.cartesian.y);
+    console.log(
+      "Target rectangle:",
+      target.cartesian.x - 5,
+      target.cartesian.y - 5
+    );
 
-      const normalizedDirection = ((direction % 360) + 360) % 360;
-      const normalizedAngleToTarget = ((angleToTarget % 360) + 360) % 360;
+    const intersects = checkIfLineIntersectsRectangle(
+      cartesian.x,
+      cartesian.y,
+      laserEndX,
+      laserEndY,
+      target.cartesian.x - 5,
+      target.cartesian.y - 5,
+      10,
+      10
+    );
+    console.log("Line intersects rectangle:", intersects);
+    if (!intersects) console.log("Lasso missed.");
 
-      const angleDiff = Math.abs(normalizedAngleToTarget - normalizedDirection);
-      const normalizedAngleDiff = Math.min(angleDiff, 360 - angleDiff);
+    if (intersects) {
+      const targetRef = ref(
+        database,
+        `rooms/${roomCode}/players/${targetPlayerId}`
+      );
 
-      if (normalizedAngleDiff <= 30) {
-        const targetRef = ref(
-          database,
-          `rooms/${roomCode}/players/${targetPlayerId}`
-        );
-        const currentLives = target.lives || 5;
-        const newLives = Math.max(0, currentLives - 1);
+      console.log(
+        `${target.username} has been eliminated by ${playerData.username}`
+      );
+      await update(targetRef, {
+        isEliminated: true,
+        eliminationReason: "Lasso",
+      });
 
-        if (newLives > 0) {
-          await update(targetRef, {
-            eliminated: true,
-            lives: newLives,
-            isRespawning: true,
-            isAlive: false,
-          });
-        } else {
-          await update(targetRef, {
-            eliminated: true,
-            lives: 0,
-            isRespawning: false,
-            isAlive: false,
-            isSpectator: true,
-          });
-        }
+      const freshPlayerInfo = await get(playerRef);
+      const shooterData = freshPlayerInfo.val();
+      const newPoints = (shooterData.points || 0) + 1;
+      await update(playerRef, { points: newPoints });
 
-        const freshPlayerInfo = await get(playerRef);
-        const shooterData = freshPlayerInfo.val();
-        const newPoints = (shooterData.points || 0) + 1;
-        await update(playerRef, { points: newPoints });
-
-        break;
-      }
+      break;
     }
   }
-
-  return laserVisuals;
 }
 
 const checkIfLineIntersectsRectangle = (
@@ -179,6 +162,5 @@ const checkIfLineIntersectsRectangle = (
       }
     }
   }
-
   return t0 <= t1;
 };

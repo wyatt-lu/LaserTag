@@ -1,5 +1,8 @@
-// React/Expo Imports
+// ========================================================================================
+// IMPORTS
+// ========================================================================================
 
+// Expo/React Native
 import React, {
   useState,
   useEffect,
@@ -14,7 +17,6 @@ import {
   FlatList,
   Modal,
   Pressable,
-  Dimensions,
   Platform,
   StyleSheet,
   StatusBar,
@@ -37,10 +39,8 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   Easing,
-  runOnJS,
   configureReanimatedLogger,
   ReanimatedLogLevel,
-  withSpring,
 } from "react-native-reanimated";
 
 configureReanimatedLogger({
@@ -48,19 +48,10 @@ configureReanimatedLogger({
   strict: false,
 });
 
-import { useSound } from "@/constants/useSound";
+// import { useSound } from "@/constants/useSound";
 
 // Firebase Imports
-import {
-  get,
-  off,
-  onValue,
-  ref,
-  remove,
-  set,
-  update,
-  DataSnapshot,
-} from "firebase/database";
+import { get, off, onValue, ref, remove, set, update } from "firebase/database";
 
 import { auth, database } from "../../firebaseconfig";
 import {
@@ -77,11 +68,7 @@ import PlayerListModal from "@/components/PlayerListModal";
 import GameEndModal from "@/components/GameEndModal";
 import { fireLaser } from "@/functions/fireLaser";
 // import { styles } from "@/constants/styles";
-import {
-  teamColors,
-  playerColors,
-  powerUpTypes,
-} from "@/constants/gameplayConstants";
+import { teamColors, playerColors } from "@/constants/gameplayConstants";
 import {
   latLngToCartesian,
   cartesianToLatLng,
@@ -89,59 +76,159 @@ import {
 } from "@/functions/locationUtilityFunctions";
 import { cowboyBoots, cowboyHat } from "@/functions/powerupFunctions";
 import { BootsIcon, CactusIcon, HatIcon } from "@/constants/icons";
-import {
-  SafeAreaProvider,
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function PlayScreen() {
-  // Global Variables
-  // Laser Type (length, width)
-  const LASER_LENGTH = 20; // in meters
+  // ========================================================================================
+  // CONSTANTS & CONFIGURATION
+  // ========================================================================================
+
+  const LASER_LENGTH = 20; // meters
   const PLAYER_HIT_BOX_SIZE = { height: 10, width: 10 };
   const LOCATION_UPDATE_INTERVAL = 1000; // ms
   const FIRE_LASER_COOLDOWN = 5; // seconds
   const PLAYER_LIVES = 5;
-  const PLAYER_RESPAWN_COOLDOWN = 5000; // ms
+  const PLAYER_RESPAWN_COOLDOWN = 10000; // ms (10 seconds)
 
-  const [laserLines, setLaserLines] = useState<
-    { id: string; start: LatLng; end: LatLng }[]
-  >([]);
+  const powerUpTypes = [
+    { type: "Cowboy Boots" },
+    { type: "Cowboy Hat" },
+    { type: "Cactus" },
+  ];
 
-  const { playSound, loopSound, stopSound } = useSound();
+  // ========================================================================================
+  // TYPE DECLARATIONS
+  // ========================================================================================
 
-  // Team Colors (team number, color)
+  type LatLng = { latitude: number; longitude: number };
+  type XY = { x: number; y: number };
 
-  // Player Colors (player number, color)
+  type PowerUp = {
+    id: string;
+    type: string;
+    cartesian: XY;
+  };
 
-  //Set Boundary
+  interface Box {
+    player: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+
+  // ========================================================================================
+  // HOOKS & REFS
+  // ========================================================================================
+
+  const params = useLocalSearchParams();
+  const router = useRouter();
+  const { roomCode } = params;
+  const storage = getStorage();
+
+  const mapRef = useRef<MapView | null>(null);
+  const sheetRef = useRef<BottomSheet>(null);
+
+  const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // SOUND FUNCTION
+  // const { playSound, loopSound, stopSound } = useSound();
+
+  // ========================================================================================
+  // GAME STATE
+  // ========================================================================================
+
+  const [gameState, setGameState] = useState<
+    "in-game" | "end-game" | "return" | null
+  >(null);
+  const [isEliminated, setIsEliminated] = useState<boolean>(false);
+  const [playerLives, setPlayerLives] = useState<number>(PLAYER_LIVES);
+  const [eliminationModalVisible, setEliminationModalVisible] =
+    useState<boolean>(false);
+  const [eliminationReason, setEliminationReason] = useState<string>("");
+
+  // ========================================================================================
+  // MAP & LOCATION STATE
+  // ========================================================================================
+
+  const [center, setCenter] = useState<LatLng>({
+    latitude: 47.732473984376654,
+    longitude: -122.32739349311144,
+  });
+
   const [boundary, setBoundary] = useState<LatLng[]>([
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
     { latitude: 0, longitude: 0 },
   ]);
+
   const [boundarySize, setBoundarySize] = useState<any>({
     width: 0,
     height: 0,
   });
-  // Set State Variable to Game (used state based on Firebase)
-  // State Variable: Lobby, Game
-  const [gameState, setGameState] = useState<
-    "in-game" | "end-game" | "return" | null
-  >(null);
-  const [center, setCenter] = useState<LatLng>({
-    latitude: 47.732473984376654,
-    longitude: -122.32739349311144,
+
+  const [location, setLocation] = useState<Location.LocationObject>();
+  const [magnetometerData, setMagnetometerData] = useState({
+    x: 0,
+    y: 0,
+    z: 0,
   });
 
-  //Set Boundary
+  // ========================================================================================
+  // PLAYER STATE
+  // ========================================================================================
 
-  const params = useLocalSearchParams();
-  const router = useRouter();
-  const { roomCode } = params;
+  const [playersURL, setPlayersURL] = useState<any[]>([]);
+  const [playerArray, setPlayerArray] = useState<any[]>([]);
+  const [playerHitBox, setPlayerHitBox] = useState<Box>();
+
+  // ========================================================================================
+  // POWERUP STATE
+  // ========================================================================================
+
+  const [userPowerUps, setUserPowerUps] = useState<
+    { id: string; type: string; count: number }[]
+  >([]);
+  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
+
+  // CACTUS SPECIFIC STATE
+  const [activeCactusId, setActiveCactusId] = useState<string | null>(null);
+  const [cactusModalVisible, setCactusModalVisible] = useState(false);
+  const [selectedCactusLocation, setSelectedCactusLocation] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // ========================================================================================
+  // UI STATE
+  // ========================================================================================
+
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const [isPlayerListModal, setPlayerListModal] = useState(false);
+  const [isTopSheetVisible, setIsTopSheetVisible] = useState(true);
+
+  // FIRE BUTTON STATE
+  const [isFireDisabled, setIsFireDisabled] = useState(false);
+  const fireCooldownProgress = useSharedValue(1);
+
+  const snapPoints = useMemo(() => ["15%", "31%", "75%"], []);
+  const [eliminatedFully, setEliminatedFully] = useState<boolean>(false);
+
+  // ========================================================================================
+  // TIMER STATE
+  // ========================================================================================
+
+  const [gameTime, setGameTime] = useState<number>(0); // total game time in seconds
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const timerProgress = useSharedValue(1); // 1 = full, 0 = empty
+
+  // ========================================================================================
+  // GAME INITIALIZATION & CLEANUP
+  // ========================================================================================
 
   useEffect(() => {
     if (!roomCode || !auth.currentUser) return;
@@ -149,16 +236,15 @@ export default function PlayScreen() {
     const initializeGameState = async () => {
       try {
         const roomRef = ref(database, `rooms/${roomCode}`);
-        const roomSnapshot = await get(roomRef);
+        const roomInfo = await get(roomRef);
 
-        if (!roomSnapshot.exists()) {
+        if (!roomInfo.exists()) {
           console.error("Room does not exist");
           return;
         }
 
-        const roomData = roomSnapshot.val();
+        const roomData = roomInfo.val();
 
-        // If game state doesn't exist yet, initialize it to "in-game"
         if (!roomData.gameState) {
           await update(roomRef, { gameState: "in-game" });
         }
@@ -166,10 +252,8 @@ export default function PlayScreen() {
         console.error("Error initializing game state:", error);
       }
     };
-
     initializeGameState();
 
-    // Set up real-time listener for game state changes
     const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
     const unsubscribe = onValue(gameStateRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -202,6 +286,106 @@ export default function PlayScreen() {
     return () => unsubscribe();
   }, [roomCode, router]);
 
+  // ========================================================================================
+  // PLAYER ELIMINATION HANDLING
+  // ========================================================================================
+
+  useEffect(() => {
+    if (!roomCode || !auth.currentUser) return;
+
+    const isPlayerEliminatedRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}/isEliminated`
+    );
+    const unsubscribe = onValue(isPlayerEliminatedRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const newEliminationStatus = snapshot.val();
+        setIsEliminated(newEliminationStatus);
+        // console.log("eliminationStatus set", newEliminationStatus);
+      }
+    });
+    return () => unsubscribe();
+  });
+
+  useEffect(() => {
+    if (!roomCode || !auth.currentUser) return;
+    if (isEliminated) {
+      console.log("USER HAS BEEN ELIMINATED, ACTIVATING RESPAWN");
+      const activateRespawn = async () => {
+        if (!auth.currentUser) return;
+        console.log("=== Respawn has activated ===");
+        const playerRef = ref(
+          database,
+          `rooms/${roomCode}/players/${auth.currentUser.uid}`
+        );
+        const playerInfo = await get(playerRef);
+        if (!playerInfo.exists()) return;
+
+        const playerData = playerInfo.val();
+
+        const eliminationReason = playerData.eliminationReason;
+        setEliminationReason(eliminationReason);
+        setEliminationModalVisible(true);
+        console.log("Elimination modal is visible:", eliminationModalVisible);
+        Vibration.vibrate(100);
+
+        const newLives = Math.max(0, (playerData.lives || PLAYER_LIVES) - 1);
+        setPlayerLives(newLives);
+
+        if (newLives > 0) {
+          await update(playerRef, { isMarkerShowing: false });
+
+          await update(playerRef, {
+            lives: newLives,
+            isMarkerShowing: false,
+          });
+        } else {
+          await update(playerRef, {
+            lives: 0,
+            isMarkerShowing: false,
+            isSpectator: true,
+          });
+          const isEliminatedRef = ref(
+            database,
+            `rooms/${roomCode}/players/${auth.currentUser.uid}/isEliminated`
+          );
+          await remove(isEliminatedRef);
+        }
+        setTimeout(() => {
+          setEliminationModalVisible(false);
+          console.log("Respawn time over.");
+
+          const resetEliminationFlags = async () => {
+            if (!auth.currentUser) return;
+            const eliminationReasonRef = ref(
+              database,
+              `rooms/${roomCode}/players/${auth.currentUser.uid}/eliminationReason`
+            );
+            await remove(eliminationReasonRef);
+            await update(playerRef, {
+              isEliminated: false,
+              isMarkerShowing: true,
+            });
+          };
+          resetEliminationFlags();
+          console.log("=== LASSO THROW HAS ENDED ===");
+        }, PLAYER_RESPAWN_COOLDOWN);
+      };
+      activateRespawn();
+    }
+  }, [isEliminated]);
+
+  useEffect(() => {
+    console.log(
+      "Elimination modal visibility changed:",
+      eliminationModalVisible
+    );
+  }, [eliminationModalVisible]);
+
+  // ========================================================================================
+  // GAME SETUP & BOUNDARY INITIALIZATION
+  // ========================================================================================
+
   useEffect(() => {
     const getGameState = async () => {
       const roomRef = ref(database, `rooms/${roomCode}`);
@@ -223,7 +407,7 @@ export default function PlayScreen() {
         roomData.gameDuration
           ? startGameTimer(roomData.gameDuration)
           : startGameTimer(600);
-        loopSound("backgroundTheme");
+        // loopSound("backgroundTheme");
         if (mapRef.current) {
           setTimeout(() => {
             mapRef.current?.animateToRegion(
@@ -284,28 +468,14 @@ export default function PlayScreen() {
     getGameState();
   }, [roomCode]);
 
-  // Longitude Latitude to Cartesian Coordinate function (where Center = (0,0))
-
-  type LatLng = { latitude: number; longitude: number };
-  type XY = { x: number; y: number };
-
-  // Change Player Location to Cartesian Coordinate
-  // Send Player Location (cartesian) to Firebase
-
-  // Current Player Location
-
-  const [location, setLocation] = useState<Location.LocationObject>();
-  const [magnetometerData, setMagnetometerData] = useState({
-    x: 0,
-    y: 0,
-    z: 0,
-  });
-  Magnetometer.setUpdateInterval(LOCATION_UPDATE_INTERVAL);
+  // ========================================================================================
+  // LOCATION & MAGNETOMETER HANDLING
+  // ========================================================================================
 
   const magnetometerDataRef = useRef(magnetometerData);
   const magnetometerSubscriptionRef = useRef<any>(null);
 
-  // Update User Location
+  Magnetometer.setUpdateInterval(LOCATION_UPDATE_INTERVAL);
   useEffect(() => {
     magnetometerDataRef.current = magnetometerData;
   }, [magnetometerData]);
@@ -344,10 +514,16 @@ export default function PlayScreen() {
       if (magnetometerSubscriptionRef.current) {
         magnetometerSubscriptionRef.current?.remove();
       }
-
       magnetometerSubscriptionRef.current = Magnetometer.addListener((data) => {
         setMagnetometerData(data);
       });
+      return () => {
+        locationSubscription?.remove();
+        if (magnetometerSubscriptionRef.current) {
+          magnetometerSubscriptionRef.current.remove();
+          magnetometerSubscriptionRef.current = null;
+        }
+      };
     };
 
     updateLocation();
@@ -359,67 +535,9 @@ export default function PlayScreen() {
     };
   }, [gameState]);
 
-  const updatePlayerLocation = async (
-    latitude: number,
-    longitude: number,
-    direction: number
-  ) => {
-    /*THIS IS A PATCH ISSUE IS THAT CENTER (VALUE NOT THE ACTUAL USESTATE) IS BEING
-    PASSED TO LATLNGTOCARTESIAN INCORRECTLY (WITH THE DEFAULT LAKESIDE VALUE), DON'T
-    KNOW WHY MAYBE HAS SOMETHING TO DO WITH HOOKS + SET INTERVAL NOT MESHING*/
-    if (
-      !auth.currentUser ||
-      (center.latitude == 47.732473984376654 &&
-        center.longitude == -122.32739349311144)
-    )
-      return;
-    const cartesian = latLngToCartesian({ latitude, longitude }, center);
-    const playerId = auth.currentUser.uid;
-    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-    outOfBounds(cartesian.x, cartesian.y);
-    setPlayerHitBox({
-      player: auth.currentUser.uid,
-      x: cartesian.x,
-      y: cartesian.y,
-      width: PLAYER_HIT_BOX_SIZE.width,
-      height: PLAYER_HIT_BOX_SIZE.height,
-    });
-    if (gameState === "in-game") {
-      await update(playerRef, {
-        cartesian,
-        direction,
-      });
-    }
-  };
-
-  //Remove user from game if they leave the boundary
-
-  const outOfBounds = async (x: number, y: number) => {
-    if (
-      x > boundarySize.width ||
-      x < -boundarySize.width ||
-      y > boundarySize.height ||
-      y < -boundarySize.height
-    ) {
-      if (!auth.currentUser) return;
-      const playerId = auth.currentUser.uid;
-      const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-      const playerInfo = await get(playerRef);
-
-      if (!playerInfo.exists()) return;
-      const playerData = playerInfo.val();
-
-      if (!playerData.eliminated && !playerData.isRespawning) {
-        await handlePlayerElimination("You went out of bounds!");
-      }
-    }
-  };
-  // Get PlayerURL from Firebase (storage as URL)
-
-  const storage = getStorage();
-
-  const [playersURL, setPlayersURL] = useState<any[]>([]);
-  const [playerArray, setPlayerArray] = useState<any[]>([]);
+  // ========================================================================================
+  // PLAYER DATA MANAGEMENT
+  // ========================================================================================
 
   useEffect(() => {
     const getPlayersURL = async () => {
@@ -457,6 +575,68 @@ export default function PlayScreen() {
     getPlayersURL();
   }, [playerArray.length]);
 
+  const centerRef = useRef(center);
+  centerRef.current = center;
+
+  const updatePlayerLocation = async (
+    latitude: number,
+    longitude: number,
+    direction: number
+  ) => {
+    /*THIS IS A PATCH ISSUE IS THAT CENTER (VALUE NOT THE ACTUAL USESTATE) IS BEING
+    PASSED TO LATLNGTOCARTESIAN INCORRECTLY (WITH THE DEFAULT LAKESIDE VALUE), DON'T
+    KNOW WHY MAYBE HAS SOMETHING TO DO WITH HOOKS + SET INTERVAL NOT MESHING*/
+    if (
+      !auth.currentUser
+      // ||
+      // (center.latitude == 47.732473984376654 &&
+      //   center.longitude == -122.32739349311144)
+    )
+      return;
+    const cartesian = latLngToCartesian(
+      { latitude, longitude },
+      centerRef.current
+    );
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+    outOfBounds(cartesian.x, cartesian.y);
+    setPlayerHitBox({
+      player: auth.currentUser.uid,
+      x: cartesian.x,
+      y: cartesian.y,
+      width: PLAYER_HIT_BOX_SIZE.width,
+      height: PLAYER_HIT_BOX_SIZE.height,
+    });
+    if (gameState === "in-game") {
+      await update(playerRef, {
+        cartesian,
+        direction,
+      });
+    }
+  };
+
+  useEffect(() => {
+    const playersRef = ref(database, `rooms/${roomCode}/players`);
+    const unsubscribe = onValue(playersRef, async (snapshot) => {
+      if (!auth.currentUser) return;
+      try {
+        const playersData = snapshot.val();
+        const entries = Object.entries(playersData);
+        const updatedPlayersList = [];
+
+        for (const [id, data] of entries) {
+          const player = { id, ...(data as any) };
+          updatedPlayersList.push(player);
+        }
+        setPlayerArray(updatedPlayersList);
+      } catch (error) {}
+    });
+    return () => {
+      unsubscribe();
+      off(playersRef);
+    };
+  }, [gameState]);
+
   const fetchUserURL = async (id: any) => {
     try {
       if (!id) return;
@@ -474,162 +654,10 @@ export default function PlayScreen() {
     }
   };
 
-  // Get All Players Location from Firebase (cartesian)
+  // ========================================================================================
+  // POWERUP MANAGEMENT
+  // ========================================================================================
 
-  const [eliminatedFully, setEliminatedFully] = useState<boolean>(false);
-  useEffect(() => {
-    const playersRef = ref(database, `rooms/${roomCode}/players`);
-    const unsubscribe = onValue(playersRef, async (snapshot) => {
-      if (!auth.currentUser) return;
-      try {
-        const playersData = snapshot.val();
-        const entries = Object.entries(playersData);
-        const updatedPlayersList = [];
-
-        for (const [id, data] of entries) {
-          const player = { id, ...(data as any) };
-          updatedPlayersList.push(player);
-          //vibrate if out at all
-          const stored = await AsyncStorage.getItem("eliminatedFully");
-          if (player.eliminated && auth.currentUser.uid == player.id) {
-            if (stored !== "true") {
-              setEliminatedFully(true);
-              await AsyncStorage.setItem("eliminatedFully", "true");
-              Vibration.vibrate(300);
-            } else {
-              setEliminatedFully(true);
-            }
-          }
-        }
-        setPlayerArray(updatedPlayersList);
-      } catch (error) {}
-    });
-    return () => {
-      unsubscribe();
-      off(playersRef);
-    };
-  }, [gameState]);
-
-  // Set playerArray to include All Players URL and Location (cartesian)
-
-  // Set Hit Box for each player (delta x, delta y)
-
-  interface Box {
-    player: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }
-
-  const [playerHitBox, setPlayerHitBox] = useState<Box>();
-
-  const inHitBox = async (powerup: PowerUp, player: Box) => {
-    if (!auth.currentUser) return;
-    const playerRef = ref(
-      database,
-      `rooms/${roomCode}/players/${auth.currentUser.uid}`
-    );
-    const playerInfo = await get(playerRef);
-    if (!playerInfo.exists()) return;
-    const playerData = playerInfo.val();
-    if (playerData.cowboyHat) return false;
-
-    if (
-      Math.abs(player.x - powerup.cartesian.x) <= player.width / 2 &&
-      Math.abs(player.y - powerup.cartesian.y) <= player.height / 2
-    ) {
-      return true;
-    } else {
-      return false;
-    }
-  };
-
-  //eliminate player modal check
-  const [eliminationMessage, setEliminationMessage] = useState<string | null>(
-    null
-  );
-  const [shownEliminations, setShownEliminations] = useState<Set<string>>(
-    new Set()
-  );
-
-  useEffect(() => {
-    const roomPlayerRef = ref(database, `rooms/${roomCode}/players`);
-    const handleSnapshot = (snapshot: DataSnapshot) => {
-      const playersData = snapshot.val();
-      if (!playersData) return;
-      Object.entries(playersData).forEach(([playerId, playerData]) => {
-        const { eliminated, username } = playerData as {
-          eliminated: boolean;
-          username: string;
-        };
-        setShownEliminations((prev) => {
-          if (eliminated && !prev.has(playerId)) {
-            // New Set so React knows it's a change
-            const newSet = new Set(prev);
-            newSet.add(playerId);
-
-            setEliminationMessage(`${username} has been eliminated`);
-            setTimeout(() => setEliminationMessage(null), 3000);
-
-            return newSet;
-          }
-          return prev;
-        });
-      });
-    };
-    onValue(roomPlayerRef, handleSnapshot);
-    return () => off(roomPlayerRef, "value", handleSnapshot);
-  }, [roomCode]);
-
-  //checks if updating correctlyf
-  useEffect(() => {
-    console.log("eliminationMessage changed:", eliminationMessage);
-  }, [eliminationMessage]);
-
-  // Generate Powerups
-  type PowerUp = {
-    id: string;
-    type: string;
-    cartesian: XY;
-  };
-
-  const powerUpTypes = [
-    { type: "Cowboy Boots" },
-    { type: "Cowboy Hat" },
-    { type: "Cactus" },
-  ];
-
-  const generatePowerUpIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  //all of user's powerups in their inventory
-  const [userPowerUps, setUserPowerUps] = useState<
-    { id: string; type: string; count: number }[]
-  >([]);
-
-  //all of the powerups currently in play in the game
-  const [powerUps, setPowerUps] = useState<PowerUp[]>([]);
-
-  //generate random powerup coordinate
-  const generateRandomCartesianInBounds = () => {
-    const minLat = boundary[2].latitude;
-    const maxLat = boundary[0].latitude;
-    const minLng = boundary[3].longitude;
-    const maxLng = boundary[1].longitude;
-    // console.log("minLat", minLat);
-    // console.log("maxLat", maxLat);
-    // console.log("minLng", minLng);
-    // console.log("maxLng", maxLng);
-    let randX = Math.random() * boundarySize.width - boundarySize.width / 2;
-    let randY = Math.random() * boundarySize.height - boundarySize.height / 2;
-    const randCartesian = {
-      x: randX,
-      y: randY,
-    };
-    return randCartesian;
-  };
-
-  //make random powerups
   const getRandomPowerUp = (): PowerUp => {
     const randomType =
       powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
@@ -640,7 +668,20 @@ export default function PlayScreen() {
     };
   };
 
-  //despawn powerups
+  const generateRandomCartesianInBounds = () => {
+    const minLat = boundary[2].latitude;
+    const maxLat = boundary[0].latitude;
+    const minLng = boundary[3].longitude;
+    const maxLng = boundary[1].longitude;
+    let randX = Math.random() * boundarySize.width - boundarySize.width / 2;
+    let randY = Math.random() * boundarySize.height - boundarySize.height / 2;
+    const randCartesian = {
+      x: randX,
+      y: randY,
+    };
+    return randCartesian;
+  };
+
   useEffect(() => {
     if (generatePowerUpIntervalRef.current) {
       clearInterval(generatePowerUpIntervalRef.current);
@@ -658,7 +699,6 @@ export default function PlayScreen() {
 
         const despawnTime = Math.random() * (72000 - 3000) + 3000;
         setTimeout(async () => {
-          // Only remove if still in-game state
           if (gameState === "in-game") {
             await remove(powerUpsRef);
           }
@@ -674,7 +714,6 @@ export default function PlayScreen() {
     };
   }, [gameState, center]);
 
-  //set powerups up in a usestate
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     const fetchPowerUps = async () => {
@@ -706,125 +745,26 @@ export default function PlayScreen() {
     };
   }, [gameState]);
 
-  // Determine if Player Hit Box Intersects with Powerup Location (big human hit box, no powerup hit box)
-
-  useEffect(() => {
+  const inHitBox = async (powerup: PowerUp, player: Box) => {
     if (!auth.currentUser) return;
+    const playerRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}`
+    );
+    const playerInfo = await get(playerRef);
+    if (!playerInfo.exists()) return;
+    const playerData = playerInfo.val();
+    if (playerData.cowboyHat) return false;
 
-    const playerId = auth.currentUser.uid;
-    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
-
-    const checkLocationPowerUpAndCactus = async () => {
-      const playerInfo = await get(playerRef);
-      if (!playerInfo.exists()) return;
-      const playerData = playerInfo.val();
-      if (playerData.eliminated || playerData.isRespawning || !playerHitBox)
-        return;
-      let playerPowerUps = userPowerUps;
-      powerUps.map(async (powerUp) => {
-        /* change the delta to be whatever value u want*/
-        if (await inHitBox(powerUp, playerHitBox)) {
-          const existingPowerUp = playerPowerUps.find(
-            (p) => p.type === powerUp.type
-          );
-          if (existingPowerUp) {
-            existingPowerUp.count += 1;
-          } else {
-            playerPowerUps.push({
-              id: powerUp.id,
-              type: powerUp.type,
-              count: 1,
-            });
-          }
-          setUserPowerUps([...playerPowerUps]);
-
-          try {
-            const individualPowerRef = ref(
-              database,
-              `rooms/${roomCode}/powerUps/${powerUp.id}`
-            );
-            await remove(individualPowerRef);
-          } catch (error) {
-            console.error("Error removing power-up:", error);
-          }
-        }
-      });
-      const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
-      const cactusInfo = await get(cactusRef);
-      if (!cactusInfo.exists()) return;
-      const cactusData = cactusInfo.val();
-
-      const cactusArray = Object.keys(cactusData).map((key) => ({
-        id: key,
-        ...cactusData[key],
-      }));
-
-      cactusArray.forEach(async (cactus) => {
-        if (await inHitBox(cactus, playerHitBox)) {
-          //remove current player from game if they are on an active cactus
-          await handlePlayerElimination("You hit a cactus!");
-
-          //reward the cactus placer
-          const cactusPlacerRef = ref(
-            database,
-            `rooms/${roomCode}/players/${cactus.creator}`
-          );
-          const cactusPlacerInfo = await get(cactusPlacerRef);
-          if (!cactusPlacerInfo.exists()) return;
-          const cactusPlacerData = cactusPlacerInfo.val();
-          let newPoints = cactusPlacerData.points + 1;
-          await update(cactusPlacerRef, { points: newPoints });
-          //remove the used cactus from cactus folder
-          const usedCactusRef = ref(
-            database,
-            `rooms/${roomCode}/cactus/${cactus.id}`
-          );
-          await remove(usedCactusRef);
-        }
-      });
-    };
-
-    checkLocationPowerUpAndCactus();
-  }, [playerArray]);
-
-  //Cactus Power up (here because of all the vars it needs here and would need in powerupfunctions)
-
-  const [activeCactusId, setActiveCactusId] = useState<string | null>(null);
-  const [cactusModalVisible, setCactusModalVisible] = useState(false);
-  const [selectedCactusLocation, setSelectedCactusLocation] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
-
-  const cactusMapPress = (event: MapPressEvent) => {
-    const tempLatLng = event.nativeEvent.coordinate;
-    const tempXY = latLngToCartesian(tempLatLng, center);
-    setSelectedCactusLocation(tempXY);
-  };
-
-  const handleConfirm = async () => {
-    if (selectedCactusLocation && activeCactusId) {
-      if (!auth.currentUser) return;
-      const cactusRef = ref(
-        database,
-        `rooms/${roomCode}/cactus/${activeCactusId}`
-      );
-      await update(cactusRef, {
-        cartesian: {
-          x: selectedCactusLocation.x,
-          y: selectedCactusLocation.y,
-        },
-        creator: auth.currentUser.uid,
-      });
+    if (
+      Math.abs(player.x - powerup.cartesian.x) <= player.width / 2 &&
+      Math.abs(player.y - powerup.cartesian.y) <= player.height / 2
+    ) {
+      return true;
+    } else {
+      return false;
     }
-    setSelectedCactusLocation(null);
-    setCactusModalVisible(false);
-    setActiveCactusId(null);
   };
-
-  // Powerup Function Calls (functions in seperate files)
-
-  //Using the powerup when user clicks the button:
 
   const usePowerUp = async (powerUp: {
     id: string;
@@ -930,67 +870,121 @@ export default function PlayScreen() {
     );
   };
 
-  // Reset Game/Exit Game (Set State Variable to Lobby)
+  // ========================================================================================
+  // CACTUS FUNCTIONALITY
+  // ========================================================================================
 
-  // Game Ending Screen (modal)
+  useEffect(() => {
+    if (!auth.currentUser) return;
 
-  // Bottom Sheet (Powerup List, Player List, Fire Button)
-  const snapPoints = useMemo(() => ["15%", "31%", "75%"], []);
+    const playerId = auth.currentUser.uid;
+    const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
 
-  const mapRef = useRef<MapView | null>(null);
-  const sheetRef = useRef<BottomSheet>(null);
+    const checkLocationPowerUpAndCactus = async () => {
+      const playerInfo = await get(playerRef);
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+      if (playerData.eliminated || playerData.isRespawning || !playerHitBox)
+        return;
+      let playerPowerUps = userPowerUps;
+      powerUps.map(async (powerUp) => {
+        /* change the delta to be whatever value u want*/
+        if (await inHitBox(powerUp, playerHitBox)) {
+          const existingPowerUp = playerPowerUps.find(
+            (p) => p.type === powerUp.type
+          );
+          if (existingPowerUp) {
+            existingPowerUp.count += 1;
+          } else {
+            playerPowerUps.push({
+              id: powerUp.id,
+              type: powerUp.type,
+              count: 1,
+            });
+          }
+          setUserPowerUps([...playerPowerUps]);
 
-  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+          try {
+            const individualPowerRef = ref(
+              database,
+              `rooms/${roomCode}/powerUps/${powerUp.id}`
+            );
+            await remove(individualPowerRef);
+          } catch (error) {
+            console.error("Error removing power-up:", error);
+          }
+        }
+      });
+      const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
+      const cactusInfo = await get(cactusRef);
+      if (!cactusInfo.exists()) return;
+      const cactusData = cactusInfo.val();
 
-  const handleSnapPress = useCallback(() => {
-    if (isBottomSheetOpen) {
-      sheetRef.current?.snapToIndex(0);
-    } else {
-      sheetRef.current?.snapToIndex(2);
-    }
-    setIsBottomSheetOpen(!isBottomSheetOpen);
-  }, [isBottomSheetOpen]);
+      const cactusArray = Object.keys(cactusData).map((key) => ({
+        id: key,
+        ...cactusData[key],
+      }));
 
-  const getPlayerColor = (colorId: number): string => {
-    const playerColor = playerColors.find((player) => player.id === colorId);
-    return playerColor ? playerColor.color : "#8baaff";
-  };
+      cactusArray.forEach(async (cactus) => {
+        if (await inHitBox(cactus, playerHitBox)) {
+          //remove current player from game if they are on an active cactus
+          await update(playerRef, {
+            isEliminated: true,
+            eliminationReason: "Cactus",
+          });
 
-  const getTeamColor = (teamNumber: number): string => {
-    const teamColor = teamColors.find((team) => team.team === teamNumber);
-    return teamColor ? teamColor.color : "#8baaff";
-  };
-
-  const [isPlayerListModal, setPlayerListModal] = useState(false);
-
-  const [gameTime, setGameTime] = useState<number>(0); // Total game time in seconds
-  const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const timerProgress = useSharedValue(1); // 1 = full, 0 = empty
-
-  const progressBarStyle = useAnimatedStyle(() => {
-    return {
-      width: `${timerProgress.value * 100}%`,
-      height: "100%",
-      backgroundColor:
-        timerProgress.value > 0.2
-          ? timerProgress.value > 0.5
-            ? "#88cb54"
-            : "#ffe08b"
-          : "#cb4533",
-      borderRadius: 5,
+          //reward the cactus placer
+          const cactusPlacerRef = ref(
+            database,
+            `rooms/${roomCode}/players/${cactus.creator}`
+          );
+          const cactusPlacerInfo = await get(cactusPlacerRef);
+          if (!cactusPlacerInfo.exists()) return;
+          const cactusPlacerData = cactusPlacerInfo.val();
+          let newPoints = cactusPlacerData.points + 1;
+          await update(cactusPlacerRef, { points: newPoints });
+          //remove the used cactus from cactus folder
+          const usedCactusRef = ref(
+            database,
+            `rooms/${roomCode}/cactus/${cactus.id}`
+          );
+          await remove(usedCactusRef);
+        }
+      });
     };
-  });
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs
-      .toString()
-      .padStart(2, "0")}`;
+    checkLocationPowerUpAndCactus();
+  }, [playerArray]);
+
+  const cactusMapPress = (event: MapPressEvent) => {
+    const tempLatLng = event.nativeEvent.coordinate;
+    const tempXY = latLngToCartesian(tempLatLng, center);
+    setSelectedCactusLocation(tempXY);
   };
+
+  const handleConfirm = async () => {
+    if (selectedCactusLocation && activeCactusId) {
+      if (!auth.currentUser) return;
+      const cactusRef = ref(
+        database,
+        `rooms/${roomCode}/cactus/${activeCactusId}`
+      );
+      await update(cactusRef, {
+        cartesian: {
+          x: selectedCactusLocation.x,
+          y: selectedCactusLocation.y,
+        },
+        creator: auth.currentUser.uid,
+      });
+    }
+    setSelectedCactusLocation(null);
+    setCactusModalVisible(false);
+    setActiveCactusId(null);
+  };
+
+  // ========================================================================================
+  // TIMER MANAGEMENT
+  // ========================================================================================
 
   useEffect(() => {
     const gameTimerRef = ref(database, `rooms/${roomCode}/gameTimer`);
@@ -1034,8 +1028,10 @@ export default function PlayScreen() {
 
             // If time is up, transition to end-game state
             if (newTime <= 0) {
-              clearInterval(timerIntervalRef.current!);
-              timerIntervalRef.current = null;
+              if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
+              }
 
               // Update game state to end-game in Firebase
               const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
@@ -1087,6 +1083,111 @@ export default function PlayScreen() {
     setIsTimerRunning(true);
   };
 
+  // ========================================================================================
+  // BOUNDARY MANAGEMENT
+  // ========================================================================================
+
+  const outOfBounds = async (x: number, y: number) => {
+    if (
+      x > boundarySize.width / 2 ||
+      x < -boundarySize.width / 2 ||
+      y > boundarySize.height / 2 ||
+      y < -boundarySize.height / 2
+    ) {
+      if (!auth.currentUser) return;
+      const playerId = auth.currentUser.uid;
+      const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
+      const playerInfo = await get(playerRef);
+
+      if (!playerInfo.exists()) return;
+      const playerData = playerInfo.val();
+
+      if (!playerData.isEliminated && !playerData.isMarkerShowing) {
+        await update(playerRef, {
+          isEliminated: true,
+          eliminationReason: "Boundary",
+        });
+      }
+    }
+  };
+
+  // ========================================================================================
+  // LIVES MANAGEMENT
+  // ========================================================================================
+
+  const initializePlayerLives = async () => {
+    if (!auth.currentUser || !roomCode) return;
+
+    const playerRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}`
+    );
+    await update(playerRef, {
+      lives: PLAYER_LIVES,
+      isEliminated: false,
+      isMarkerShowing: true,
+    });
+    setPlayerLives(PLAYER_LIVES);
+  };
+
+  useEffect(() => {
+    if (gameState === "in-game") {
+      initializePlayerLives();
+    }
+  }, [gameState]);
+
+  useEffect(() => {
+    if (!auth.currentUser || !roomCode) return;
+
+    const playerLivesRef = ref(
+      database,
+      `rooms/${roomCode}/players/${auth.currentUser.uid}/lives`
+    );
+    const unsubscribe = onValue(playerLivesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setPlayerLives(snapshot.val());
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode]);
+
+  // ========================================================================================
+  // UTILITY FUNCTIONS
+  // ========================================================================================
+
+  const getPlayerColor = (colorId: number): string => {
+    const playerColor = playerColors.find((player) => player.id === colorId);
+    return playerColor ? playerColor.color : "#8baaff";
+  };
+
+  const getTeamColor = (teamNumber: number): string => {
+    const teamColor = teamColors.find((team) => team.team === teamNumber);
+    return teamColor ? teamColor.color : "#8baaff";
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  const focusOnUserLocation = () => {
+    if (mapRef.current && location) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.002222,
+          longitudeDelta: 0.001521,
+        },
+        1000
+      );
+    }
+  };
+
   const resetGame = async () => {
     if (!auth.currentUser) return;
 
@@ -1119,16 +1220,8 @@ export default function PlayScreen() {
     if (generatePowerUpIntervalRef.current) {
       clearInterval(generatePowerUpIntervalRef.current);
     }
-    setBoundary([
-      { latitude: 0, longitude: 0 },
-      { latitude: 0, longitude: 0 },
-      { latitude: 0, longitude: 0 },
-      { latitude: 0, longitude: 0 },
-    ]);
-    //or null, idk
-    setGameState(null);
+    setBoundary([]);
     setLocation(undefined);
-    //setlocation --> nothing?
     setMagnetometerData({ x: 0, y: 0, z: 0 });
     setPlayersURL([]);
     setPlayerArray([]);
@@ -1144,19 +1237,30 @@ export default function PlayScreen() {
     setGameTime(0);
     setTimeRemaining(0);
     setIsTimerRunning(false);
-    setTimeout(() => {
-      router.replace("/(tabs)/home");
-    });
-    const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
-    set(gameStateRef, "return");
     sheetRef.current?.snapToIndex(0);
     await AsyncStorage.setItem("eliminatedFully", "false");
     setEliminatedFully(false);
-    stopSound("backgroundTheme");
+    // stopSound("backgroundTheme");
+    setGameState("return");
   };
 
-  const [isFireDisabled, setIsFireDisabled] = useState(false);
-  const fireCooldownProgress = useSharedValue(1);
+  // ========================================================================================
+  // UI COMPONENTS
+  // ========================================================================================
+
+  const progressBarStyle = useAnimatedStyle(() => {
+    return {
+      width: `${timerProgress.value * 100}%`,
+      height: "100%",
+      backgroundColor:
+        timerProgress.value > 0.2
+          ? timerProgress.value > 0.5
+            ? "#88cb54"
+            : "#ffe08b"
+          : "#cb4533",
+      borderRadius: 5,
+    };
+  });
 
   const fireReloadBarStyle = useAnimatedStyle(() => ({
     width: `${fireCooldownProgress.value * 100}%`,
@@ -1168,161 +1272,6 @@ export default function PlayScreen() {
     shadowRadius: 5,
     padding: 20,
   }));
-
-  const [isTopSheetVisible, setIsTopSheetVisible] = useState(true);
-
-  const focusOnUserLocation = () => {
-    if (mapRef.current && location) {
-      mapRef.current.animateToRegion(
-        {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.002222,
-          longitudeDelta: 0.001521,
-        },
-        1000
-      );
-    }
-  };
-
-  const [playerLives, setPlayerLives] = useState<number>(PLAYER_LIVES);
-  const [isRespawning, setIsRespawning] = useState<boolean>(false);
-  const [respawnTimeLeft, setRespawnTimeLeft] = useState<number>(0);
-  const [eliminationModalVisible, setEliminationModalVisible] =
-    useState<boolean>(false);
-  const [eliminationReason, setEliminationReason] = useState<string>("");
-
-  const respawnTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const initializePlayerLives = async () => {
-    if (!auth.currentUser || !roomCode) return;
-
-    const playerRef = ref(
-      database,
-      `rooms/${roomCode}/players/${auth.currentUser.uid}`
-    );
-    await update(playerRef, {
-      lives: PLAYER_LIVES,
-      isAlive: true,
-      isRespawning: false,
-    });
-    setPlayerLives(PLAYER_LIVES);
-  };
-
-  const handlePlayerElimination = async (
-    reason: string = "You were eliminated!"
-  ) => {
-    if (!auth.currentUser || !roomCode) return;
-
-    const playerRef = ref(
-      database,
-      `rooms/${roomCode}/players/${auth.currentUser.uid}`
-    );
-    const playerInfo = await get(playerRef);
-
-    if (!playerInfo.exists()) return;
-    const playerData = playerInfo.val();
-
-    const newLives = Math.max(0, (playerData.lives || PLAYER_LIVES) - 1);
-    setPlayerLives(newLives);
-
-    setEliminationReason(reason);
-    setEliminationModalVisible(true);
-
-    playSound("buttonClick"); // elimination sound will go here
-    Vibration.vibrate([100, 50, 100, 50, 200]);
-
-    if (newLives > 0) {
-      setIsRespawning(true);
-      setRespawnTimeLeft(PLAYER_RESPAWN_COOLDOWN / 1000);
-
-      await update(playerRef, {
-        lives: newLives,
-        eliminated: true,
-        isRespawning: true,
-        isAlive: false,
-      });
-
-      // start respawn countdown
-      let timeLeft = PLAYER_RESPAWN_COOLDOWN / 1000;
-      respawnTimerRef.current = setInterval(async () => {
-        timeLeft--;
-        setRespawnTimeLeft(timeLeft);
-
-        if (timeLeft <= 0) {
-          // respawn player
-          await respawnPlayer();
-          if (respawnTimerRef.current) {
-            clearInterval(respawnTimerRef.current);
-            respawnTimerRef.current = null;
-          }
-        }
-      }, 1000);
-    } else {
-      await update(playerRef, {
-        lives: 0,
-        eliminated: true,
-        isRespawning: false,
-        isAlive: false,
-        isSpectator: true,
-      });
-
-      setTimeout(() => {
-        setEliminationModalVisible(false);
-      }, 3000);
-    }
-  };
-
-  const respawnPlayer = async () => {
-    if (!auth.currentUser || !roomCode) return;
-
-    const playerRef = ref(
-      database,
-      `rooms/${roomCode}/players/${auth.currentUser.uid}`
-    );
-
-    // Generate random respawn location within bounds
-    const respawnLocation = generateRandomCartesianInBounds();
-
-    const freshPlayerInfo = await get(playerRef);
-    const playerData = freshPlayerInfo.val();
-
-    await update(playerRef, {
-      eliminated: false,
-      isRespawning: false,
-      isAlive: true,
-      cartesian: playerData.cartesian, // current location of player i hope
-    });
-
-    setIsRespawning(false);
-    setEliminationModalVisible(false);
-    setRespawnTimeLeft(0);
-
-    // clear user inventory (can remove)
-    setUserPowerUps([]);
-  };
-
-  useEffect(() => {
-    if (gameState === "in-game") {
-      initializePlayerLives();
-    }
-  }, [gameState]);
-
-  useEffect(() => {
-    if (!auth.currentUser || !roomCode) return;
-
-    const playerLivesRef = ref(
-      database,
-      `rooms/${roomCode}/players/${auth.currentUser.uid}/lives`
-    );
-    const unsubscribe = onValue(playerLivesRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setPlayerLives(snapshot.val());
-      }
-    });
-
-    return () => unsubscribe();
-  }, [roomCode]);
 
   const EliminationModal = () => (
     <Modal
@@ -1342,37 +1291,21 @@ export default function PlayScreen() {
               <Text style={styles.livesText}>
                 Lives Remaining: {playerLives}
               </Text>
-              {isRespawning && (
-                <>
-                  <Text style={styles.respawnText}>
-                    Respawning in: {respawnTimeLeft}s
-                  </Text>
-                  <View style={styles.respawnProgressContainer}>
-                    <View
-                      style={[
-                        styles.respawnProgressBar,
-                        {
-                          width: `${
-                            (respawnTimeLeft /
-                              (PLAYER_RESPAWN_COOLDOWN / 1000)) *
-                            100
-                          }%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                </>
-              )}
+              <Text style={styles.respawnText}>Respawning...</Text>
             </>
           ) : (
             <Text style={styles.spectatorText}>
-              You are now spectating the game
+              You are now spectating the game.
             </Text>
           )}
         </View>
       </View>
     </Modal>
   );
+
+  // ========================================================================================
+  // RETURN COMPONENTS
+  // ========================================================================================
 
   return (
     <SafeAreaProvider>
@@ -1383,7 +1316,7 @@ export default function PlayScreen() {
             <View style={[styles.iconButton]}>
               <TouchableOpacity
                 onPress={() => {
-                  playSound("buttonClick");
+                  // playSound("buttonClick");
                   setIsTopSheetVisible(!isTopSheetVisible);
                 }}
               >
@@ -1403,7 +1336,7 @@ export default function PlayScreen() {
                   <TouchableOpacity
                     style={styles.userInfoButton}
                     onPress={() => {
-                      playSound("buttonClick");
+                      // playSound("buttonClick");
                       focusOnUserLocation();
                     }}
                   >
@@ -1482,16 +1415,8 @@ export default function PlayScreen() {
                   name={powerUp.type}
                 />
               ))}
-              {laserLines.map((line) => (
-                <Polyline
-                  key={line.id}
-                  coordinates={[line.start, line.end]}
-                  strokeColor="#FF0000"
-                  strokeWidth={3}
-                />
-              ))}
               {playerArray.map((player) => {
-                if (!player.cartesian || player.eliminated) return null;
+                if (!player.cartesian || !player.isMarkerShowing) return;
                 const playerColor = getPlayerColor(player.colorId); // get color based on player's colorId
                 return (
                   <Marker
@@ -1531,14 +1456,13 @@ export default function PlayScreen() {
                     disabled={isFireDisabled}
                     onPress={async () => {
                       Vibration.vibrate(200);
-                      playSound("lasso");
+                      // playSound("lasso");
                       const laserVisuals = await fireLaser(
                         database,
                         roomCode,
                         LASER_LENGTH,
                         center
                       );
-                      setLaserLines(laserVisuals ?? []);
                       setIsFireDisabled(true);
                       fireCooldownProgress.value = 0;
                       fireCooldownProgress.value = withTiming(1, {
@@ -1546,7 +1470,6 @@ export default function PlayScreen() {
                         easing: Easing.linear,
                       });
                       setTimeout(() => {
-                        setLaserLines([]); // remove visuals
                         setIsFireDisabled(false);
                       }, FIRE_LASER_COOLDOWN * 1000);
                     }}
@@ -1560,7 +1483,7 @@ export default function PlayScreen() {
               <ReusableButton
                 label="Player List"
                 onPress={() => {
-                  playSound("buttonClick");
+                  // playSound("buttonClick");
                   setPlayerListModal(true);
                 }}
                 buttonStyle={styles.button}
@@ -1577,54 +1500,12 @@ export default function PlayScreen() {
               <View style={styles.bottomSheetDivider} />
               <TouchableOpacity
                 onPress={() => {
-                  playSound("buttonClick");
+                  // playSound("buttonClick");
                   resetGame();
                 }}
               >
                 <AppText>Exit Game</AppText>
               </TouchableOpacity>
-              <Modal
-                transparent
-                visible={!!eliminationMessage}
-                animationType="fade"
-              >
-                <View
-                  style={{
-                    flex: 1,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    backgroundColor: "rgba(0, 0, 0, 0.5)",
-                  }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: "white",
-                      padding: 20,
-                      borderRadius: 10,
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 4,
-                      elevation: 5,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        fontWeight: "bold",
-                        textAlign: "center",
-                      }}
-                    >
-                      {eliminationMessage}
-                    </Text>
-                  </View>
-                </View>
-              </Modal>
-              {eliminationMessage === null && (
-                <Text style={{ textAlign: "center", marginTop: 20 }}>
-                  Modal hidden
-                </Text>
-              )}
               <Modal visible={cactusModalVisible} animationType="slide">
                 {location ? (
                   <View style={{ flex: 1 }}>
@@ -1666,7 +1547,7 @@ export default function PlayScreen() {
                       <ReusableButton
                         label="Confirm"
                         onPress={() => {
-                          playSound("buttonClick");
+                          // playSound("buttonClick");
                           handleConfirm();
                         }}
                         buttonStyle={{ backgroundColor: "#88cb54" }}
@@ -1675,7 +1556,7 @@ export default function PlayScreen() {
                       <ReusableButton
                         label="Cancel"
                         onPress={() => {
-                          playSound("buttonClick");
+                          // playSound("buttonClick");
                           setCactusModalVisible(false);
                         }}
                       />
@@ -1711,6 +1592,10 @@ export default function PlayScreen() {
     </SafeAreaProvider>
   );
 }
+
+// ========================================================================================
+// STYLE SHEET
+// ========================================================================================
 
 const styles = StyleSheet.create({
   container: {
@@ -1959,6 +1844,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.8)",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 9999,
   },
 
   eliminationModalContent: {

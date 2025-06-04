@@ -35,7 +35,6 @@ import {
 } from "firebase/storage";
 import * as ImagePicker from "expo-image-picker";
 import { IconSymbol } from "@/components/ui/IconSymbol";
-import RoomSettingsModal from "@/components/RoomSettingsModal";
 import GameLobbyModal from "@/components/GameLobbyModal";
 import { getAuth } from "firebase/auth";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -61,13 +60,16 @@ export default function HomeScreen() {
 
   const [roomInfo, setRoomInfo] = useState<any>();
 
+  const [isInGame, setIsInGame] = useState(false);
+
   useEffect(() => {
     if (!roomCode) return;
 
     const roomRef = ref(database, `rooms/${roomCode}`);
     const readyRef = ref(database, `rooms/${roomCode}/gameReady`);
     const startRef = ref(database, `rooms/${roomCode}/gameStart`);
-    //kinda fixed?
+    const gameStateRef = ref(database, `rooms/${roomCode}/gameState`);
+
     const waitForRoom = onValue(roomRef, (snapshot) => {
       if (!snapshot.exists()) {
         return;
@@ -84,8 +86,14 @@ export default function HomeScreen() {
       }
     });
 
+    const unsubscribeGameState = onValue(gameStateRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setIsInGame(snapshot.val() === "in-game");
+      }
+    });
+
     const unsubscribeReady = onValue(readyRef, (readySnapshot) => {
-      if (readySnapshot.exists() && readySnapshot.val()) {
+      if (readySnapshot.exists() && readySnapshot.val() && !isInGame) {
         closeLobby();
         router.replace({
           pathname: "/(tabs)/gameplay",
@@ -105,8 +113,9 @@ export default function HomeScreen() {
       unsubscribeRoom();
       unsubscribeReady();
       unsubscribeStart();
+      unsubscribeGameState();
     };
-  }, [roomCode]);
+  }, [roomCode, isInGame]);
 
   /*const updatePlayerLaser = async () => {
       if (!auth.currentUser) return;
@@ -170,7 +179,7 @@ export default function HomeScreen() {
           laser: laserData.val(),
           cowboyHat: false,
           fake: false,
-          eliminated: false,
+          isEliminated: false,
           points: 0,
           colorId: 1,
         },
@@ -251,7 +260,7 @@ export default function HomeScreen() {
         team: 1,
         laser: laserData.val(),
         cowboyHat: false,
-        eliminated: false,
+        isEliminated: false,
         points: 0,
         colorId: newColorId,
       },

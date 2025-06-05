@@ -15,6 +15,8 @@ export const cowboyHat = async (roomCode: string | string[]) => {
     }, 5000);
   };
 
+  //note, fake user can exit boundary without dying. this is a feature! We want the fake user
+  //to last as long as possible, and if they randomly exit, they should be allowed to try to come back in
 export 
   const cowboyBoots = async () => {
     //copy data from current user to fake user

@@ -1235,6 +1235,7 @@ export default function PlayScreen() {
     // stopSound("backgroundTheme");
     setGameState("return");
     setIsEliminated(false);
+    setIsSpectator(false);
     setPlayerLives(PLAYER_LIVES);
     setEliminationModalVisible(false);
   };
@@ -1267,37 +1268,6 @@ export default function PlayScreen() {
     shadowRadius: 5,
     padding: 20,
   }));
-
-  // const EliminationModal = ({
-  //   visible,
-  //   reason,
-  //   lives,
-  // }: {
-  //   visible: boolean;
-  //   reason: string;
-  //   lives: number;
-  // }) => (
-  //   <Modal transparent visible={visible} animationType="fade">
-  //     <View style={styles.eliminationModalOverlay}>
-  //       <View style={styles.eliminationModalContent}>
-  //         <Text style={styles.eliminationTitle}>
-  //           {lives > 0 ? "ELIMINATED!" : "GAME OVER!"}
-  //         </Text>
-  //         <Text style={styles.eliminationMessage}>{reason}</Text>
-  //         {lives > 0 ? (
-  //           <>
-  //             <Text style={styles.livesText}>Lives Remaining: {lives}</Text>
-  //             <Text style={styles.respawnText}>Respawning...</Text>
-  //           </>
-  //         ) : (
-  //           <Text style={styles.spectatorText}>
-  //             You are now spectating the game.
-  //           </Text>
-  //         )}
-  //       </View>
-  //     </View>
-  //   </Modal>
-  // );
 
   // ========================================================================================
   // RETURN COMPONENTS

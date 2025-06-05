@@ -19,6 +19,7 @@ import { ref, set } from "firebase/database";
 import { getStorage, ref as ref_storage, uploadBytes } from "firebase/storage";
 import { globalStyles } from "@/constants/styles";
 import { LogoBanner } from "@/constants/icons";
+import AppText from "@/components/AppText";
 
 const index = () => {
   const router = useRouter();
@@ -91,7 +92,7 @@ const index = () => {
   return (
     <SafeAreaView style={globalStyles.container}>
       <LogoBanner height={200} style={styles.banner} />
-      <Text style={styles.logo}>laser tag | on the go</Text>
+      <AppText style={styles.logo}>laser tag | on the go</AppText>
       <View style={styles.inputContainer}>
         <View style={styles.input}>
           <TextInput
@@ -111,12 +112,12 @@ const index = () => {
         <View style={styles.buttonContainer}>
           <View style={styles.signin}>
             <TouchableOpacity onPress={signIn}>
-              <Text style={styles.text}>login</Text>
+              <AppText style={styles.text}>login</AppText>
             </TouchableOpacity>
           </View>
           <View style={styles.signup}>
             <TouchableOpacity onPress={signUp}>
-              <Text style={styles.text}>create</Text>
+              <AppText style={styles.text}>create</AppText>
             </TouchableOpacity>
           </View>
         </View>

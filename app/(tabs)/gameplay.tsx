@@ -539,6 +539,7 @@ export default function PlayScreen() {
   // PLAYER DATA MANAGEMENT
   // ========================================================================================
 
+  //set Playersurl
   useEffect(() => {
     const getPlayersURL = async () => {
       try {
@@ -575,6 +576,7 @@ export default function PlayScreen() {
     getPlayersURL();
   }, [playerArray.length]);
 
+  //ensure the center remains the same (doesn't jump back to initialized state)
   const centerRef = useRef(center);
   centerRef.current = center;
 
@@ -669,6 +671,7 @@ export default function PlayScreen() {
     return randCartesian;
   };
 
+  //generate powerups on specified interval
   useEffect(() => {
     if (generatePowerUpIntervalRef.current) {
       clearInterval(generatePowerUpIntervalRef.current);
@@ -701,6 +704,7 @@ export default function PlayScreen() {
     };
   }, [gameState, center]);
 
+  //put generated powerups into database
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     const fetchPowerUps = async () => {
@@ -732,6 +736,7 @@ export default function PlayScreen() {
     };
   }, [roomCode]);
 
+  //check if powerup is in player hitbox
   const inHitBox = async (powerup: PowerUp, player: Box) => {
     if (!auth.currentUser) return;
     const playerRef = ref(
@@ -779,6 +784,8 @@ export default function PlayScreen() {
         cowboyHat(roomCode);
         break;
       case "Cactus":
+        //sees if user has a cactus already made in the database, if so, don't make a cactus
+        //if they don't, allow them to make a cactus
         const seeIfUserHasCactus = async () => {
           const cactusRef = ref(database, `rooms/${roomCode}/cactus`);
           const cactusInfo = await get(cactusRef);
@@ -867,6 +874,7 @@ export default function PlayScreen() {
     const playerId = auth.currentUser.uid;
     const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
 
+    //see if user is on a powerup (then get it) and if the user is on a cactus (then eliminate them)
     const checkLocationPowerUpAndCactus = async () => {
       const playerInfo = await get(playerRef);
       if (!playerInfo.exists()) return;
@@ -875,7 +883,6 @@ export default function PlayScreen() {
         return;
       let playerPowerUps = userPowerUps;
       powerUps.map(async (powerUp) => {
-        /* change the delta to be whatever value u want*/
         if (await inHitBox(powerUp, playerHitBox)) {
           const existingPowerUp = playerPowerUps.find(
             (p) => p.type === powerUp.type
@@ -914,7 +921,7 @@ export default function PlayScreen() {
 
       cactusArray.forEach(async (cactus) => {
         if (await inHitBox(cactus, playerHitBox)) {
-          //remove current player from game if they are on an active cactus
+          //remove current player from game if they are on top of an active cactus
           await update(playerRef, {
             isEliminated: true,
             eliminationReason: "Cactus",
@@ -949,6 +956,7 @@ export default function PlayScreen() {
     setSelectedCactusLocation(tempXY);
   };
 
+  //handles confirm for user's placed cactus
   const handleConfirm = async () => {
     if (selectedCactusLocation && activeCactusId) {
       if (!auth.currentUser) return;

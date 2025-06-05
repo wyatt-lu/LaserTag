@@ -48,7 +48,7 @@ configureReanimatedLogger({
   strict: false,
 });
 
-// import { useSound } from "@/constants/useSound";
+import { useSound } from "@/constants/useSound";
 
 // Firebase Imports
 import { get, off, onValue, ref, remove, set, update } from "firebase/database";
@@ -134,7 +134,7 @@ export default function PlayScreen() {
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // SOUND FUNCTION
-  // const { playSound, loopSound, stopSound } = useSound();
+  const { playSound, loopSound, stopSound } = useSound();
 
   // ========================================================================================
   // GAME STATE
@@ -166,7 +166,10 @@ export default function PlayScreen() {
     { latitude: 0, longitude: 0 },
   ]);
 
-  const [boundarySize, setBoundarySize] = useState<{width: number, height: number}>({
+  const [boundarySize, setBoundarySize] = useState<{
+    width: number;
+    height: number;
+  }>({
     width: 0,
     height: 0,
   });
@@ -412,7 +415,7 @@ export default function PlayScreen() {
         roomData.gameDuration
           ? startGameTimer(roomData.gameDuration)
           : startGameTimer(600);
-        // loopSound("backgroundTheme");
+        loopSound("backgroundTheme");
         if (mapRef.current) {
           setTimeout(() => {
             mapRef.current?.animateToRegion(
@@ -563,7 +566,7 @@ export default function PlayScreen() {
             const playersList = await Promise.all(
               Object.entries(roomData).map(async ([key]) => {
                 if (key.length <= 7) {
-                  return { id: key, profile: undefined };;
+                  return { id: key, profile: undefined };
                 }
 
                 let userURL = await fetchUserURL(key);
@@ -698,7 +701,7 @@ export default function PlayScreen() {
             await remove(powerUpsRef);
           }
         }, despawnTime);
-      }, Math.random() * (4000 - 3000)); //+6000, 3600
+      }, Math.random() * (6000 - 3000) + 3600);
     }
 
     return () => {
@@ -1087,20 +1090,13 @@ export default function PlayScreen() {
   // BOUNDARY MANAGEMENT
   // ========================================================================================
 
-
   const boundarySizeRef = useRef(boundarySize);
   boundarySizeRef.current = boundarySize;
 
   const outOfBounds = async (x: number, y: number) => {
-
     const { width, height } = boundarySizeRef.current;
 
-    if (
-      x > width / 2 ||
-      x < -width / 2 ||
-      y > height / 2 ||
-      y < -height / 2
-    ) {
+    if (x > width / 2 || x < -width / 2 || y > height / 2 || y < -height / 2) {
       if (!auth.currentUser) return;
       const playerId = auth.currentUser.uid;
       const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
@@ -1245,7 +1241,7 @@ export default function PlayScreen() {
     sheetRef.current?.snapToIndex(0);
     await AsyncStorage.setItem("eliminatedFully", "false");
     setEliminatedFully(false);
-    // stopSound("backgroundTheme");
+    stopSound("backgroundTheme");
     setGameState("return");
     setIsEliminated(false);
     setIsSpectator(false);
@@ -1295,7 +1291,7 @@ export default function PlayScreen() {
             <View style={[styles.iconButton]}>
               <TouchableOpacity
                 onPress={() => {
-                  // playSound("buttonClick");
+                  playSound("buttonClick");
                   setIsTopSheetVisible(!isTopSheetVisible);
                 }}
               >
@@ -1315,7 +1311,7 @@ export default function PlayScreen() {
                   <TouchableOpacity
                     style={styles.userInfoButton}
                     onPress={() => {
-                      // playSound("buttonClick");
+                      playSound("buttonClick");
                       focusOnUserLocation();
                     }}
                   >
@@ -1435,7 +1431,7 @@ export default function PlayScreen() {
                     disabled={isFireDisabled || isSpectator}
                     onPress={async () => {
                       Vibration.vibrate(200);
-                      // playSound("lasso");
+                      playSound("lasso");
                       const laserVisuals = await fireLaser(
                         database,
                         roomCode,
@@ -1466,7 +1462,7 @@ export default function PlayScreen() {
               <ReusableButton
                 label="Player List"
                 onPress={() => {
-                  // playSound("buttonClick");
+                  playSound("buttonClick");
                   setPlayerListModal(true);
                 }}
                 buttonStyle={styles.button}
@@ -1483,7 +1479,7 @@ export default function PlayScreen() {
               <View style={styles.bottomSheetDivider} />
               <TouchableOpacity
                 onPress={() => {
-                  // playSound("buttonClick");
+                  playSound("buttonClick");
                   resetGame();
                 }}
               >
@@ -1530,7 +1526,7 @@ export default function PlayScreen() {
                       <ReusableButton
                         label="Confirm"
                         onPress={() => {
-                          // playSound("buttonClick");
+                          playSound("buttonClick");
                           handleConfirm();
                         }}
                         buttonStyle={{ backgroundColor: "#88cb54" }}
@@ -1539,7 +1535,7 @@ export default function PlayScreen() {
                       <ReusableButton
                         label="Cancel"
                         onPress={() => {
-                          // playSound("buttonClick");
+                          playSound("buttonClick");
                           setCactusModalVisible(false);
                         }}
                       />

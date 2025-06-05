@@ -660,10 +660,6 @@ export default function PlayScreen() {
   };
 
   const generateRandomCartesianInBounds = () => {
-    const minLat = boundary[2].latitude;
-    const maxLat = boundary[0].latitude;
-    const minLng = boundary[3].longitude;
-    const maxLng = boundary[1].longitude;
     let randX = Math.random() * boundarySize.width - boundarySize.width / 2;
     let randY = Math.random() * boundarySize.height - boundarySize.height / 2;
     const randCartesian = {
@@ -734,7 +730,7 @@ export default function PlayScreen() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [gameState]);
+  }, [roomCode]);
 
   const inHitBox = async (powerup: PowerUp, player: Box) => {
     if (!auth.currentUser) return;

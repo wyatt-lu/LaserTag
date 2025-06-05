@@ -105,9 +105,11 @@ export async function fireLaser(
         eliminationReason: "Lasso",
       });
 
-      const freshPlayerInfo = await get(playerRef);
+      const indiviPlayerRef = ref(database, `players/${playerId}`);
+      const freshPlayerInfo = await get(indiviPlayerRef);
       const shooterData = freshPlayerInfo.val();
-      const newPoints = (shooterData.points || 0) + 1;
+      const newPoints = (shooterData.points) + 1;
+      console.log("newPoints")
       await update(playerRef, { points: newPoints });
 
       break;

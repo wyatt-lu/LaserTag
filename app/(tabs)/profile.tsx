@@ -3,7 +3,7 @@ import { SafeAreaView, View, StyleSheet, StatusBar } from "react-native";
 import { globalStyles } from "@/constants/styles";
 import AppText from "@/components/AppText";
 import { auth, database } from "@/firebaseconfig";
-import { ref, get } from "firebase/database";
+import { ref, get, onValue } from "firebase/database";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LassoIcon } from "@/constants/icons";
 
@@ -11,16 +11,18 @@ export default function ProfileScreen() {
   const [points, setPoints] = useState<number>();
 
   useEffect(() => {
-    const getTotalPoints = async () => {
-      if (!auth.currentUser) return;
-      const playerRef = ref(database, `players/${auth.currentUser.uid}`);
-      const playerInfo = await get(playerRef);
-      if (!playerInfo.exists()) return;
-      const playerData = playerInfo.val();
+    if (!auth.currentUser) return;
+  
+    const playerRef = ref(database, `players/${auth.currentUser.uid}`);
+  
+    const unsubscribe = onValue(playerRef, (snapshot) => {
+      if (!snapshot.exists()) return;
+      const playerData = snapshot.val();
       setPoints(playerData.points);
-      console.log("points" + playerData.points);
-    };
-    getTotalPoints();
+    });
+  
+    // Cleanup listener on unmount
+    return () => unsubscribe();
   }, []);
 
   return (

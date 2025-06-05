@@ -144,6 +144,7 @@ export default function PlayScreen() {
     "in-game" | "end-game" | "return" | null
   >(null);
   const [isEliminated, setIsEliminated] = useState<boolean>(false);
+  const [isSpectator, setIsSpectator] = useState<boolean>(false);
   const [playerLives, setPlayerLives] = useState<number>(PLAYER_LIVES);
   const [eliminationModalVisible, setEliminationModalVisible] =
     useState<boolean>(false);
@@ -345,6 +346,8 @@ export default function PlayScreen() {
             isMarkerShowing: false,
             isSpectator: true,
           });
+          setIsSpectator(true);
+          console.log("Player has become spectator.");
           const isEliminatedRef = ref(
             database,
             `rooms/${roomCode}/players/${auth.currentUser.uid}/isEliminated`
@@ -362,10 +365,12 @@ export default function PlayScreen() {
               `rooms/${roomCode}/players/${auth.currentUser.uid}/eliminationReason`
             );
             await remove(eliminationReasonRef);
-            await update(playerRef, {
-              isEliminated: false,
-              isMarkerShowing: true,
-            });
+            if (newLives > 0) {
+              await update(playerRef, {
+                isEliminated: false,
+                isMarkerShowing: true,
+              });
+            }
           };
           resetEliminationFlags();
           console.log("=== LASSO THROW HAS ENDED ===");
@@ -1448,7 +1453,7 @@ export default function PlayScreen() {
               <View style={styles.fireButtonContainer}>
                 <Animated.View style={[fireReloadBarStyle]}>
                   <Pressable
-                    disabled={isFireDisabled}
+                    disabled={isFireDisabled || isSpectator}
                     onPress={async () => {
                       Vibration.vibrate(200);
                       // playSound("lasso");
@@ -1470,7 +1475,11 @@ export default function PlayScreen() {
                     }}
                   >
                     <Text style={styles.fireButtonText}>
-                      {!isFireDisabled ? "Throw Lasso" : "Reloading..."}
+                      {isSpectator
+                        ? "Spectating"
+                        : !isFireDisabled
+                        ? "Throw Lasso"
+                        : "Reloading..."}
                     </Text>
                   </Pressable>
                 </Animated.View>

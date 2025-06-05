@@ -30,8 +30,6 @@ export default function ProfileScreen() {
       <StatusBar hidden={true} />
       <SafeAreaView style={styles.container}>
 
-        <AppText style={styles.points}>Points: {points}</AppText>
-
         <View style={styles.text}>
           <AppText>Choose your weapon!</AppText>
           <AppText>Sorry, you only have one choice... Lasso!!!</AppText>

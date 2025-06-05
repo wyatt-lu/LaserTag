@@ -583,10 +583,7 @@ export default function PlayScreen() {
     longitude: number,
     direction: number
   ) => {
-    if (
-      !auth.currentUser
-    )
-      return;
+    if (!auth.currentUser) return;
     const cartesian = latLngToCartesian(
       { latitude, longitude },
       centerRef.current
@@ -1270,30 +1267,36 @@ export default function PlayScreen() {
     padding: 20,
   }));
 
-  const EliminationModal = ({ visible, reason, lives }: {
-    visible: boolean;
-    reason: string;
-    lives: number;
-  }) => (
-    <Modal transparent visible={visible} animationType="fade">
-      <View style={styles.eliminationModalOverlay}>
-        <View style={styles.eliminationModalContent}>
-          <Text style={styles.eliminationTitle}>
-            {lives > 0 ? "ELIMINATED!" : "GAME OVER!"}
-          </Text>
-          <Text style={styles.eliminationMessage}>{reason}</Text>
-          {lives > 0 ? (
-            <>
-              <Text style={styles.livesText}>Lives Remaining: {lives}</Text>
-              <Text style={styles.respawnText}>Respawning...</Text>
-            </>
-          ) : (
-            <Text style={styles.spectatorText}>You are now spectating the game.</Text>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
+  // const EliminationModal = ({
+  //   visible,
+  //   reason,
+  //   lives,
+  // }: {
+  //   visible: boolean;
+  //   reason: string;
+  //   lives: number;
+  // }) => (
+  //   <Modal transparent visible={visible} animationType="fade">
+  //     <View style={styles.eliminationModalOverlay}>
+  //       <View style={styles.eliminationModalContent}>
+  //         <Text style={styles.eliminationTitle}>
+  //           {lives > 0 ? "ELIMINATED!" : "GAME OVER!"}
+  //         </Text>
+  //         <Text style={styles.eliminationMessage}>{reason}</Text>
+  //         {lives > 0 ? (
+  //           <>
+  //             <Text style={styles.livesText}>Lives Remaining: {lives}</Text>
+  //             <Text style={styles.respawnText}>Respawning...</Text>
+  //           </>
+  //         ) : (
+  //           <Text style={styles.spectatorText}>
+  //             You are now spectating the game.
+  //           </Text>
+  //         )}
+  //       </View>
+  //     </View>
+  //   </Modal>
+  // );
 
   // ========================================================================================
   // RETURN COMPONENTS
@@ -1578,11 +1581,39 @@ export default function PlayScreen() {
             players={playerArray}
             playerURLArray={playersURL}
           />
-          <EliminationModal
+          {/* <EliminationModal
             visible={eliminationModalVisible}
             reason={eliminationReason}
             lives={playerLives}
-          />
+          /> */}
+          <Modal
+            transparent
+            visible={eliminationModalVisible}
+            animationType="fade"
+          >
+            <View style={styles.eliminationModalOverlay}>
+              <View style={styles.eliminationModalContent}>
+                <Text style={styles.eliminationTitle}>
+                  {playerLives > 0 ? "ELIMINATED!" : "GAME OVER!"}
+                </Text>
+                <Text style={styles.eliminationMessage}>
+                  {eliminationReason}
+                </Text>
+                {playerLives > 0 ? (
+                  <>
+                    <Text style={styles.livesText}>
+                      Lives Remaining: {playerLives}
+                    </Text>
+                    <Text style={styles.respawnText}>Respawning...</Text>
+                  </>
+                ) : (
+                  <Text style={styles.spectatorText}>
+                    You are now spectating the game.
+                  </Text>
+                )}
+              </View>
+            </View>
+          </Modal>
         </GestureHandlerRootView>
       </SafeAreaView>
     </SafeAreaProvider>

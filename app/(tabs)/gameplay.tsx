@@ -583,14 +583,8 @@ export default function PlayScreen() {
     longitude: number,
     direction: number
   ) => {
-    /*THIS IS A PATCH ISSUE IS THAT CENTER (VALUE NOT THE ACTUAL USESTATE) IS BEING
-    PASSED TO LATLNGTOCARTESIAN INCORRECTLY (WITH THE DEFAULT LAKESIDE VALUE), DON'T
-    KNOW WHY MAYBE HAS SOMETHING TO DO WITH HOOKS + SET INTERVAL NOT MESHING*/
     if (
       !auth.currentUser
-      // ||
-      // (center.latitude == 47.732473984376654 &&
-      //   center.longitude == -122.32739349311144)
     )
       return;
     const cartesian = latLngToCartesian(
@@ -1242,6 +1236,9 @@ export default function PlayScreen() {
     setEliminatedFully(false);
     // stopSound("backgroundTheme");
     setGameState("return");
+    setIsEliminated(false);
+    setPlayerLives(PLAYER_LIVES);
+    setEliminationModalVisible(false);
   };
 
   // ========================================================================================
@@ -1273,30 +1270,25 @@ export default function PlayScreen() {
     padding: 20,
   }));
 
-  const EliminationModal = () => (
-    <Modal
-      transparent={true}
-      visible={eliminationModalVisible}
-      animationType="fade"
-    >
+  const EliminationModal = ({ visible, reason, lives }: {
+    visible: boolean;
+    reason: string;
+    lives: number;
+  }) => (
+    <Modal transparent visible={visible} animationType="fade">
       <View style={styles.eliminationModalOverlay}>
         <View style={styles.eliminationModalContent}>
           <Text style={styles.eliminationTitle}>
-            {playerLives > 0 ? "ELIMINATED!" : "GAME OVER!"}
+            {lives > 0 ? "ELIMINATED!" : "GAME OVER!"}
           </Text>
-          <Text style={styles.eliminationMessage}>{eliminationReason}</Text>
-
-          {playerLives > 0 ? (
+          <Text style={styles.eliminationMessage}>{reason}</Text>
+          {lives > 0 ? (
             <>
-              <Text style={styles.livesText}>
-                Lives Remaining: {playerLives}
-              </Text>
+              <Text style={styles.livesText}>Lives Remaining: {lives}</Text>
               <Text style={styles.respawnText}>Respawning...</Text>
             </>
           ) : (
-            <Text style={styles.spectatorText}>
-              You are now spectating the game.
-            </Text>
+            <Text style={styles.spectatorText}>You are now spectating the game.</Text>
           )}
         </View>
       </View>
@@ -1586,7 +1578,11 @@ export default function PlayScreen() {
             players={playerArray}
             playerURLArray={playersURL}
           />
-          <EliminationModal />
+          <EliminationModal
+            visible={eliminationModalVisible}
+            reason={eliminationReason}
+            lives={playerLives}
+          />
         </GestureHandlerRootView>
       </SafeAreaView>
     </SafeAreaProvider>

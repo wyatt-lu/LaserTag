@@ -93,7 +93,7 @@ export default function HomeScreen() {
     });
 
     const unsubscribeReady = onValue(readyRef, (readySnapshot) => {
-      if (readySnapshot.exists() && readySnapshot.val() && !isInGame) {
+      if (readySnapshot.exists() && readySnapshot.val()) {
         closeLobby();
         router.replace({
           pathname: "/(tabs)/gameplay",
@@ -463,6 +463,12 @@ export default function HomeScreen() {
     }
   }, []);
 
+  // console.log("isLobbyVisible", isLobbyVisible);
+  // console.log("isInGame", isInGame);
+  // useEffect(() => {
+  //   console.log("GameLobbyModal visible:", isLobbyVisible);
+  //   console.log("isInGame", isInGame);
+  // }, [isLobbyVisible, isInGame]);
   return (
     <SafeAreaView style={globalStyles.container}>
       {/* // SETTINGS PAGE // */}
@@ -563,20 +569,19 @@ export default function HomeScreen() {
 
       {/* // GAME LOBBY // */}
 
-      <>
-        {isLobbyVisible && (
-          <GameLobbyModal
-            visible={isLobbyVisible}
-            roomCode={roomCode}
-            beginReadyGame={beginReadyGame}
-            enterGame={enterGame}
-            closeLobby={() => {
-              closeLobby();
-              handleLeave();
-            }}
-          />
-        )}
-      </>
+      {isLobbyVisible && (
+        <GameLobbyModal
+          visible={isLobbyVisible}
+          roomCode={roomCode}
+          beginReadyGame={beginReadyGame}
+          enterGame={enterGame}
+          closeLobby={() => {
+            closeLobby();
+            handleLeave();
+          }}
+        />
+      )}
+      
 
       {/* // HOME SCREEN // */}
       <View style={styles.joinContainer}>

@@ -166,7 +166,7 @@ export default function PlayScreen() {
     { latitude: 0, longitude: 0 },
   ]);
 
-  const [boundarySize, setBoundarySize] = useState<any>({
+  const [boundarySize, setBoundarySize] = useState<{width: number, height: number}>({
     width: 0,
     height: 0,
   });
@@ -563,7 +563,7 @@ export default function PlayScreen() {
             const playersList = await Promise.all(
               Object.entries(roomData).map(async ([key]) => {
                 if (key.length <= 7) {
-                  return;
+                  return { id: key, profile: undefined };;
                 }
 
                 let userURL = await fetchUserURL(key);
@@ -698,7 +698,7 @@ export default function PlayScreen() {
             await remove(powerUpsRef);
           }
         }, despawnTime);
-      }, Math.random() * (6000 - 3000) + 3600);
+      }, Math.random() * (4000 - 3000)); //+6000, 3600
     }
 
     return () => {
@@ -1087,22 +1087,27 @@ export default function PlayScreen() {
   // BOUNDARY MANAGEMENT
   // ========================================================================================
 
+
+  const boundarySizeRef = useRef(boundarySize);
+  boundarySizeRef.current = boundarySize;
+
   const outOfBounds = async (x: number, y: number) => {
+
+    const { width, height } = boundarySizeRef.current;
+
     if (
-      x > boundarySize.width / 2 ||
-      x < -boundarySize.width / 2 ||
-      y > boundarySize.height / 2 ||
-      y < -boundarySize.height / 2
+      x > width / 2 ||
+      x < -width / 2 ||
+      y > height / 2 ||
+      y < -height / 2
     ) {
       if (!auth.currentUser) return;
       const playerId = auth.currentUser.uid;
       const playerRef = ref(database, `rooms/${roomCode}/players/${playerId}`);
       const playerInfo = await get(playerRef);
-
       if (!playerInfo.exists()) return;
       const playerData = playerInfo.val();
-
-      if (!playerData.isEliminated && !playerData.isMarkerShowing) {
+      if (!playerData.isEliminated && playerData.isMarkerShowing) {
         await update(playerRef, {
           isEliminated: true,
           eliminationReason: "Boundary",

@@ -55,16 +55,16 @@ export
         let yDelta = Math.random() * 4 - 2;
         let fakeUserRef = ref(
           database,
-          `rooms/${roomNum}/players/${randomFakeUserId}`
+          `rooms/${roomNum}/players/${randomFakeUserId}/cartesian`
         );
         let fakeUserInfo = await get(fakeUserRef);
         if (!fakeUserInfo.exists()) return;
 
         let fakeUserData = fakeUserInfo.val();
-        let newLat = fakeUserData.cartesian.x + xDelta;
-        let newLong = fakeUserData.cartesian.y + yDelta;
+        let newx = fakeUserData.x + xDelta;
+        let newy = fakeUserData.y + yDelta;
 
-        await update(fakeUserRef, { x: newLat, y: newLong });
+        await update(fakeUserRef, { x: newx, y: newy });
         //update fake location every 1 sec
       }, 1000);
       // Stop the interval after 20 seconds

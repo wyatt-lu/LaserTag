@@ -66,7 +66,6 @@ const PlayerListModal: React.FC<PlayerListModalProps> = ({
     const playerColor = playerColors.find((player) => player.id === colorId);
     return playerColor ? playerColor.color : "#8baaff";
   };
-
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
       <View style={styles.overlay}>

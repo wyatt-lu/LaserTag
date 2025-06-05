@@ -1477,14 +1477,14 @@ export default function PlayScreen() {
                 style={styles.powerUpList}
               />
               <View style={styles.bottomSheetDivider} />
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 onPress={() => {
                   playSound("buttonClick");
                   resetGame();
                 }}
               >
                 <AppText>Exit Game</AppText>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               <Modal visible={cactusModalVisible} animationType="slide">
                 {location ? (
                   <View style={{ flex: 1 }}>
@@ -1565,14 +1565,9 @@ export default function PlayScreen() {
             players={playerArray}
             playerURLArray={playersURL}
           />
-          {/* <EliminationModal
-            visible={eliminationModalVisible}
-            reason={eliminationReason}
-            lives={playerLives}
-          /> */}
           <Modal
             transparent
-            visible={eliminationModalVisible}
+            visible={eliminationModalVisible && !(gameState === "end-game")}
             animationType="fade"
           >
             <View style={styles.eliminationModalOverlay}>

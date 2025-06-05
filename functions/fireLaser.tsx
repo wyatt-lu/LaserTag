@@ -124,7 +124,7 @@ const checkIfLineIntersectsRectangle = (
   rectY: number,
   rectWidth: number,
   rectHeight: number
-): boolean => {
+) => {
   const dx = x2 - x1;
   const dy = y2 - y1;
 
@@ -137,30 +137,24 @@ const checkIfLineIntersectsRectangle = (
     );
   }
 
-  let t0 = 0;
-  let t1 = 1;
+  let t0 = 0,
+    t1 = 1;
 
-  const p = [-dx, dx, -dy, dy];
-  const q = [
-    x1 - rectX,
-    rectX + rectWidth - x1,
-    y1 - rectY,
-    rectY + rectHeight - y1,
-  ];
-
-  for (let i = 0; i < 4; i++) {
-    if (p[i] === 0) {
-      if (q[i] < 0) return false;
-    } else {
-      const t = q[i] / p[i];
-      if (p[i] < 0) {
-        if (t > t1) return false;
-        if (t > t0) t0 = t;
-      } else {
-        if (t < t0) return false;
-        if (t < t1) t1 = t;
-      }
-    }
+  // Check X bounds
+  if (dx !== 0) {
+    const tx1 = (rectX - x1) / dx;
+    const tx2 = (rectX + rectWidth - x1) / dx;
+    t0 = Math.max(t0, Math.min(tx1, tx2));
+    t1 = Math.min(t1, Math.max(tx1, tx2));
   }
-  return t0 <= t1;
+
+  // Check Y bounds
+  if (dy !== 0) {
+    const ty1 = (rectY - y1) / dy;
+    const ty2 = (rectY + rectHeight - y1) / dy;
+    t0 = Math.max(t0, Math.min(ty1, ty2));
+    t1 = Math.min(t1, Math.max(ty1, ty2));
+  }
+
+  return t0 <= t1 && t0 <= 1 && t1 >= 0;
 };

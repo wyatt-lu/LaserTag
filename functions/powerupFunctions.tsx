@@ -14,9 +14,10 @@ export const cowboyHat = async (roomCode: string | string[]) => {
       await update(playerRef, { cowboyHat: false });
     }, 5000);
   };
+
 export 
   const cowboyBoots = async () => {
-    //copy realtime database to fake user
+    //copy data from current user to fake user
     if (!auth.currentUser) return;
 
     const roomRef = ref(database, `players/${auth.currentUser.uid}`);
@@ -40,13 +41,14 @@ export
       database,
       `rooms/${roomNum}/players/${randomFakeUserId}`
     );
-    //create fakeUser data in database
+
+    //create fakeUser data in database, but tell database that this is a fake user
     await set(fakeUserRef,{
         ...playerData, 
         fake: true,
     });
 
-    //allow fake user to exist for 5 seconds
+    //allow fake user to exist for 20 seconds
     const interval = async () => {
       const interval = setInterval(async () => {
         let xDelta = Math.random() * 4 - 2;
